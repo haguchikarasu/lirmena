@@ -5,7 +5,7 @@
 :root {
   --font-size: 17px;
   --font-family: serif;
-  --paragraph-margin: 0.5em;
+  --paragraph-margin: 0.0em;
   --bg-transition-duration: 1s;
   --tag-margin: 2em;
   --story-edge-margin: 10vh;

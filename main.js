@@ -157,7 +157,10 @@
           if (i > 0) {
             if (part === '') {
               closeParagraph();
-              content.appendChild(document.createElement('br'));
+              // 末尾の \n（最後の空文字列）は段落区切りのみ。\n\n の場合は後続パートがあるので <br> を出す
+              if (i < parts.length - 1) {
+                content.appendChild(document.createElement('br'));
+              }
               return;
             }
             closeParagraph();
