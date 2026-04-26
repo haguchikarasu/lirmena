@@ -3,7 +3,7 @@
    ============================================================ */
 
 :root {
-  --font-size: 1rem;
+  --font-size: 17px;
   --font-family: serif;
   --paragraph-margin: 0.5em;
   --bg-transition-duration: 1s;
@@ -81,9 +81,8 @@ html, body {
 
 #story {
   writing-mode: vertical-rl;
-  min-height: 100vh;
+  height: 100vh;
   padding: var(--story-edge-margin);
-  line-height: 2;
 }
 
 /* ============================================================
@@ -125,6 +124,83 @@ html, body {
   font-size: 1.2rem;
   cursor: pointer;
   backdrop-filter: blur(4px);
+}
+
+/* ============================================================
+   本文要素
+   ============================================================ */
+
+/* タイトルカード・ナビゲーションカード共通 */
+.title-card,
+.nav-card {
+  display: flex;
+  writing-mode: horizontal-tb; /* 親の vertical-rl をリセット */
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  height: 100vh;
+}
+
+/* 縦書き */
+.vertical .title-card {
+  width: 50vw;
+  align-items: flex-start;
+  padding-top: 25vh;
+}
+
+.vertical .nav-card {
+  width: 50vw;
+}
+
+@media (orientation: portrait) {
+  .vertical .title-card,
+  .vertical .nav-card {
+    width: 100vw;
+  }
+}
+
+/* 横書き */
+.horizontal .title-card,
+.horizontal .nav-card {
+  width: 100%;
+  height: 50vh;
+}
+
+@media (orientation: landscape) {
+  .horizontal .title-card,
+  .horizontal .nav-card {
+    height: 100vh;
+  }
+}
+
+.title-card__text {
+  font-size: 1.1em;
+  font-weight: normal;
+  letter-spacing: 0.2em;
+}
+
+/* 本文ラッパー */
+.story-content p {
+  line-height: 1.8;
+  margin-block-end: var(--paragraph-margin);
+}
+
+/* 演出的な空行（\n\n）のスペーサー */
+.story-content br {
+  display: block;
+  width: 2em;
+}
+
+ruby rt {
+  font-size: 0.6em;
+}
+
+/* @@タグ@@ の位置マーカー（不可視、フェーズ4以降でトリガーに使用） */
+.story-tag {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 /* ============================================================
