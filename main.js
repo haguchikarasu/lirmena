@@ -42,15 +42,12 @@
         fetchEpisodes(),
       ]);
 
-      let cardContent;
-      if (secNum === 1) {
-        const epData = episodes.find(e => e.id === epNum);
-        cardContent = epData ? epData.title : `section ${secStr}`;
-      } else {
-        cardContent = `section ${secStr}`;
-      }
+      const epData   = episodes.find(e => e.id === epNum);
+      const cardInfo = secNum === 1
+        ? { isEpTitle: true,  text: epData ? epData.title : null }
+        : { isEpTitle: false, num: secStr };
 
-      render(tokenize(text), cardContent, storyEl);
+      render(tokenize(text), cardInfo, storyEl);
 
       // スクロール位置を先頭にリセット
       requestAnimationFrame(() => {
@@ -86,15 +83,17 @@
   function tokenize(raw) {
     const text   = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const tokens = [];
-    const re     = /@@([A-Z]+):([^@]*)@@|\|([^《\n]+)《([^》]*)》/g;
+    const re     = /@@([A-Z]+):([^@]*)@@|\|([^《\n]+)《([^》]*)》|\^([^^]+)\^/g;
     let last = 0, m;
 
     while ((m = re.exec(text)) !== null) {
       if (m.index > last) tokens.push({ type: 'text', value: text.slice(last, m.index) });
       if (m[1] !== undefined) {
         tokens.push({ type: 'tag', tagType: m[1], value: m[2] });
-      } else {
+      } else if (m[3] !== undefined) {
         tokens.push({ type: 'ruby', base: m[3], reading: m[4] });
+      } else {
+        tokens.push({ type: 'tcy', value: m[5] });
       }
       last = m.index + m[0].length;
     }
@@ -113,7 +112,7 @@
   // ── レンダラー ────────────────────────────────────────────────
   // \n  → </p><p>（段落区切り、CSS で margin 調整可能）
   // \n\n → </p><br><p>（演出的な空行）
-  function render(tokens, cardContent, container) {
+  function render(tokens, cardInfo, container) {
     const frag    = document.createDocumentFragment();
 
     // タイトルカード（本文の右／上）
@@ -121,7 +120,17 @@
     titleCard.className = 'title-card';
     const titleText = document.createElement('p');
     titleText.className = 'title-card__text';
-    titleText.textContent = cardContent;
+
+    if (cardInfo.isEpTitle) {
+      titleText.textContent = cardInfo.text ?? '';
+    } else {
+      // sec番号のみ：縦書きでは縦中横が効く、横書きでは通常表示
+      const tcySpan = document.createElement('span');
+      tcySpan.className = 'tcy';
+      tcySpan.textContent = cardInfo.num;
+      titleText.appendChild(tcySpan);
+    }
+
     titleCard.appendChild(titleText);
     frag.appendChild(titleCard);
 
@@ -156,6 +165,11 @@
         rt.textContent = tok.reading;
         ruby.appendChild(rt);
         currentP.appendChild(ruby);
+      } else if (tok.type === 'tcy') {
+        const span = document.createElement('span');
+        span.className = 'tcy';
+        span.textContent = tok.value;
+        currentP.appendChild(span);
       } else if (tok.type === 'tag') {
         const span = document.createElement('span');
         span.className = 'story-tag';

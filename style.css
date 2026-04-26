@@ -134,18 +134,18 @@ html, body {
 .title-card,
 .nav-card {
   display: flex;
-  writing-mode: horizontal-tb; /* 親の vertical-rl をリセット */
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
   height: 100vh;
 }
 
-/* 縦書き */
+/* 縦書き：writing-mode は #story から vertical-rl を継承 */
 .vertical .title-card {
   width: 50vw;
-  align-items: flex-start;
-  padding-top: 25vh;
+  justify-content: flex-start;   /* inline-start = 上端 */
+  padding-inline-start: 25vh;    /* 上から25% */
+  align-items: center;           /* block方向（水平）中央 */
 }
 
 .vertical .nav-card {
@@ -162,6 +162,7 @@ html, body {
 /* 横書き */
 .horizontal .title-card,
 .horizontal .nav-card {
+  writing-mode: horizontal-tb;
   width: 100%;
   height: 50vh;
 }
@@ -193,6 +194,11 @@ html, body {
 
 ruby rt {
   font-size: 0.6em;
+}
+
+/* 縦中横 */
+.tcy {
+  text-combine-upright: all;
 }
 
 /* @@タグ@@ の位置マーカー（不可視、フェーズ4以降でトリガーに使用） */
