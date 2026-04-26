@@ -175,15 +175,18 @@ html, body {
 }
 
 .title-card__text {
-  font-size: 1.1em;
   font-weight: normal;
   letter-spacing: 0.2em;
 }
 
+.title-card__text--ep  { font-size: 2em; }
+.title-card__text--sec { font-size: 1.1em; }
+
 /* 本文ラッパー */
 .story-content p {
-  line-height: 1.8;
+  line-height: 1.75;
   margin-block-end: var(--paragraph-margin);
+  text-align: justify;
 }
 
 /* 演出的な空行（\n\n）のスペーサー */
@@ -193,7 +196,7 @@ html, body {
 }
 
 ruby rt {
-  font-size: 0.6em;
+  font-size: 0.4em;
 }
 
 /* 縦中横 */

@@ -6,13 +6,19 @@
 
   if (!(isVertical || isHorizontal)) return;
 
-  const loadingEl = document.getElementById('loading');
-  const storyEl   = document.getElementById('story');
-  const scroller  = document.getElementById('scroll-container');
+  const loadingEl  = document.getElementById('loading');
+  const storyBody  = document.getElementById('story-body');
+  const titleTextEl = document.querySelector('.title-card__text');
+  const scroller   = document.getElementById('scroll-container');
+
+  // Chrome/Edge では scrollLeft が正値、Firefox では負値になる
+  let invertScroll      = null;
+  let restorationState  = { el: null, ratio: 0 };
 
   // イベントリスナーは一度だけ設定
   if (isVertical) initWheelScroll();
   initProgressBar();
+  initResizeHandler();
 
   // 初回読み込み + ハッシュ変更で再読み込み
   loadContent();
@@ -23,12 +29,12 @@
     const hash  = location.hash.slice(1);
     const match = /^(\d{2})-(\d{2})$/.exec(hash);
 
-    storyEl.innerHTML = '';
+    storyBody.innerHTML = '';
     loadingEl.style.display = 'flex';
 
     if (!match) {
       loadingEl.style.display = 'none';
-      storyEl.textContent = 'URLが正しくありません。例: contents-v.html#01-01';
+      storyBody.textContent = 'URLが正しくありません。例: contents-v.html#01-01';
       return;
     }
 
@@ -47,19 +53,39 @@
         ? { isEpTitle: true,  text: epData ? epData.title : null }
         : { isEpTitle: false, num: secStr };
 
-      render(tokenize(text), cardInfo, storyEl);
+      updateTitleCard(cardInfo);
+      render(tokenize(text), storyBody);
 
-      // スクロール位置を先頭にリセット
+      // スクロール位置を先頭にリセット（初回のみ invertScroll を確定）
       requestAnimationFrame(() => {
         scroller.scrollLeft = isVertical ? scroller.scrollWidth : 0;
         scroller.scrollTop  = 0;
+        if (isVertical && invertScroll === null) {
+          invertScroll = scroller.scrollLeft > 0;
+        }
+        restorationState = { el: null, ratio: getScrollRatio() };
       });
 
     } catch (err) {
-      storyEl.textContent = 'テキストの読み込みに失敗しました。';
+      storyBody.textContent = 'テキストの読み込みに失敗しました。';
       console.error(err);
     } finally {
       loadingEl.style.display = 'none';
+    }
+  }
+
+  // ── タイトルカード更新 ────────────────────────────────────────
+  function updateTitleCard(cardInfo) {
+    titleTextEl.innerHTML = '';
+    titleTextEl.classList.toggle('title-card__text--ep',  cardInfo.isEpTitle);
+    titleTextEl.classList.toggle('title-card__text--sec', !cardInfo.isEpTitle);
+    if (cardInfo.isEpTitle) {
+      titleTextEl.textContent = cardInfo.text ?? '';
+    } else {
+      const tcySpan = document.createElement('span');
+      tcySpan.className = 'tcy';
+      tcySpan.textContent = cardInfo.num;
+      titleTextEl.appendChild(tcySpan);
     }
   }
 
@@ -80,6 +106,7 @@
   // token: { type:'text', value }
   //      | { type:'tag',  tagType, value }
   //      | { type:'ruby', base, reading }
+  //      | { type:'tcy',  value }
   function tokenize(raw) {
     const text   = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const tokens = [];
@@ -112,28 +139,7 @@
   // ── レンダラー ────────────────────────────────────────────────
   // \n  → </p><p>（段落区切り、CSS で margin 調整可能）
   // \n\n → </p><br><p>（演出的な空行）
-  function render(tokens, cardInfo, container) {
-    const frag    = document.createDocumentFragment();
-
-    // タイトルカード（本文の右／上）
-    const titleCard = document.createElement('div');
-    titleCard.className = 'title-card';
-    const titleText = document.createElement('p');
-    titleText.className = 'title-card__text';
-
-    if (cardInfo.isEpTitle) {
-      titleText.textContent = cardInfo.text ?? '';
-    } else {
-      // sec番号のみ：縦書きでは縦中横が効く、横書きでは通常表示
-      const tcySpan = document.createElement('span');
-      tcySpan.className = 'tcy';
-      tcySpan.textContent = cardInfo.num;
-      titleText.appendChild(tcySpan);
-    }
-
-    titleCard.appendChild(titleText);
-    frag.appendChild(titleCard);
-
+  function render(tokens, container) {
     const content = document.createElement('div');
     content.className = 'story-content';
 
@@ -180,41 +186,72 @@
     }
 
     closeParagraph();
-    frag.appendChild(content);
+    container.appendChild(content);
+  }
 
-    // ナビゲーションカード（本文の左／下）フェーズ6で実装
-    const navCard = document.createElement('div');
-    navCard.className = 'nav-card';
-    frag.appendChild(navCard);
-
-    container.appendChild(frag);
+  // ── スクロール比率の取得・設定 ────────────────────────────────
+  function getScrollRatio() {
+    if (isVertical) {
+      if (invertScroll === null) return 0;
+      const total = scroller.scrollWidth - scroller.clientWidth;
+      if (total <= 0) return 0;
+      return invertScroll
+        ? 1 - scroller.scrollLeft / total
+        : Math.abs(scroller.scrollLeft) / total;
+    }
+    const total = scroller.scrollHeight - scroller.clientHeight;
+    return total > 0 ? scroller.scrollTop / total : 0;
   }
 
   // ── 進捗バー ──────────────────────────────────────────────────
   function initProgressBar() {
-    const bar        = document.getElementById('progress-bar');
-    let invertScroll = null;
+    const bar = document.getElementById('progress-bar');
 
     function update() {
-      let ratio;
-      if (isVertical) {
-        const total = scroller.scrollWidth - scroller.clientWidth;
-        if (total <= 0) { ratio = 0; }
-        else {
-          if (invertScroll === null) invertScroll = scroller.scrollLeft > 0;
-          ratio = invertScroll
-            ? 1 - scroller.scrollLeft / total        // Chrome/Edge
-            : Math.abs(scroller.scrollLeft) / total; // Firefox
-        }
-      } else {
-        const total = scroller.scrollHeight - scroller.clientHeight;
-        ratio = total > 0 ? scroller.scrollTop / total : 0;
-      }
+      const ratio = getScrollRatio();
       bar.style.width = `${Math.min(Math.max(ratio, 0), 1) * 100}%`;
+      const rect = scroller.getBoundingClientRect();
+      const raw  = document.elementFromPoint(
+        rect.left + rect.width  / 2,
+        rect.top  + rect.height / 2
+      );
+      restorationState = { el: raw ? (raw.closest('p') || raw) : null, ratio };
     }
 
     scroller.addEventListener('scroll', update, { passive: true });
-    requestAnimationFrame(update);
+  }
+
+  // ── リサイズ時のスクロール位置保持（画面中央の要素基準）────────
+  function scrollToCenter(el) {
+    const elRect     = el.getBoundingClientRect();
+    const scrollRect = scroller.getBoundingClientRect();
+    if (isVertical) {
+      scroller.scrollLeft += (elRect.left + elRect.width  / 2)
+                           - (scrollRect.left + scrollRect.width  / 2);
+    } else {
+      scroller.scrollTop  += (elRect.top  + elRect.height / 2)
+                           - (scrollRect.top  + scrollRect.height / 2);
+    }
+  }
+
+  function initResizeHandler() {
+    let timer = null;
+
+    window.addEventListener('resize', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const { el, ratio } = restorationState;
+        if (el && el.closest('.story-content')) {
+          scrollToCenter(el);
+        } else if (ratio < 0.5) {
+          scroller.scrollLeft = isVertical ? scroller.scrollWidth : 0;
+          scroller.scrollTop  = 0;
+        } else {
+          if (isVertical) scroller.scrollLeft = 0;
+          else scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+        }
+      }, 100);
+    });
   }
 
   // ── ホイール → 横スクロール（縦書き・PC用）──────────────────
