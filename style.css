@@ -1,0 +1,148 @@
+/* ============================================================
+   フェーズ1：スケルトン CSS
+   ============================================================ */
+
+:root {
+  --font-size: 1rem;
+  --font-family: serif;
+  --paragraph-margin: 0.5em;
+  --bg-transition-duration: 1s;
+  --tag-margin: 2em;
+  --story-edge-margin: 10vh;
+}
+
+/* ============================================================
+   リセット・ベース
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: #000;
+  color: #e8e8e8;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+}
+
+/* ============================================================
+   背景コンテナ
+   ============================================================ */
+#bg-container {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+}
+
+/* ============================================================
+   進捗バー
+   ============================================================ */
+#progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 10;
+  transition: width 0.1s linear;
+}
+
+/* ============================================================
+   ローディング
+   ============================================================ */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #888;
+  font-size: 0.9rem;
+  letter-spacing: 0.2em;
+}
+
+/* ============================================================
+   本文スクロールコンテナ（縦書き）
+   ============================================================ */
+#scroll-container {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#story {
+  writing-mode: vertical-rl;
+  min-height: 100vh;
+  padding: var(--story-edge-margin);
+  line-height: 2;
+}
+
+/* ============================================================
+   本文スクロールコンテナ（横書き）
+   ============================================================ */
+.horizontal #scroll-container {
+  height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.horizontal #story {
+  writing-mode: horizontal-tb;
+  max-width: 40em;
+  margin: 0 auto;
+  padding: var(--story-edge-margin) 1.5em;
+}
+
+/* ============================================================
+   FABボタン群
+   ============================================================ */
+#fab-group {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+#fab-group button {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+/* ============================================================
+   目次ページ
+   ============================================================ */
+#site-header {
+  padding: 3rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+#site-title {
+  font-size: 1.5rem;
+  font-weight: normal;
+  letter-spacing: 0.1em;
+}
+
+#toc {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
