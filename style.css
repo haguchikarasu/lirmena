@@ -274,15 +274,12 @@ html, body {
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
-  height: 100vh;
+/*  height: 100vh;*/ /*heightはid="sotry"から継承するため無効化*/
 }
 
 /* 縦書き：writing-mode は #story から vertical-rl を継承 */
 .vertical .title-card {
   width: min(100vw, var(--scene-area-width));
-  justify-content: flex-start;   /* inline-start = 上端 */
-  padding-inline-start: 25vh;    /* 上から25% */
-  align-items: center;           /* block方向（水平）中央 */
 }
 
 .vertical .nav-card {
