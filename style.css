@@ -142,7 +142,10 @@ html, body {
 #story {
   writing-mode: vertical-rl;
   height: 100vh;
-  padding: var(--story-edge-margin);
+  /* 横書きモードは別のスタイルシートを準備する予定なのでpaddingをtop/bottomのみに固定 */
+  /* padding: var(--story-edge-margin); */
+  padding-top: var(--story-edge-margin);
+  padding-bottom: var(--story-edge-margin);
 }
 
 /* 縦書き：タイトルカードを右端に揃えるため block-start padding を消す */
