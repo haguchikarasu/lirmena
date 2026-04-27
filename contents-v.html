@@ -9,23 +9,29 @@
 <body class="vertical">
   <div id="loading"><span>loading...</span></div>
   <div id="bg-container"></div>
+  <div id="fade-overlay"></div>
   <div id="progress-bar"></div>
 
-  <div id="scroll-container">
-    <div id="story">
-      <div class="title-card">
-        <p class="title-card__text"></p>
+  <div id="story-viewport">
+    <div id="scroll-container">
+      <div id="story">
+        <div class="title-card">
+          <p class="title-card__text"></p>
+        </div>
+        <div id="story-body"></div>
+        <div class="nav-card"></div>
       </div>
-      <div id="story-body"></div>
-      <div class="nav-card"></div>
     </div>
   </div>
+
+  <button id="btn-advance" aria-label="次の場面へ"></button>
+  <button id="btn-back"    aria-label="前の場面へ"></button>
 
   <!-- 画面右下ボタン群 -->
   <div id="fab-group">
     <button id="btn-settings" aria-label="設定">⚙</button>
     <button id="btn-bookmark" aria-label="栞を追加">🔖</button>
-    <button id="btn-share" aria-label="共有">↑</button>
+    <button id="btn-share"    aria-label="共有">↑</button>
   </div>
 
   <script src="main.js"></script>
