@@ -1,45 +1,41 @@
 (function () {
   'use strict';
 
-  const isVertical   = document.body.classList.contains('vertical');
-  const isHorizontal = document.body.classList.contains('horizontal');
-
-  if (!(isVertical || isHorizontal)) return;
+  if (!document.body.classList.contains('vertical')) return;
 
   // ── DOM参照 ──────────────────────────────────────────────────
   const loadingEl   = document.getElementById('loading');
   const storyBody   = document.getElementById('story-body');
   const titleTextEl = document.querySelector('.title-card__text');
+  const titleCard   = document.querySelector('.title-card');
+  const backCard    = document.getElementById('back-card');
+  const advanceCard = document.getElementById('advance-card');
+  const navCard     = document.getElementById('nav-card');
   const scroller    = document.getElementById('scroll-container');
   const bgContainer = document.getElementById('bg-container');
   const fadeOverlay = document.getElementById('fade-overlay');
   const advanceBtn  = document.getElementById('btn-advance');
   const backBtn     = document.getElementById('btn-back');
 
-  // Chrome/Edge では scrollLeft が正値、Firefox では負値になる
-  let invertScroll     = null;
-  let restorationState = { el: null, ratio: 0 };
+  advanceBtn.textContent = '←';
+  backBtn.textContent    = '→';
 
-  // ── Phase 2.5 状態 ───────────────────────────────────────────
+  // ── 状態 ─────────────────────────────────────────────────────
   const bgLayers = new Map(); // bgKey → div.bg-layer
   let currentBg      = null;
-  let sections       = [];   // [{ bgKey, triggerEl, firstEl }]
+  let sections       = [];   // [{ bgKey, tokens }]
   let currentSection = 0;
   let transitioning  = false;
+  let invertScroll   = null;
+  let restorationState = { el: null, ratio: 0 };
 
-  advanceBtn.textContent = isVertical ? '←' : '↓';
-  backBtn.textContent    = isVertical ? '→' : '↑';
-
-
-  // ── イベントリスナー（一度だけ設定） ─────────────────────────
-  if (isVertical) initWheelScroll();
+  // ── イベントリスナー ──────────────────────────────────────────
+  initWheelScroll();
   initProgressBar();
   initResizeHandler();
-  scroller.addEventListener('scroll', checkTriggerPosition, { passive: true });
   advanceBtn.addEventListener('click', advance);
   backBtn.addEventListener('click', back);
 
-  // 初回読み込み + ハッシュ変更で再読み込み
   loadContent();
   window.addEventListener('hashchange', loadContent);
 
@@ -48,12 +44,9 @@
     const hash  = location.hash.slice(1);
     const match = /^(\d{2})-(\d{2})$/.exec(hash);
 
-    // BG状態リセット
     sections       = [];
     currentSection = 0;
     transitioning  = false;
-    hideButton(advanceBtn);
-    hideButton(backBtn);
     bgLayers.forEach(layer => layer.remove());
     bgLayers.clear();
     currentBg = null;
@@ -83,24 +76,18 @@
         : { isEpTitle: false, num: secStr };
 
       updateTitleCard(cardInfo);
-      render(tokenize(text), storyBody);
+      sections = parseIntoSections(tokenize(text));
+      await preloadBackgrounds();
+      renderSection(0);
+      updateCards();
 
-      const contentEl = storyBody.querySelector('.story-content');
-      if (contentEl) {
-        initSections(contentEl);
-        await preloadBackgrounds();
-      }
-
-      // スクロール位置を先頭にリセット（初回のみ invertScroll を確定）
       requestAnimationFrame(() => {
-        scroller.scrollLeft = isVertical ? scroller.scrollWidth : 0;
+        scroller.scrollLeft = scroller.scrollWidth;
         scroller.scrollTop  = 0;
-        if (isVertical && invertScroll === null) {
+        if (invertScroll === null) {
           invertScroll = scroller.scrollLeft > 0;
         }
         restorationState = { el: null, ratio: getScrollRatio() };
-        positionButtons();
-        checkTriggerPosition();
       });
 
     } catch (err) {
@@ -173,10 +160,24 @@
     return tokens;
   }
 
+  // ── セクション分割 ────────────────────────────────────────────
+  // BG タグを区切りに [{bgKey, tokens}] へ分割する
+  // sections[0].bgKey は null（最初のBGタグ前）
+  function parseIntoSections(tokens) {
+    const result = [{ bgKey: null, tokens: [] }];
+    for (const tok of tokens) {
+      if (tok.type === 'tag' && tok.tagType === 'BG') {
+        result.push({ bgKey: tok.value, tokens: [] });
+      } else {
+        result[result.length - 1].tokens.push(tok);
+      }
+    }
+    return result;
+  }
+
   // ── レンダラー ────────────────────────────────────────────────
   // \n  → </p><p>（段落区切り）
   // \n\n → </p><br><p>（演出的な空行）
-  // BG タグ → <p> を閉じて .story-content の直下にブロックとして挿入
   function render(tokens, container) {
     const content = document.createElement('div');
     content.className = 'story-content';
@@ -216,22 +217,12 @@
         span.className = 'tcy';
         span.textContent = tok.value;
         currentP.appendChild(span);
-      } else if (tok.type === 'tag') {
-        if (tok.tagType === 'BG') {
-          // BG タグはブロックレベルのセクション境界として <p> の外に配置
-          closeParagraph();
-          const span = document.createElement('span');
-          span.className = 'bg-trigger';
-          span.dataset.tagType = 'BG';
-          span.dataset.value   = tok.value;
-          content.appendChild(span);
-        } else {
-          const span = document.createElement('span');
-          span.className = 'story-tag';
-          span.dataset.tagType = tok.tagType;
-          span.dataset.value   = tok.value;
-          currentP.appendChild(span);
-        }
+      } else if (tok.type === 'tag' && tok.tagType !== 'BG') {
+        const span = document.createElement('span');
+        span.className = 'story-tag';
+        span.dataset.tagType = tok.tagType;
+        span.dataset.value   = tok.value;
+        currentP.appendChild(span);
       }
     }
 
@@ -239,48 +230,20 @@
     container.appendChild(content);
   }
 
-  // ── セクション初期化 ──────────────────────────────────────────
-  // sections[0] = { bgKey: null, triggerEl: null, firstEl: null }  ← タイトルカード～最初のBGタグ前
-  // sections[N] = { bgKey: '...', triggerEl: <span>, firstEl: <p> }
-  //
-  // triggerEl の可視ルール：
-  //   trigger[1]     → 常時表示（初期フロンティア）
-  //   trigger[N≥2]   → sections[N-1] が開示されるまで section-hidden
-  function initSections(contentEl) {
-    sections = [{ bgKey: null, triggerEl: null, firstEl: null }];
-    let secIdx = 0;
-
-    for (const child of Array.from(contentEl.children)) {
-      if (child.classList.contains('bg-trigger')) {
-        secIdx++;
-        sections.push({ bgKey: child.dataset.value, triggerEl: child, firstEl: null });
-
-        if (secIdx > 1) {
-          // trigger[N≥2] は前のセクションが開示されるまで隠す
-          child.classList.add('section-hidden');
-          child.dataset.section = String(secIdx - 1);
-        }
-      } else {
-        child.dataset.section = String(secIdx);
-        if (secIdx > 0) {
-          child.classList.add('section-hidden');
-          if (!sections[secIdx].firstEl) sections[secIdx].firstEl = child;
-        }
-      }
-    }
+  function renderSection(n) {
+    storyBody.innerHTML = '';
+    render(sections[n].tokens, storyBody);
   }
 
-  // ── セクション表示・非表示 ────────────────────────────────────
-  function showSection(n) {
-    storyBody.querySelectorAll(`[data-section="${n}"]`).forEach(el => {
-      el.classList.remove('section-hidden');
-    });
-  }
+  // ── カード表示制御 ────────────────────────────────────────────
+  function updateCards() {
+    const isFirst = currentSection === 0;
+    const isLast  = currentSection === sections.length - 1;
 
-  function hideSection(n) {
-    storyBody.querySelectorAll(`[data-section="${n}"]`).forEach(el => {
-      el.classList.add('section-hidden');
-    });
+    titleCard.hidden   = !isFirst;
+    backCard.hidden    = isFirst;
+    advanceCard.hidden = isLast;
+    navCard.hidden     = !isLast;
   }
 
   // ── 背景画像プリロード ────────────────────────────────────────
@@ -333,94 +296,24 @@
     });
   }
 
-  // ── ボタン表示制御 ────────────────────────────────────────────
-  function showButton(btn) { btn.classList.add('visible'); }
-  function hideButton(btn) { btn.classList.remove('visible'); }
-
-  // ── ボタン位置計算（本文表示エリアの左右/上下1/4点に配置）────
-  function positionButtons() {
-    const r = scroller.getBoundingClientRect();
-    if (isVertical) {
-      const leftCx  = r.left + r.width * 0.25;
-      const rightCx = r.left + r.width * 0.75;
-      const midY    = r.top  + r.height * 0.5;
-      advanceBtn.style.left = `${leftCx}px`;  advanceBtn.style.top = `${midY}px`;
-      advanceBtn.style.right = 'auto';        advanceBtn.style.bottom = 'auto';
-      advanceBtn.style.transform = 'translate(-50%, -50%)';
-      backBtn.style.left = `${rightCx}px`;    backBtn.style.top = `${midY}px`;
-      backBtn.style.right = 'auto';           backBtn.style.bottom = 'auto';
-      backBtn.style.transform = 'translate(-50%, -50%)';
-    } else {
-      const midX     = r.left + r.width  * 0.5;
-      const topCx    = r.top  + r.height * 0.25;
-      const bottomCx = r.top  + r.height * 0.75;
-      backBtn.style.left = `${midX}px`;    backBtn.style.top = `${topCx}px`;
-      backBtn.style.right = 'auto';        backBtn.style.bottom = 'auto';
-      backBtn.style.transform = 'translate(-50%, -50%)';
-      advanceBtn.style.left = `${midX}px`; advanceBtn.style.top = `${bottomCx}px`;
-      advanceBtn.style.right = 'auto';     advanceBtn.style.bottom = 'auto';
-      advanceBtn.style.transform = 'translate(-50%, -50%)';
-    }
-  }
-
-  // ── トリガー位置監視 ──────────────────────────────────────────
-  const TRIGGER_THRESHOLD = 80; // px
-
-  function checkTriggerPosition() {
-    if (transitioning || sections.length === 0) return;
-
-    const sr = scroller.getBoundingClientRect();
-
-    // 進行ボタン：次のフロンティアトリガーが画面中央付近に来たら表示
-    const nextSec = sections[currentSection + 1];
-    if (nextSec) {
-      const r    = nextSec.triggerEl.getBoundingClientRect();
-      const dist = isVertical
-        ? Math.abs((r.left + r.right) / 2 - (sr.left + sr.width  / 2))
-        : Math.abs((r.top  + r.bottom) / 2 - (sr.top  + sr.height / 2));
-      dist < TRIGGER_THRESHOLD ? showButton(advanceBtn) : hideButton(advanceBtn);
-    } else {
-      hideButton(advanceBtn);
-    }
-
-    // 戻るボタン：現在セクションのトリガーが画面中央付近に来たら表示
-    if (currentSection > 0) {
-      const r    = sections[currentSection].triggerEl.getBoundingClientRect();
-      const dist = isVertical
-        ? Math.abs((r.left + r.right) / 2 - (sr.left + sr.width  / 2))
-        : Math.abs((r.top  + r.bottom) / 2 - (sr.top  + sr.height / 2));
-      dist < TRIGGER_THRESHOLD ? showButton(backBtn) : hideButton(backBtn);
-    } else {
-      hideButton(backBtn);
-    }
+  // ── スクロール先頭へ ──────────────────────────────────────────
+  function scrollToStart() {
+    scroller.scrollLeft = scroller.scrollWidth;
+    scroller.scrollTop  = 0;
   }
 
   // ── 進行処理 ──────────────────────────────────────────────────
   async function advance() {
-    if (transitioning) return;
-    const nextIdx = currentSection + 1;
-    if (!sections[nextIdx]) return;
-
+    if (transitioning || currentSection >= sections.length - 1) return;
     transitioning = true;
-    hideButton(advanceBtn);
-    hideButton(backBtn);
 
     await fadeOut();
 
-    hideSection(currentSection);
-    showSection(nextIdx);
-    // hideSection で trigger[N].triggerEl (data-section="N-1") も非表示になるため明示的に復元
-    if (sections[nextIdx].triggerEl) {
-      sections[nextIdx].triggerEl.classList.remove('section-hidden');
-    }
-    switchBackground(sections[nextIdx].bgKey);
-    currentSection = nextIdx;
-
-    const firstEl = sections[nextIdx].firstEl;
-    if (firstEl) {
-      await twoFrames();
-      scrollToCenter(firstEl);
-    }
+    currentSection++;
+    renderSection(currentSection);
+    switchBackground(sections[currentSection].bgKey);
+    updateCards();
+    scrollToStart();
 
     await fadeIn();
     transitioning = false;
@@ -429,48 +322,28 @@
   // ── 戻り処理 ──────────────────────────────────────────────────
   async function back() {
     if (transitioning || currentSection <= 0) return;
-
     transitioning = true;
-    hideButton(advanceBtn);
-    hideButton(backBtn);
 
     await fadeOut();
 
-    hideSection(currentSection);
-    const prevIdx = currentSection - 1;
-    showSection(prevIdx);
-    switchBackground(sections[prevIdx].bgKey);
-    currentSection = prevIdx;
-
-    // フロンティアトリガーを画面中央に戻す
-    const trigger = sections[currentSection + 1].triggerEl;
-    if (trigger) {
-      await twoFrames();
-      scrollToCenter(trigger);
-    }
+    currentSection--;
+    renderSection(currentSection);
+    switchBackground(sections[currentSection].bgKey);
+    updateCards();
+    scrollToStart();
 
     await fadeIn();
     transitioning = false;
-    checkTriggerPosition();
-  }
-
-  // ── ユーティリティ ────────────────────────────────────────────
-  function twoFrames() {
-    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   }
 
   // ── スクロール比率 ────────────────────────────────────────────
   function getScrollRatio() {
-    if (isVertical) {
-      if (invertScroll === null) return 0;
-      const total = scroller.scrollWidth - scroller.clientWidth;
-      if (total <= 0) return 0;
-      return invertScroll
-        ? 1 - scroller.scrollLeft / total
-        : Math.abs(scroller.scrollLeft) / total;
-    }
-    const total = scroller.scrollHeight - scroller.clientHeight;
-    return total > 0 ? scroller.scrollTop / total : 0;
+    if (invertScroll === null) return 0;
+    const total = scroller.scrollWidth - scroller.clientWidth;
+    if (total <= 0) return 0;
+    return invertScroll
+      ? 1 - scroller.scrollLeft / total
+      : Math.abs(scroller.scrollLeft) / total;
   }
 
   // ── 進捗バー ──────────────────────────────────────────────────
@@ -491,19 +364,6 @@
     scroller.addEventListener('scroll', update, { passive: true });
   }
 
-  // ── 画面中央へスクロール ──────────────────────────────────────
-  function scrollToCenter(el) {
-    const elRect     = el.getBoundingClientRect();
-    const scrollRect = scroller.getBoundingClientRect();
-    if (isVertical) {
-      scroller.scrollLeft += (elRect.left + elRect.width  / 2)
-                           - (scrollRect.left + scrollRect.width  / 2);
-    } else {
-      scroller.scrollTop  += (elRect.top  + elRect.height / 2)
-                           - (scrollRect.top  + scrollRect.height / 2);
-    }
-  }
-
   // ── リサイズ時スクロール位置保持 ─────────────────────────────
   function initResizeHandler() {
     let timer = null;
@@ -511,30 +371,26 @@
     window.addEventListener('resize', () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        positionButtons();
         const { el, ratio } = restorationState;
         if (el && el.closest('.story-content')) {
-          scrollToCenter(el);
+          const elRect     = el.getBoundingClientRect();
+          const scrollRect = scroller.getBoundingClientRect();
+          scroller.scrollLeft += (elRect.left + elRect.width  / 2)
+                               - (scrollRect.left + scrollRect.width  / 2);
         } else if (ratio < 0.5) {
-          scroller.scrollLeft = isVertical ? scroller.scrollWidth : 0;
-          scroller.scrollTop  = 0;
+          scrollToStart();
         } else {
-          if (isVertical) scroller.scrollLeft = 0;
-          else scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+          scroller.scrollLeft = 0;
         }
       }, 100);
     });
   }
 
-  // ── ホイール → 横スクロール（縦書き・PC用）──────────────────
+  // ── ホイール → 横スクロール（PC縦書き用）─────────────────────
   function initWheelScroll() {
     scroller.addEventListener('wheel', e => {
       if (e.deltaY === 0) return;
       e.preventDefault();
-      // 進行方向（手前→新コンテンツ）のロック
-      const isForward = e.deltaY > 0;
-      if (isForward  && advanceBtn.classList.contains('visible')) return;
-      if (!isForward && backBtn.classList.contains('visible'))    return;
       scroller.scrollBy({ left: -e.deltaY, behavior: 'auto' });
     }, { passive: false });
   }

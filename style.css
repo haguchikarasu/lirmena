@@ -189,11 +189,10 @@ html, body {
 }
 
 /* ============================================================
-   進行・戻るボタン
+   進行・戻るボタン（.transition-card 内に配置）
    ============================================================ */
 #btn-advance,
 #btn-back {
-  position: fixed;
   width: 3rem;
   height: 3rem;
   border-radius: 50%;
@@ -202,43 +201,7 @@ html, body {
   color: #fff;
   font-size: 1.3rem;
   cursor: pointer;
-  z-index: 30;
   backdrop-filter: blur(4px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-#btn-advance.visible,
-#btn-back.visible {
-  opacity: 1;
-  pointer-events: all;
-}
-
-/* 縦書き：進行=左中央、戻る=右中央 */
-.vertical #btn-advance {
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.vertical #btn-back {
-  right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-/* 横書き：進行=下中央、戻る=上中央 */
-.horizontal #btn-advance {
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.horizontal #btn-back {
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 /* ============================================================
@@ -270,21 +233,19 @@ html, body {
    本文要素
    ============================================================ */
 
-/* タイトルカード・ナビゲーションカード共通 */
+/* タイトルカード・遷移カード・ナビゲーションカード共通 */
 .title-card,
+.transition-card,
 .nav-card {
   display: flex;
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
-/*  height: 100vh;*/ /*heightはid="sotry"から継承するため無効化*/
 }
 
-/* 縦書き：writing-mode は #story から vertical-rl を継承 */
-.vertical .title-card {
-  width: min(100vw, var(--scene-area-width));
-}
-
+/* 縦書き */
+.vertical .title-card,
+.vertical .transition-card,
 .vertical .nav-card {
   width: min(100vw, var(--scene-area-width));
 }
