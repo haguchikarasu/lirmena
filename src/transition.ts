@@ -71,7 +71,7 @@ async function _run(address: SceneAddress): Promise<void> {
     }
 
     if (target.scene === 0) {
-        renderer.renderTitleCard(target.ep, target.sec, state.getEpTitle(target.ep));
+        renderer.renderTitleCard(state.getEpisode(target.ep)!, state.getSection(target.ep, target.sec)!);
     } else {
         renderer.renderScene(_scenes[target.scene - 1]);
     }
@@ -87,7 +87,7 @@ async function _run(address: SceneAddress): Promise<void> {
 
     // scene >= 1 のときのみ既読記録（タイトルカード表示では記録しない）
     if (target.scene >= 1) {
-        bookmark.markRead(target.ep, target.sec);
+        bookmark.markRead(target);
     }
 
     await _fadeIn();

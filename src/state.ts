@@ -6,7 +6,7 @@
  * 【被依存】main / nav / menu / transition / progress / bookmark
  */
 
-import type { EpisodesData, SceneAddress } from './types';
+import type { EpisodesData, Episode, EpisodeSection, SceneAddress } from './types';
 
 /**
  * getPrev() がタイトルカードから前 sec へ戻る際に返す scene 値。
@@ -39,6 +39,16 @@ export function isOnTitleCard(): boolean {
 /** ep のタイトルを返す。存在しなければ undefined */
 export function getEpTitle(ep: number): string | undefined {
     return _data.find(e => e.id === ep)?.title;
+}
+
+/** Episode オブジェクトを返す。存在しなければ undefined */
+export function getEpisode(ep: number): Episode | undefined {
+    return _data.find(e => e.id === ep);
+}
+
+/** EpisodeSection オブジェクトを返す。存在しなければ undefined */
+export function getSection(ep: number, sec: number): EpisodeSection | undefined {
+    return _data.find(e => e.id === ep)?.sections.find(s => s.id === sec);
 }
 
 /** 指定 ep/sec が公開済みか */
