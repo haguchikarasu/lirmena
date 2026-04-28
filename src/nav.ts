@@ -23,14 +23,50 @@
  */
 
 import type { SceneAddress, EpisodesData } from "./types";
+import * as state from "./state";
+import * as transition from "./transition";
 
-// DOM からボタン要素を querySelector で取得し、クリック・キーイベントを登録する
-// - 進行ボタン押下: state.getNextAddress() を取得し transition.trigger("forward") を呼ぶ
-// - 戻るボタン押下: state.getPrevAddress() を取得し transition.trigger("backward") を呼ぶ
+let _btnNext!: HTMLButtonElement;
+let _btnPrev!: HTMLButtonElement;
+
+// DOM からボタン要素を querySelector で取得し、クリックイベントを登録する
+// - 進行ボタン押下: state.getNext() を取得し transition.trigger() を呼ぶ
+// - 戻るボタン押下: state.getPrev() を取得し transition.trigger() を呼ぶ
 // - initNav は起動時に1度だけ main.ts から呼ばれる
 // initNav(): void
+export function initNav(): void {
+    _btnNext = document.querySelector<HTMLButtonElement>('#btn-next')!;
+    _btnPrev = document.querySelector<HTMLButtonElement>('#btn-prev')!;
+
+    _btnNext.addEventListener('click', () => {
+        const addr = state.getNext();
+        if (addr) transition.trigger(addr);
+    });
+
+    _btnPrev.addEventListener('click', () => {
+        const addr = state.getPrev();
+        if (addr) transition.trigger(addr);
+    });
+}
 
 // ボタンのラベルと有効/無効状態を現在のアドレスに応じて更新する
 // - transition 完了後に main.ts が transition へ渡したコールバック経由で呼ばれる
 // - data は「次の sec が存在するか」「前の sec が存在するか」の判定に使う
 // updateNav(address: SceneAddress, data: EpisodesData): void
+export function updateNav(address: SceneAddress, _data: EpisodesData): void {
+    const next = state.getNext();
+    const prev = state.getPrev();
+    const isLastScene = address.scene > 0 && address.scene === state.getScenesCount();
+
+    if (address.scene === 0) {
+        _btnNext.textContent = 'はじめる';
+    } else if (isLastScene) {
+        _btnNext.textContent = '次のセクションへ';
+    } else {
+        _btnNext.textContent = '次へ';
+    }
+    _btnNext.disabled = next === null;
+
+    _btnPrev.textContent = address.scene === 0 ? '前のセクションへ' : '戻る';
+    _btnPrev.disabled = prev === null;
+}
