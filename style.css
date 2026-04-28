@@ -46,6 +46,10 @@
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   height: 100%;
   background: #000;

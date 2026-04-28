@@ -108,6 +108,9 @@ async function _init(): Promise<void> {
     nav.update();
     progress.initProgress(scenes);
     progress.updateProgress(address.scene);
+
+    const loadingEl = document.querySelector<HTMLElement>('#loading');
+    if (loadingEl) loadingEl.hidden = true;
 }
 
 /**
@@ -127,7 +130,10 @@ function _resolveAddress(data: EpisodesData): SceneAddress | null {
     const address = state.parseHash(hash);
     if (!address) return null;
 
-    if (!state.isPublished(address.ep, address.sec)) return null;
+    // state.init() より前に呼ばれるため state._data は未設定。data を直接参照する
+    const ep = data.find(e => e.id === address.ep);
+    const sec = ep?.sections.find(s => s.id === address.sec);
+    if (!sec?.published) return null;
 
     return address;
 }
@@ -154,8 +160,10 @@ async function _loadSec(ep: number, sec: number): Promise<Scene[]> {
  * 依存: DOM (#error-message, #main-container)
  */
 function _showError(message: string): void {
+    const loadingEl = document.querySelector<HTMLElement>('#loading');
     const errorEl = document.querySelector<HTMLElement>('#error-message');
     const containerEl = document.querySelector<HTMLElement>('#main-container');
+    if (loadingEl) loadingEl.hidden = true;
     if (errorEl) {
         errorEl.textContent = message;
         errorEl.hidden = false;
