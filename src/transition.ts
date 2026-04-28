@@ -57,11 +57,11 @@ export async function trigger(address: SceneAddress): Promise<void> {
 async function _run(address: SceneAddress): Promise<void> {
     const current = state.getCurrent();
     let target = { ...address };
-    const secChanged = target.ep !== current.ep || target.sec !== current.sec;
+    const needsLoad = target.ep !== current.ep || target.sec !== current.sec || target.scene === LAST_SCENE;
 
     await _fadeOut();
 
-    if (secChanged || target.scene === LAST_SCENE) {
+    if (needsLoad) {
         _scenes = await _loadSec(target.ep, target.sec);
     }
 
@@ -70,27 +70,25 @@ async function _run(address: SceneAddress): Promise<void> {
         target = { ...target, scene: _scenes.length };
     }
 
-    // コンテンツ差し替え（renderer の詳細 IF は renderer.ts 設計時に確定）
     if (target.scene === 0) {
         renderer.renderTitleCard(target.ep, target.sec, state.getEpTitle(target.ep));
     } else {
         renderer.renderScene(_scenes[target.scene - 1]);
     }
 
-    // 背景切替（bg.set の詳細 IF は bg.ts 設計時に確定）
     bg.set(target.scene === 0 ? null : (_scenes[target.scene - 1]?.bgFile ?? null));
 
     history.replaceState(null, '', state.toHash(target));
     state.setCurrent(target);
 
+    _updateNav();
+    if (needsLoad) progress.initProgress(_scenes);
+    progress.updateProgress(target.scene);
+
     // scene >= 1 のときのみ既読記録（タイトルカード表示では記録しない）
     if (target.scene >= 1) {
         bookmark.markRead(target.ep, target.sec);
     }
-
-    // 進捗バー更新（progress.update の詳細 IF は progress.ts 設計時に確定）
-    progress.update(_scenes, target.scene);
-    _updateNav();
 
     await _fadeIn();
 }
