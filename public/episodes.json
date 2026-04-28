@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "title": "星の眠る海",
+    "sections": [
+      { "id": 1, "published": true },
+      { "id": 2, "published": false }
+    ]
+  }
+]
