@@ -93,17 +93,17 @@ async function _run(address: SceneAddress): Promise<void> {
     await _fadeIn();
 }
 
-// オーバーレイに 'active' クラスを付与→CSS transition で暗転。transitionend で解決。
+// オーバーレイに 'fading' クラスを付与→CSS transition で暗転。transitionend で解決。
 function _fadeOut(): Promise<void> {
     return new Promise(resolve => {
-        _overlay.classList.add('active');
+        _overlay.classList.add('fading');
         _overlay.addEventListener('transitionend', () => resolve(), { once: true });
     });
 }
 
 function _fadeIn(): Promise<void> {
     return new Promise(resolve => {
-        _overlay.classList.remove('active');
+        _overlay.classList.remove('fading');
         _overlay.addEventListener('transitionend', () => resolve(), { once: true });
     });
 }

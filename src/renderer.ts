@@ -18,6 +18,11 @@
  *       { type: "ruby" }  → <ruby>base<rt>rt</rt></ruby>
  *       { type: "tcy"  }  → <span style="text-combine-upright: all">value</span>
  *       { type: "br"   }  → <br>
+ *
+ * attachWheelFix(el: HTMLElement): void
+ *   - writing-mode: vertical-rl の RTL scrollLeft 補正
+ *   - モジュール初期化時に #title-card・#scene-content へ各1回登録する
+ *   - replaceChildren() は要素自体を保持するため render 関数内ではなくここで呼ぶ
  */
 
 import type { Episode, EpisodeSection, Scene } from "./types";
@@ -25,6 +30,8 @@ import type { TextNode } from "./parser";
 
 const titleCardEl = document.querySelector<HTMLElement>("#title-card")!;
 const sceneContentEl = document.querySelector<HTMLElement>("#scene-content")!;
+attachWheelFix(titleCardEl);
+attachWheelFix(sceneContentEl);
 
 // エリアBにタイトルカードを生成・差し替えし、エリアCを非表示にする
 // - sec.id === 1 のとき ep.title を表示
@@ -55,6 +62,15 @@ export function renderScene(scene: Scene): void {
 
   sceneContentEl.hidden = false;
   titleCardEl.hidden = true;
+}
+
+// wheel イベントで deltaY を RTL scrollLeft に変換する（vertical-rl 縦書き補正）
+// el: スクロール対象要素（#scene-content または #title-card）
+function attachWheelFix(el: HTMLElement): void {
+  el.addEventListener('wheel', (e: WheelEvent) => {
+    e.preventDefault();
+    el.scrollLeft -= e.deltaY; // deltaY正 = 下スクロール = 左へ（本文を進む）
+  }, { passive: false });
 }
 
 // TextNode[] を DOM Node[] に変換する
