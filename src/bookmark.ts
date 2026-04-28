@@ -1,7 +1,7 @@
 /*
  * bookmark.ts
  * 責務: 栞（最大3スロット）・既読 sec の localStorage 保存・復元・クリア
- * export: BookmarkEntry, init(), saveBookmark(), getBookmarks(), markRead(), clearSlots(), clearRead()
+ * export: BookmarkEntry, init(), addBookmark(), getBookmarks(), markRead(), clearSlots(), clearRead()
  * 依存: なし
  *
  * BookmarkEntry:
@@ -51,9 +51,10 @@ export function init(): void {
     }
 }
 
-// 現在の SceneAddress とスクロール位置を栞に保存する（超過時は最古を削除）
-// saveBookmark(address: SceneAddress, scrollY: number): void
-export function saveBookmark(address: SceneAddress, scrollY: number): void {
+// 現在の SceneAddress を栞に保存する。スクロール位置は window.scrollY から取得する（超過時は最古を削除）
+// addBookmark(address: SceneAddress): void
+export function addBookmark(address: SceneAddress): void {
+    const scrollY = window.scrollY;
     const entry: BookmarkEntry = { address: { ...address }, scrollY, savedAt: Date.now() };
     _bookmarks.push(entry);
     if (_bookmarks.length > MAX_SLOTS) {

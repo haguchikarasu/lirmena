@@ -115,7 +115,7 @@ export function getPrev(): SceneAddress | null {
  * menu.ts 用。現在位置に関係なく、前の公開済み sec のタイトルカードへ。なければ null。
  * getPrev() とは異なり、シーン位置を無視して sec 単位で移動する。
  */
-export function getPrevSec(): SceneAddress | null {
+export function getPrevSecAddress(): SceneAddress | null {
     const prev = findPrevPublishedSec(_current.ep, _current.sec);
     return prev ? { ...prev, scene: 0 } : null;
 }
@@ -124,7 +124,7 @@ export function getPrevSec(): SceneAddress | null {
  * menu.ts 用。現在位置に関係なく、次の公開済み sec のタイトルカードへ。なければ null。
  * getNext() とは異なり、シーン位置を無視して sec 単位で移動する。
  */
-export function getNextSec(): SceneAddress | null {
+export function getNextSecAddress(): SceneAddress | null {
     return findNextPublishedSec(_current.ep, _current.sec);
 }
 
