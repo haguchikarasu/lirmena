@@ -1,7 +1,7 @@
 /*
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理
- * export: initMenu()
+ * export: init()
  * 依存: state.ts, transition.ts, bookmark.ts, settings.ts
  *
  * メニュー項目と処理：
@@ -40,8 +40,8 @@ let _btnNextSec: HTMLButtonElement;
 
 // DOM からメニューボタン・パネルを取得し、項目を生成してイベントを登録する。
 // main.ts が起動時に一度だけ呼ぶ。
-// initMenu(): void
-export function initMenu(): void {
+// init(): void
+export function init(): void {
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
     _buildItems();

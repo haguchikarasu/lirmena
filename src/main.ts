@@ -14,10 +14,11 @@
  *              getEpTitle(ep: number): string | undefined
  *   transition: init(scenes: Scene[], loadSec: (ep: number, sec: number) => Promise<Scene[]>, updateNav: () => void): void
  *              / trigger(address: SceneAddress): Promise<void>
- *   renderer : renderTitleCard(ep: number, sec: number, epTitle: string | undefined): void
+ *   renderer : renderTitleCard(ep: Episode, sec: EpisodeSection): void
  *              renderScene(scene: Scene): void
  *   bg       : set(bgFile: string | null): void
- *   progress : update(scenes: Scene[], currentScene: number): void
+ *   progress : initProgress(scenes: Scene[]): void
+ *              updateProgress(currentScene: number): void
  *              currentScene === 0 のとき 0% 表示
  *   nav      : init(): void / update(): void
  *   menu     : init(): void
@@ -99,13 +100,14 @@ async function _init(): Promise<void> {
     menu.init();
 
     if (address.scene === 0) {
-        renderer.renderTitleCard(address.ep, address.sec, state.getEpTitle(address.ep));
+        renderer.renderTitleCard(state.getEpisode(address.ep)!, state.getSection(address.ep, address.sec)!);
     } else {
         renderer.renderScene(scenes[address.scene - 1]);
     }
     bg.set(address.scene === 0 ? null : (scenes[address.scene - 1]?.bgFile ?? null));
     nav.update();
-    progress.update(scenes, address.scene);
+    progress.initProgress(scenes);
+    progress.updateProgress(address.scene);
 }
 
 /**
