@@ -1,6 +1,45 @@
 /* style.css */
 
-/* ===== リセット・ベース ===== */
+/* ===================================================
+   CSS 変数
+   --font-size / --font-family / --paragraph-margin は
+   settings.ts が document.documentElement.style.setProperty() で切り替える
+=================================================== */
+:root {
+  /* フォントサイズ（settings.ts が --font-size を切り替える） */
+  --font-size-sm: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 20px;
+  --font-size: var(--font-size-md);
+
+  /* フォントファミリー（settings.ts が --font-family を切り替える） */
+  --font-family-serif: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+  --font-family-sans:  'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+  --font-family: var(--font-family-serif);
+
+  /* 段落間マージン（settings.ts が --paragraph-margin を切り替える） */
+  --paragraph-margin-sm: 0em;
+  --paragraph-margin-md: 1em;
+  --paragraph-margin-lg: 2.5em;
+  --paragraph-margin: var(--paragraph-margin-md);
+
+  /* レイアウト（開発者が調整する定数） */
+  --story-padding: 10vh;          /* 本文エリアの天地余白 */
+  --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
+  --scene-max-w: 38em;            /* 縦書き：読書エリアの最大横幅 */
+  --scene-threshold: 900px;       /* 横幅制限を適用するブレークポイント */
+
+  /* アニメーション（開発者が調整する定数） */
+  --fade-duration: 0.4s;
+
+  /* テーマカラー（meta theme-color と合わせること） */
+  --theme-color: #2d5a3d;
+}
+
+
+/* ===================================================
+   リセット・ベース
+=================================================== */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -11,16 +50,452 @@ html, body {
   height: 100%;
   background: #000;
   color: #e8e0d0;
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
 }
 
-/* ===== 背景レイヤー ===== */
+/* ボタン要素のフォント継承（UA スタイルシートの上書き） */
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+
+/* ===================================================
+   ローディング（main.ts が hidden 属性を付与して非表示にする）
+=================================================== */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #555;
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
+}
+
+
+/* ===================================================
+   背景レイヤー（bg.ts が backgroundImage を動的に設定する）
+=================================================== */
 #bg-layer {
   position: fixed;
   inset: 0;
   z-index: 0;
+  background-color: #000; /* 画像なし・読込失敗時のフォールバック */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  /* backgroundImage は bg.ts が動的に設定 */
+}
+
+/* 背景画像がある場合の薄い暗幕オーバーレイ */
+#bg-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  pointer-events: none;
+}
+
+
+/* ===================================================
+   暗転オーバーレイ（transition.ts が .fading クラスを切り替える）
+=================================================== */
+#transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-duration) ease;
+}
+
+#transition-overlay.fading {
+  opacity: 1;
+  pointer-events: all;
+}
+
+
+/* ===================================================
+   進捗バー（progress.ts が #progress-fill の width を操作する）
+=================================================== */
+#progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 10;
+}
+
+#progress-fill {
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.55);
+  transition: width 0.15s linear;
+}
+
+
+/* ===================================================
+   メインコンテナ
+=================================================== */
+#main-container {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+}
+
+
+/* ===================================================
+   戻る・進行ボタン（nav.ts が querySelector で取得し、ラベル・イベントを設定）
+   縦書き：右端（reading-start）＝戻るボタン、左端（reading-end）＝進行ボタン
+=================================================== */
+#btn-prev,
+#btn-next {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: var(--nav-btn-w);
+  height: 7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.42);
+  color: #ccc8c0;
+  font-size: 1.1rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s, color 0.2s;
+}
+
+#btn-prev:hover,
+#btn-next:hover {
+  background: rgba(0, 0, 0, 0.65);
+  color: #f0ece4;
+}
+
+#btn-prev:focus-visible,
+#btn-next:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: -2px;
+}
+
+/* 戻るボタン：右端（縦書き reading-start 側） */
+#btn-prev {
+  right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
+/* 進行ボタン：左端（縦書き reading-end 側） */
+#btn-next {
+  left: 0;
+  border-radius: 0 4px 4px 0;
+}
+
+/* タッチ端末：ボタン高さを広げてタップしやすく */
+@media (pointer: coarse) {
+  #btn-prev,
+  #btn-next {
+    height: 9rem;
+  }
+}
+
+
+/* ===================================================
+   タイトルカード・本文表示エリア（renderer.ts が内容を生成し hidden を切り替える）
+   B と C は排他表示：hidden 属性で制御
+=================================================== */
+#title-card,
+#scene-content {
+  writing-mode: vertical-rl;
+  height: 100vh;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-top: var(--story-padding);
+  padding-bottom: var(--story-padding);
+  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
+  padding-right: calc(var(--nav-btn-w) + 1rem);
+  padding-left:  calc(var(--nav-btn-w) + 1rem);
+  /* スクロールバーを非表示（スクロール機能は維持） */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#title-card::-webkit-scrollbar,
+#scene-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* 横幅が広い画面では読書エリアを中央に制限 */
+@media (min-width: 900px) {
+  #title-card,
+  #scene-content {
+    max-width: var(--scene-max-w);
+    margin-left: auto;
+    margin-right: auto;
+    padding-right: 3rem;
+    padding-left:  3rem;
+  }
+}
+
+
+/* ===================================================
+   タイトルカード内容（renderer.ts が生成するクラス）
+=================================================== */
+.title-card__ep {
+  font-size: 1.9em;
+  font-weight: normal;
+  letter-spacing: 0.2em;
+}
+
+.title-card__sec {
+  font-size: 1.1em;
+  font-weight: normal;
+  letter-spacing: 0.15em;
+}
+
+
+/* ===================================================
+   本文テキスト（renderer.ts が生成するクラス）
+=================================================== */
+.story-content p {
+  line-height: 1.85;
+  margin-block-end: var(--paragraph-margin);
+  text-align: justify;
+}
+
+/* 縦中横（renderer.ts が .tcy を付与） */
+.tcy {
+  text-combine-upright: all;
+}
+
+/* ルビ */
+ruby rt {
+  font-size: 0.4em;
+}
+
+
+/* ===================================================
+   右下ナビゲーションメニュー（menu.ts が操作）
+=================================================== */
+#menu-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 20;
+}
+
+/* メニュートグルボタン */
+#menu-toggle {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d4cc;
+  font-size: 1.1rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+#menu-toggle:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#menu-toggle:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+/* メニューパネル（menu.ts が hidden を切り替える） */
+#menu-panel {
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  right: 0;
+  min-width: 12rem;
+  background: rgba(8, 8, 8, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* menu.ts が動的生成するメニューアイテムボタン */
+#menu-panel button {
+  display: block;
+  width: 100%;
+  padding: 0.8rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #dedad2;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  /* 縦書きコンテキストの外にあるが明示的にリセット */
+  writing-mode: horizontal-tb;
+  transition: background 0.15s;
+}
+
+#menu-panel button:last-child {
+  border-bottom: none;
+}
+
+#menu-panel button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+#menu-panel button:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+
+/* ===================================================
+   設定ポップアップ（settings.ts が操作）
+=================================================== */
+#settings-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* settings.ts が生成するパネル */
+.settings-panel {
+  width: min(88vw, 21rem);
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  overflow: hidden;
+  writing-mode: horizontal-tb; /* 縦書きコンテキストから切り離す */
+}
+
+.settings-panel__title {
+  padding: 0.9rem 1.2rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: #777;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.2rem;
+}
+
+.settings-row__label {
+  font-size: 0.87rem;
+  color: #c0bcb4;
+}
+
+.settings-row__opts {
+  display: flex;
+  gap: 0.35rem;
+}
+
+/* 選択肢ボタン（フォントサイズ・フォント・段落間マージン用） */
+.settings-opt {
+  padding: 0.27rem 0.6rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 4px;
+  color: #b8b4ac;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-opt:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.settings-opt.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #eeece8;
+}
+
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 0.2rem 0;
+}
+
+/* 栞クリア・既読クリア・全設定初期化ボタン */
+.settings-action {
+  display: block;
+  width: calc(100% - 2.4rem);
+  margin: 0.35rem 1.2rem;
+  padding: 0.48rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: #888;
+  font-size: 0.82rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #bbb;
+}
+
+/* 閉じるボタン */
+.settings-close {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #777;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+
+
+/* ===================================================
+   エラーメッセージ（main.ts が hidden を外す）
+=================================================== */
+#error-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  width: min(80vw, 24rem);
+  color: #666;
+  font-size: 0.88rem;
+  line-height: 2;
+  text-align: center;
+  writing-mode: horizontal-tb;
 }

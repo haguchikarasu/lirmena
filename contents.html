@@ -13,13 +13,16 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
+  <div id="loading"><span>読み込み中</span></div>
+
   <!-- 背景レイヤー（bg.ts が操作） -->
   <div id="bg-layer" aria-hidden="true"></div>
 
   <!-- メインコンテナ（B と C は排他表示。renderer.ts が hidden を切り替える） -->
   <div id="main-container">
     <!-- エリアA: 戻るボタン（右端）。nav.ts が querySelector で取得 -->
-    <button id="btn-prev" type="button" aria-label="前へ"></button>
+    <button id="btn-prev" type="button" aria-label="前へ" tabindex="2"></button>
 
     <!-- エリアB: タイトルカード（renderer.ts が内容を生成） -->
     <div id="title-card" hidden></div>
@@ -28,7 +31,7 @@
     <div id="scene-content" hidden></div>
 
     <!-- エリアD: 進行ボタン（左端）。nav.ts が querySelector で取得 -->
-    <button id="btn-next" type="button" aria-label="次へ"></button>
+    <button id="btn-next" type="button" aria-label="次へ" tabindex="1"></button>
   </div>
 
   <!-- 進捗バー（progress.ts が操作） -->
