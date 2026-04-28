@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報
+       - theme-color は CSS 変数と2箇所で管理。変更時は両方合わせること
+       - og:image は public/img/ogp.png（1200×630px 推奨）
+       - og:description は設定しない
+       - contents.html にも同じ OGP 設定が必要
+  -->
   <meta name="theme-color" content="#2d5a3d" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
@@ -13,5 +19,6 @@
 </head>
 <body>
   <!-- 目次ページ -->
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

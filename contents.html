@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報（index.html と同じ設定。変更時は両方合わせること） -->
   <meta name="theme-color" content="#2d5a3d" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
@@ -12,11 +13,50 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- 本文ページ -->
-  <!-- エリアA: 戻るボタン -->
-  <!-- エリアB: タイトルカード -->
-  <!-- エリアC: 本文表示エリア -->
-  <!-- エリアD: 進行ボタン -->
+  <!-- 背景レイヤー（bg.ts が操作） -->
+  <div id="bg-layer" aria-hidden="true"></div>
+
+  <!-- メインコンテナ（B と C は排他表示。renderer.ts が hidden を切り替える） -->
+  <div id="main-container">
+    <!-- エリアA: 戻るボタン（右端）。nav.ts が querySelector で取得 -->
+    <button id="btn-prev" type="button" aria-label="前へ"></button>
+
+    <!-- エリアB: タイトルカード（renderer.ts が内容を生成） -->
+    <div id="title-card" hidden></div>
+
+    <!-- エリアC: 本文表示エリア（renderer.ts が内容を生成） -->
+    <div id="scene-content" hidden></div>
+
+    <!-- エリアD: 進行ボタン（左端）。nav.ts が querySelector で取得 -->
+    <button id="btn-next" type="button" aria-label="次へ"></button>
+  </div>
+
+  <!-- 進捗バー（progress.ts が操作） -->
+  <div id="progress-bar" aria-hidden="true">
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- 右下ナビゲーションメニュー（menu.ts が操作） -->
+  <div id="menu-container">
+    <button id="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">
+      ☰
+    </button>
+    <div id="menu-panel" hidden>
+      <!-- メニュー項目は menu.ts が生成 -->
+    </div>
+  </div>
+
+  <!-- 設定ポップアップ（settings.ts が操作） -->
+  <div id="settings-popup" hidden role="dialog" aria-label="設定">
+    <!-- 設定項目は settings.ts が生成 -->
+  </div>
+
+  <!-- 暗転オーバーレイ（transition.ts が操作） -->
+  <div id="transition-overlay" aria-hidden="true"></div>
+
+  <!-- エラー表示（main.ts が操作） -->
+  <p id="error-message" hidden role="alert"></p>
+
   <script type="module" src="src/main.ts"></script>
 </body>
 </html>
