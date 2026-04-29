@@ -60,6 +60,8 @@ html, body {
   color: #e8e0d0;
   font-family: var(--font-family);
   font-size: var(--font-size);
+  padding-left: 1em;
+  padding-right: 1em;
 }
 
 body {
@@ -277,7 +279,8 @@ button {
   width: 75%;
   font-size: 150%;
   display: flex;
-  align-items: center; /* vertical-rl のクロス軸（水平）方向に中央揃え */
+  padding-top: 10%;
+  /* align-items: center; vertical-rl のクロス軸（水平）方向に中央揃え */
 }
 
 #scene-content {
