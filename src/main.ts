@@ -29,6 +29,9 @@
  *         nav ↔ transition の循環依存を解消する
  * 【注意】bookmark.clearSlots / clearRead を settings.init に注入する
  *         （settings は bookmark を import しない）
+ * 【注意】wheel 補正（deltaY → scrollLeft 変換）は #main-container に1度だけ登録する
+ *         writing-mode: vertical-rl では scrollLeft は右端が 0・左スクロールで負値になるため
+ *         deltaY（正＝下スクロール）を反転して加算し縦スクロール入力を横スクロールに変換する
  */
 
 import * as state from './state';
@@ -89,6 +92,12 @@ async function _init(): Promise<void> {
         _showError('本文の読み込みに失敗しました。ページを再読み込みしてください。');
         return;
     }
+
+    const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
+    mainContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        mainContainer.scrollLeft -= e.deltaY;
+    }, { passive: false });
 
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),

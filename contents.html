@@ -21,8 +21,10 @@
 
   <!-- メインコンテナ（B と C は排他表示。renderer.ts が hidden を切り替える） -->
   <div id="main-container">
-    <!-- エリアA: 戻るボタン（右端）。nav.ts が querySelector で取得 -->
-    <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
+    <!-- エリアA: 戻るボタンコンテナ（right端・reading-start）。nav.ts が #btn-prev を querySelector で取得 -->
+    <div id="btn-container-start" class="btn-container">
+      <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
+    </div>
 
     <!-- エリアB: タイトルカード（renderer.ts が内容を生成） -->
     <div id="title-card" hidden></div>
@@ -30,8 +32,10 @@
     <!-- エリアC: 本文表示エリア（renderer.ts が内容を生成） -->
     <div id="scene-content" hidden></div>
 
-    <!-- エリアD: 進行ボタン（左端）。nav.ts が querySelector で取得 -->
-    <button id="btn-next" type="button" aria-label="次へ" tabindex="1">‹</button>
+    <!-- エリアD: 進行ボタンコンテナ（left端・reading-end）。nav.ts が #btn-next を querySelector で取得 -->
+    <div id="btn-container-end" class="btn-container">
+      <button id="btn-next" type="button" aria-label="次へ" tabindex="1">‹</button>
+    </div>
   </div>
 
   <!-- 進捗バー（progress.ts が操作） -->

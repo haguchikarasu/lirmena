@@ -14,6 +14,7 @@
  *
  * scene 0（タイトルカード）では hideProgress() と同等の動作をする。
  * 行数は Scene.lineCount（テキストファイル上の改行数）を使用する。
+ * スクロール監視は #main-container を対象とする（スクロールコンテナが #main-container に一本化されたため）。
  */
 
 import * as state from './state';
@@ -21,13 +22,14 @@ import type { Scene } from './types';
 
 let _scenes: Scene[] = [];
 let _totalLines = 0;
+const _container = document.querySelector<HTMLElement>('#main-container')!;
 
 // sec ロード完了後（パース後）に main.ts から呼ぶ。複数回呼ばれても二重登録しない。
 export function initProgress(scenes: Scene[]): void {
     _scenes = scenes;
     _totalLines = scenes.reduce((sum, s) => sum + s.lineCount, 0);
-    window.removeEventListener('scroll', _onScroll);
-    window.addEventListener('scroll', _onScroll, { passive: true });
+    _container.removeEventListener('scroll', _onScroll);
+    _container.addEventListener('scroll', _onScroll, { passive: true });
 }
 
 // currentScene: 1始まり。0 のとき hideProgress() と同等。transition.ts がシーン切替後に呼ぶ。
@@ -76,14 +78,13 @@ function _calcRatio(currentScene: number): number {
 // 縦書き水平スクロール想定。scrollLeft が負のブラウザ（Firefox RTL）は Math.abs で吸収。
 // 水平スクロール範囲がなければ縦方向にフォールバック。
 function _scrollRatio(): number {
-    const el = document.documentElement;
-    const hRange = el.scrollWidth - el.clientWidth;
+    const hRange = _container.scrollWidth - _container.clientWidth;
     if (hRange > 1) {
-        return Math.min(1, Math.max(0, Math.abs(el.scrollLeft) / hRange));
+        return Math.min(1, Math.max(0, Math.abs(_container.scrollLeft) / hRange));
     }
-    const vRange = el.scrollHeight - el.clientHeight;
+    const vRange = _container.scrollHeight - _container.clientHeight;
     if (vRange > 1) {
-        return Math.min(1, Math.max(0, el.scrollTop / vRange));
+        return Math.min(1, Math.max(0, _container.scrollTop / vRange));
     }
     return 0;
 }

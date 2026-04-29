@@ -152,7 +152,16 @@ button {
 #main-container {
   position: relative;
   z-index: 1;
-  height: 100vh;
+  writing-mode: vertical-rl;
+  height: 88vh;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#main-container::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 900px) {
@@ -165,14 +174,25 @@ button {
 
 
 /* ===================================================
+   ボタンコンテナ（#main-container の vertical-rl をリセットしてボタンを中央寄せする）
+=================================================== */
+.btn-container {
+  writing-mode: horizontal-tb;
+  width: 25%;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ===================================================
    戻る・進行ボタン（nav.ts が querySelector で取得し、ラベル・イベントを設定）
    縦書き：右端（reading-start）＝戻るボタン、左端（reading-end）＝進行ボタン
 =================================================== */
 #btn-prev,
 #btn-next {
-  position: fixed;
-  top: 50%;
-  transform: translateY(-50%);
   z-index: 2;
   width: var(--nav-btn-w);
   height: 4rem;
@@ -186,15 +206,13 @@ button {
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease, background 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 
-#btn-prev.btn-visible,
-#btn-next.btn-visible {
-  opacity: 1;
-  pointer-events: auto;
+#btn-prev:disabled,
+#btn-next:disabled {
+  opacity: 0.2;
+  cursor: default;
 }
 
 #btn-prev:hover,
@@ -211,25 +229,12 @@ button {
 
 /* 戻るボタン：右端（縦書き reading-start 側） */
 #btn-prev {
-  right: 0.5rem;
   border-radius: 6px;
 }
 
 /* 進行ボタン：左端（縦書き reading-end 側） */
 #btn-next {
-  left: 0.5rem;
   border-radius: 6px;
-}
-
-/* ワイド画面：本文エリア外側にボタンを配置（本文エリア端から外へ --nav-btn-w 分） */
-/* ボタン内端 = 本文エリア端、ボタンは本文エリアの外に張り出す */
-@media (min-width: 900px) {
-  #btn-prev {
-    right: calc(50% - var(--scene-max-w) / 2 - var(--nav-btn-w));
-  }
-  #btn-next {
-    left: calc(50% - var(--scene-max-w) / 2 - var(--nav-btn-w));
-  }
 }
 
 /* タッチ端末：ボタン高さを広げてタップしやすく */
@@ -248,34 +253,13 @@ button {
 #title-card,
 #scene-content {
   writing-mode: vertical-rl;
-  height: 100vh;
-  overflow-x: auto;
-  overflow-y: hidden;
+  height: 100%;
+  min-width: 100%;
   padding-top: var(--story-padding);
   padding-bottom: var(--story-padding);
   /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
   padding-right: calc(var(--nav-btn-w) + 1rem);
   padding-left:  calc(var(--nav-btn-w) + 1rem);
-  /* スクロールバーを非表示（スクロール機能は維持） */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-#title-card::-webkit-scrollbar,
-#scene-content::-webkit-scrollbar {
-  display: none;
-}
-
-/* 横幅が広い画面では読書エリアを中央に制限 */
-@media (min-width: 900px) {
-  #title-card,
-  #scene-content {
-    max-width: var(--scene-max-w);
-    margin-left: auto;
-    margin-right: auto;
-    padding-right: 3rem;
-    padding-left:  3rem;
-  }
 }
 
 
