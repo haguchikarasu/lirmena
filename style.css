@@ -20,8 +20,8 @@
   /* 段落間マージン（settings.ts が --paragraph-margin を切り替える） */
   --paragraph-margin-sm: 0em;
   --paragraph-margin-md: 1em;
-  --paragraph-margin-lg: 2.5em;
-  --paragraph-margin: var(--paragraph-margin-md);
+  --paragraph-margin-lg: 1.5em;
+  --paragraph-margin: var(--paragraph-margin-sm);
 
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 10vh;          /* 本文エリアの天地余白 */
@@ -307,8 +307,8 @@ button {
 /* ===================================================
    本文テキスト（renderer.ts が生成するクラス）
 =================================================== */
-.story-content p {
-  line-height: 1.85;
+#scene-content p {
+  line-height: 1.6;
   margin-block-end: var(--paragraph-margin);
   text-align: justify;
 }

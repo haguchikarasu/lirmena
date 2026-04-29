@@ -8,7 +8,8 @@
  *   { type: "text";  value: string }             平文
  *   { type: "ruby";  base: string; rt: string }  |漢字《かんじ》
  *   { type: "tcy";   value: string }             ^17^ （縦中横）
- *   { type: "br" }                               改行
+ *   { type: "br" }                               段落区切り（\n 1つ）
+ *   { type: "blank" }                            段落間空行（\n\n）
  *
  * Scene.content は TextNode[] として確定する。
  * types.ts 側は unknown のまま。renderer.ts は TextNode[] にキャストして使う。
@@ -20,7 +21,8 @@ export type TextNode =
   | { type: "text";  value: string }
   | { type: "ruby";  base: string; rt: string }
   | { type: "tcy";   value: string }
-  | { type: "br" };
+  | { type: "br" }
+  | { type: "blank" };
 
 // 本文テキスト全体を受け取り Scene[] を返す
 // - @@BG:file@@ でシーン分割・bgFile にファイル名のみ（パスなし）を格納
@@ -62,7 +64,7 @@ export function parse(text: string): Scene[] {
 
   return segments.map(({ bgFile, raw }) => {
     const content = tokenize(raw);
-    const lineCount = content.filter(n => n.type === "br").length;
+    const lineCount = content.reduce((acc, n) => acc + (n.type === "br" ? 1 : n.type === "blank" ? 2 : 0), 0);
     return { bgFile, lineCount, content };
   });
 }
@@ -70,19 +72,22 @@ export function parse(text: string): Scene[] {
 // raw テキストを TextNode[] に変換する
 // - |base《rt》 → ruby ノード
 // - ^value^ → tcy ノード
-// - \n → br ノード
+// - \n\n → blank ノード（段落間空行）
+// - \n → br ノード（段落区切り）
 // - それ以外 → text ノード（隣接するものはマージ）
 // tokenize(raw: string): TextNode[]
 function tokenize(raw: string): TextNode[] {
   const nodes: TextNode[] = [];
-  // 優先順: ruby → tcy → br → 平文バッチ → 単独の | ^
-  const re = /\|([^《\n]+)《([^》\n]+)》|\^([^^]+)\^|\n|[^|^\n]+|[|^]/g;
+  // 優先順: ruby → tcy → blank(\n\n) → br(\n) → 平文バッチ → 単独の | ^
+  const re = /\|([^《\n]+)《([^》\n]+)》|\^([^^]+)\^|\n\n|\n|[^|^\n]+|[|^]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw)) !== null) {
     if (m[1] !== undefined) {
       nodes.push({ type: "ruby", base: m[1], rt: m[2] });
     } else if (m[3] !== undefined) {
       nodes.push({ type: "tcy", value: m[3] });
+    } else if (m[0] === "\n\n") {
+      nodes.push({ type: "blank" });
     } else if (m[0] === "\n") {
       nodes.push({ type: "br" });
     } else {

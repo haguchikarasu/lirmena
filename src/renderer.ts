@@ -13,11 +13,12 @@
  *
  * エリアC（本文）：
  *   - 既存の本文コンテナ要素の内容を差し替える
- *   - TextNode[] を走査し以下のように変換する：
- *       { type: "text" }  → テキストノード（空白・連続スペースを保持）
- *       { type: "ruby" }  → <ruby>base<rt>rt</rt></ruby>
- *       { type: "tcy"  }  → <span style="text-combine-upright: all">value</span>
- *       { type: "br"   }  → <br>
+ *   - TextNode[] を <p> 要素に分割して変換する：
+ *       { type: "text"  }  → テキストノード（空白・連続スペースを保持）
+ *       { type: "ruby"  }  → <ruby>base<rt>rt</rt></ruby>
+ *       { type: "tcy"   }  → <span style="text-combine-upright: all">value</span>
+ *       { type: "br"    }  → <p> の境界（\n 1つ → </p><p>）
+ *       { type: "blank" }  → <p> の境界＋空行（\n\n → </p><br><p>）
  *
  * スクロール位置（_applyScroll）：
  *   - scrollLeft が undefined のとき：表示要素のブロック始端（vertical-rl では右端）が
@@ -77,30 +78,47 @@ function _applyScroll(el: HTMLElement, scrollLeft?: number): void {
   }
 }
 
-// TextNode[] を DOM Node[] に変換する
+// TextNode[] を <p> ベースの DOM Node[] に変換する
+// - br は <p> の境界、blank は <p> の境界＋<br>
 // buildNodes(nodes: TextNode[]): Node[]
 function buildNodes(nodes: TextNode[]): Node[] {
-  return nodes.map((node) => {
+  const result: Node[] = [];
+  let p = document.createElement("p");
+
+  function flushPara(): void {
+    result.push(p);
+    p = document.createElement("p");
+  }
+
+  for (const node of nodes) {
     switch (node.type) {
-      case "text": {
-        return document.createTextNode(node.value);
-      }
+      case "text":
+        p.appendChild(document.createTextNode(node.value));
+        break;
       case "ruby": {
         const ruby = document.createElement("ruby");
         const rt = document.createElement("rt");
         rt.textContent = node.rt;
         ruby.append(document.createTextNode(node.base), rt);
-        return ruby;
+        p.appendChild(ruby);
+        break;
       }
       case "tcy": {
         const span = document.createElement("span");
         span.style.textCombineUpright = "all";
         span.textContent = node.value;
-        return span;
+        p.appendChild(span);
+        break;
       }
-      case "br": {
-        return document.createElement("br");
-      }
+      case "br":
+        flushPara();
+        break;
+      case "blank":
+        flushPara();
+        result.push(document.createElement("br"));
+        break;
     }
-  });
+  }
+  result.push(p);
+  return result;
 }
