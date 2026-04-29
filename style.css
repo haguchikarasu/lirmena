@@ -277,7 +277,6 @@ button {
   writing-mode: vertical-rl;
   height: 100%;
   width: 75%;
-  font-size: 150%;
   display: flex;
   padding-top: 10%;
   /* align-items: center; vertical-rl のクロス軸（水平）方向に中央揃え */
@@ -292,18 +291,24 @@ button {
 
 
 /* ===================================================
-   タイトルカード内容（renderer.ts が生成するクラス）
+   タイトルカード内容（contents.html の静的要素）
 =================================================== */
-.title-card__ep {
+#title-ep {
   font-size: 1.9em;
   font-weight: normal;
   letter-spacing: 0.2em;
+  position: absolute;
+  left: 25%;
+  transform: translateX(-50%);
 }
 
-.title-card__sec {
+#title-sec {
   font-size: 1.1em;
   font-weight: normal;
   letter-spacing: 0.15em;
+  position: absolute;
+  left: 25%;
+  transform: translateX(-50%);
 }
 
 

@@ -7,9 +7,9 @@
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
  *
  * エリアB（タイトルカード）：
- *   - sec.id === 1 のとき ep.title を表示する
- *   - sec.id >= 2 のとき sec.id を縦中横で表示する
- *   - contents.html のタイトルカード要素を querySelector で取得し差し替える
+ *   - sec.id === 1 のとき #title-ep に ep.title をセットして表示する
+ *   - sec.id >= 2 のとき #title-sec に sec.id を縦中横でセットして表示する
+ *   - #title-ep / #title-sec は contents.html の静的要素を querySelector で取得し排他表示する
  *
  * エリアC（本文）：
  *   - 既存の本文コンテナ要素の内容を差し替える
@@ -31,23 +31,29 @@ import type { Episode, EpisodeSection, Scene } from "./types";
 import type { TextNode } from "./parser";
 
 const titleCardEl = document.querySelector<HTMLElement>("#title-card")!;
+const titleEpEl = document.querySelector<HTMLElement>("#title-ep")!;
+const titleSecEl = document.querySelector<HTMLElement>("#title-sec")!;
 const sceneContentEl = document.querySelector<HTMLElement>("#scene-content")!;
 
-// エリアBにタイトルカードを生成・差し替えし、エリアCを非表示にする
-// - sec.id === 1 のとき ep.title を表示
-// - sec.id >= 2 のとき sec.id を縦中横（text-combine-upright）で表示
+// #title-sec 内の縦中横 span（初期化時に1度だけ生成）
+const titleSecTcyEl = document.createElement("span");
+titleSecTcyEl.style.textCombineUpright = "all";
+titleSecEl.appendChild(titleSecTcyEl);
+
+// エリアBにタイトルカードを表示し、エリアCを非表示にする
+// - sec.id === 1 のとき #title-ep に ep.title をセットして表示、#title-sec を非表示
+// - sec.id >= 2 のとき #title-sec の縦中横 span に sec.id をセットして表示、#title-ep を非表示
 // - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
 // renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void
 export function renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void {
-  titleCardEl.replaceChildren();
-
   if (sec.id === 1) {
-    titleCardEl.appendChild(document.createTextNode(ep.title));
+    titleEpEl.textContent = ep.title;
+    titleEpEl.hidden = false;
+    titleSecEl.hidden = true;
   } else {
-    const span = document.createElement("span");
-    span.style.textCombineUpright = "all";
-    span.textContent = String(sec.id);
-    titleCardEl.appendChild(span);
+    titleSecTcyEl.textContent = String(sec.id);
+    titleSecEl.hidden = false;
+    titleEpEl.hidden = true;
   }
 
   titleCardEl.hidden = false;

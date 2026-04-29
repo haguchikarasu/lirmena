@@ -26,8 +26,11 @@
       <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
     </div>
 
-    <!-- エリアB: タイトルカード（renderer.ts が内容を生成） -->
-    <div id="title-card" hidden></div>
+    <!-- エリアB: タイトルカード（renderer.ts が内容を差し替え） -->
+    <div id="title-card" hidden>
+      <span id="title-ep" hidden></span>
+      <span id="title-sec" hidden></span>
+    </div>
 
     <!-- エリアC: 本文表示エリア（renderer.ts が内容を生成） -->
     <div id="scene-content" hidden></div>
