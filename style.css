@@ -273,8 +273,10 @@ button {
 #title-card {
   writing-mode: vertical-rl;
   height: 100%;
-  min-width: 75%;
-  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
+  width: 75%;
+  font-size: 150%;
+  display: flex;
+  align-items: center; /* vertical-rl のクロス軸（水平）方向に中央揃え */
 }
 
 #scene-content {
