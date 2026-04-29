@@ -26,7 +26,7 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 10vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 38em;            /* メインコンテナの最大横幅 */
+  --scene-max-w: 38rem;           /* メインコンテナの最大横幅 */
   /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
      @media (min-width: 900px) のハードコード値と手動で合わせること */
 
@@ -175,14 +175,14 @@ button {
   transform: translateY(-50%);
   z-index: 2;
   width: var(--nav-btn-w);
-  height: 7rem;
+  height: 4rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: rgba(0, 0, 0, 0.42);
   color: #ccc8c0;
-  font-size: 1.1rem;
+  font-size: 2.2rem;
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -221,14 +221,14 @@ button {
   border-radius: 6px;
 }
 
-/* ワイド画面：本文エリア（max-width: var(--scene-max-w)）の左右端に接して配置 */
-/* --scene-max-w = 38em。本文エリアは中央寄せなので端の位置は calc(50% - 19em) */
+/* ワイド画面：本文エリア外側にボタンを配置（本文エリア端から外へ --nav-btn-w 分） */
+/* ボタン内端 = 本文エリア端、ボタンは本文エリアの外に張り出す */
 @media (min-width: 900px) {
   #btn-prev {
-    right: calc(50% - var(--scene-max-w) / 2);
+    right: calc(50% - var(--scene-max-w) / 2 - var(--nav-btn-w));
   }
   #btn-next {
-    left: calc(50% - var(--scene-max-w) / 2);
+    left: calc(50% - var(--scene-max-w) / 2 - var(--nav-btn-w));
   }
 }
 
@@ -236,7 +236,7 @@ button {
 @media (pointer: coarse) {
   #btn-prev,
   #btn-next {
-    height: 9rem;
+    height: 5.5rem;
   }
 }
 
