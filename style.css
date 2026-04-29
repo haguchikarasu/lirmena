@@ -13,8 +13,8 @@
   --font-size: var(--font-size-md);
 
   /* フォントファミリー（settings.ts が --font-family を切り替える） */
-  --font-family-serif: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
-  --font-family-sans:  'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+  --font-family-serif: serif;
+  --font-family-sans:  sans-serif;
   --font-family: var(--font-family-serif);
 
   /* 段落間マージン（settings.ts が --paragraph-margin を切り替える） */
@@ -164,7 +164,6 @@ button {
   position: relative;
   z-index: 2;
   writing-mode: vertical-rl;
-  height: 88vh;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
