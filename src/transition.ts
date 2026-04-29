@@ -7,6 +7,9 @@
  * 【注意】nav との循環依存は main.ts がコールバック（updateNav）注入で解消する
  * 【注意】フェード時間は CSS 変数 --fade-duration-bg / --fade-duration-main で管理する
  * 【注意】contents.html に id="transition-overlay" の要素が必要
+ * 【注意】スクロール位置は _scrollPositions（Map<string, number>）に保存する。
+ *         キーは _sceneKey()（"ep-sec-scene" 形式）。
+ *         戻る遷移のときのみ保存済み位置を renderer に渡す。進む遷移は境界位置（undefined）。
  */
 
 import type { Scene, SceneAddress } from './types';
@@ -26,6 +29,7 @@ let _scenes: Scene[] = [];
 let _busy = false;
 let _overlay!: HTMLElement;
 let _container!: HTMLElement;
+const _scrollPositions = new Map<string, number>();
 
 /**
  * main.ts が初期ロード完了後に一度だけ呼ぶ。
@@ -61,6 +65,9 @@ async function _run(address: SceneAddress): Promise<void> {
     let target = { ...address };
     const needsLoad = target.ep !== current.ep || target.sec !== current.sec || target.scene === LAST_SCENE;
 
+    // 離脱時のスクロール位置を保存
+    _scrollPositions.set(_sceneKey(current), _container.scrollLeft);
+
     await _fadeOut();
 
     if (needsLoad) {
@@ -72,10 +79,14 @@ async function _run(address: SceneAddress): Promise<void> {
         target = { ...target, scene: _scenes.length };
     }
 
+    // LAST_SCENE 解決後に方向を判定し、戻る遷移かつ保存済みなら復元位置を渡す
+    const isBackward = _isBefore(target, current);
+    const savedScroll = isBackward ? _scrollPositions.get(_sceneKey(target)) : undefined;
+
     if (target.scene === 0) {
-        renderer.renderTitleCard(state.getEpisode(target.ep)!, state.getSection(target.ep, target.sec)!);
+        renderer.renderTitleCard(state.getEpisode(target.ep)!, state.getSection(target.ep, target.sec)!, savedScroll);
     } else {
-        renderer.renderScene(_scenes[target.scene - 1]);
+        renderer.renderScene(_scenes[target.scene - 1], savedScroll);
     }
 
     bg.set(target.scene === 0 ? null : (_scenes[target.scene - 1]?.bgFile ?? null));
@@ -114,4 +125,18 @@ function _fadeIn(): Promise<void> {
     _overlay.classList.remove('fading');
     _container.classList.remove('fading');
     return p.then(() => {});
+}
+
+// シーンの一意キー（スクロール位置の保存用）
+// _sceneKey(a: SceneAddress): string
+function _sceneKey(a: SceneAddress): string {
+    return `${a.ep}-${a.sec}-${a.scene}`;
+}
+
+// target が current より読み順で前かどうか（戻る遷移の判定）
+// _isBefore(target: SceneAddress, current: SceneAddress): boolean
+function _isBefore(target: SceneAddress, current: SceneAddress): boolean {
+    if (target.ep !== current.ep) return target.ep < current.ep;
+    if (target.sec !== current.sec) return target.sec < current.sec;
+    return target.scene < current.scene;
 }

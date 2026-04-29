@@ -19,12 +19,11 @@
  *       { type: "tcy"  }  → <span style="text-combine-upright: all">value</span>
  *       { type: "br"   }  → <br>
  *
- * シーン差し替え後は、表示要素（titleCardEl / sceneContentEl）の
- * ブロック始端（vertical-rl では右端）がビューポートの右端に来るようスクロールする。
- * これにより戻るボタン（#btn-container-start）が右端の外に出て、
- * タイトルカード / 本文との境界が初期表示位置となる。
- * scrollIntoView({ block: 'start' }) を使う（scrollLeft 直接操作は
- * writing-mode: vertical-rl での符号が実装依存のため避ける）。
+ * スクロール位置（_applyScroll）：
+ *   - scrollLeft が undefined のとき：表示要素のブロック始端（vertical-rl では右端）が
+ *     ビューポート右端に来るよう scrollIntoView({ block: 'start' }) で境界スクロールする。
+ *     scrollLeft 直接操作は writing-mode: vertical-rl での符号が実装依存のため避ける。
+ *   - scrollLeft が数値のとき：#main-container の scrollLeft をその値に復元する（戻る遷移用）。
  */
 
 import type { Episode, EpisodeSection, Scene } from "./types";
@@ -36,8 +35,9 @@ const sceneContentEl = document.querySelector<HTMLElement>("#scene-content")!;
 // エリアBにタイトルカードを生成・差し替えし、エリアCを非表示にする
 // - sec.id === 1 のとき ep.title を表示
 // - sec.id >= 2 のとき sec.id を縦中横（text-combine-upright）で表示
-// renderTitleCard(ep: Episode, sec: EpisodeSection): void
-export function renderTitleCard(ep: Episode, sec: EpisodeSection): void {
+// - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
+// renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void
+export function renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void {
   titleCardEl.replaceChildren();
 
   if (sec.id === 1) {
@@ -51,19 +51,30 @@ export function renderTitleCard(ep: Episode, sec: EpisodeSection): void {
 
   titleCardEl.hidden = false;
   sceneContentEl.hidden = true;
-  titleCardEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+  _applyScroll(titleCardEl, scrollLeft);
 }
 
 // エリアCに本文を生成・差し替えし、エリアBを非表示にする
 // - scene.content を TextNode[] にキャストして変換する
 // - 改行・空白を保持する
-// renderScene(scene: Scene): void
-export function renderScene(scene: Scene): void {
+// - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
+// renderScene(scene: Scene, scrollLeft?: number): void
+export function renderScene(scene: Scene, scrollLeft?: number): void {
   sceneContentEl.replaceChildren(...buildNodes(scene.content as TextNode[]));
 
   sceneContentEl.hidden = false;
   titleCardEl.hidden = true;
-  sceneContentEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+  _applyScroll(sceneContentEl, scrollLeft);
+}
+
+// scrollLeft が undefined なら境界スクロール、数値なら指定位置に復元
+// _applyScroll(el: HTMLElement, scrollLeft?: number): void
+function _applyScroll(el: HTMLElement, scrollLeft?: number): void {
+  if (scrollLeft !== undefined) {
+    document.querySelector<HTMLElement>('#main-container')!.scrollLeft = scrollLeft;
+  } else {
+    el.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }
 }
 
 // TextNode[] を DOM Node[] に変換する
