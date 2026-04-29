@@ -8,7 +8,7 @@
 :root {
   /* フォントサイズ（settings.ts が --font-size を切り替える） */
   --font-size-sm: 15px;
-  --font-size-md: 17px;
+  --font-size-md: 18px;
   --font-size-lg: 20px;
   --font-size: var(--font-size-md);
 
@@ -173,6 +173,7 @@ button {
   -ms-overflow-style: none;
   /* .fading 除去時（明け）に適用される duration */
   transition: opacity var(--fade-in-duration-main) ease;
+  letter-spacing: 10%;
 }
 
 #main-container.fading {
