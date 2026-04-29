@@ -59,6 +59,11 @@ html, body {
   font-size: var(--font-size);
 }
 
+body {
+  display: flex;
+  align-items: center;
+}
+
 /* ボタン要素のフォント継承（UA スタイルシートの上書き） */
 button {
   font-family: inherit;
