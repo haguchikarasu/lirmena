@@ -5,7 +5,7 @@
  * 【依存】state / renderer / bg / progress / bookmark
  * 【被依存】main / nav / menu
  * 【注意】nav との循環依存は main.ts がコールバック（updateNav）注入で解消する
- * 【注意】フェード時間は CSS 変数 --fade-duration で管理する
+ * 【注意】フェード時間は CSS 変数 --fade-duration-bg / --fade-duration-main で管理する
  * 【注意】contents.html に id="transition-overlay" の要素が必要
  */
 
@@ -25,6 +25,7 @@ let _updateNav: () => void = () => {};
 let _scenes: Scene[] = [];
 let _busy = false;
 let _overlay!: HTMLElement;
+let _container!: HTMLElement;
 
 /**
  * main.ts が初期ロード完了後に一度だけ呼ぶ。
@@ -37,6 +38,7 @@ export function init(scenes: Scene[], loadSec: LoadSec, updateNav: () => void): 
     _loadSec = loadSec;
     _updateNav = updateNav;
     _overlay = document.querySelector('#transition-overlay')!;
+    _container = document.querySelector('#main-container')!;
 }
 
 /**
@@ -93,17 +95,23 @@ async function _run(address: SceneAddress): Promise<void> {
     await _fadeIn();
 }
 
-// オーバーレイに 'fading' クラスを付与→CSS transition で暗転。transitionend で解決。
+// 背景オーバーレイ・メインコンテナ両方に 'fading' を付与して同時フェード。
+// 各要素の transitionend を両方待ち、長い方に合わせて完了とする。
+// リスナー登録をクラス変更より先に行い、超短時間でのイベント取りこぼしを防ぐ。
+function _onTransitionEnd(el: HTMLElement): Promise<void> {
+    return new Promise(resolve => el.addEventListener('transitionend', () => resolve(), { once: true }));
+}
+
 function _fadeOut(): Promise<void> {
-    return new Promise(resolve => {
-        _overlay.classList.add('fading');
-        _overlay.addEventListener('transitionend', () => resolve(), { once: true });
-    });
+    const p = Promise.all([_onTransitionEnd(_overlay), _onTransitionEnd(_container)]);
+    _overlay.classList.add('fading');
+    _container.classList.add('fading');
+    return p.then(() => {});
 }
 
 function _fadeIn(): Promise<void> {
-    return new Promise(resolve => {
-        _overlay.classList.remove('fading');
-        _overlay.addEventListener('transitionend', () => resolve(), { once: true });
-    });
+    const p = Promise.all([_onTransitionEnd(_overlay), _onTransitionEnd(_container)]);
+    _overlay.classList.remove('fading');
+    _container.classList.remove('fading');
+    return p.then(() => {});
 }

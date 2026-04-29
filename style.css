@@ -31,7 +31,10 @@
      @media (min-width: 900px) のハードコード値と手動で合わせること */
 
   /* アニメーション（開発者が調整する定数） */
-  --fade-duration: 0.4s;
+  --fade-out-duration-bg:   0.01s;    /* 背景　　　　　遷移前暗転時間 */
+  --fade-in-duration-bg:    0.8s;    /* 背景　　　　　遷移後明け時間 */
+  --fade-out-duration-main: 0.01s;   /* メインコンテナ 遷移前暗転時間 */
+  --fade-in-duration-main:  0.8s;   /* メインコンテナ 遷移後明け時間 */
 
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #2d5a3d;
@@ -117,16 +120,19 @@ button {
 #transition-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 1;
   background: #000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--fade-duration) ease;
+  /* .fading 除去時（明け）に適用される duration */
+  transition: opacity var(--fade-in-duration-bg) ease;
 }
 
 #transition-overlay.fading {
   opacity: 1;
   pointer-events: all;
+  /* .fading 付与時（暗転）に適用される duration */
+  transition: opacity var(--fade-out-duration-bg) ease;
 }
 
 
@@ -156,13 +162,22 @@ button {
 =================================================== */
 #main-container {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   writing-mode: vertical-rl;
   height: 88vh;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* .fading 除去時（明け）に適用される duration */
+  transition: opacity var(--fade-in-duration-main) ease;
+}
+
+#main-container.fading {
+  opacity: 0;
+  pointer-events: none;
+  /* .fading 付与時（暗転）に適用される duration */
+  transition: opacity var(--fade-out-duration-main) ease;
 }
 
 #main-container::-webkit-scrollbar {
