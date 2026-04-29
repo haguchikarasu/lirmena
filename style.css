@@ -171,11 +171,14 @@ button {
   height: calc(100vh - 2 * var(--story-padding));
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+  -ms-overflow-style: auto;
   /* .fading 除去時（明け）に適用される duration */
   transition: opacity var(--fade-in-duration-main) ease;
   letter-spacing: 10%;
+  padding-bottom: 0.5em;
+  padding-top: 0.5em;
 }
 
 #main-container.fading {
@@ -186,7 +189,17 @@ button {
 }
 
 #main-container::-webkit-scrollbar {
-  display: none;
+  height: 4px;
+}
+#main-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+#main-container::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+}
+#main-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.5);
 }
 
 @media (min-width: 900px) {
