@@ -65,6 +65,7 @@ html, body {
 body {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 /* ボタン要素のフォント継承（UA スタイルシートの上書き） */
@@ -164,6 +165,8 @@ button {
   position: relative;
   z-index: 2;
   writing-mode: vertical-rl;
+  width: 100%;
+  height: calc(100vh - 2 * var(--story-padding));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -185,9 +188,7 @@ button {
 
 @media (min-width: 900px) {
   #main-container {
-    max-width: var(--scene-max-w);
-    margin-left: auto;
-    margin-right: auto;
+    width: var(--scene-max-w);
   }
 }
 
@@ -274,8 +275,6 @@ button {
   writing-mode: vertical-rl;
   height: 100%;
   min-width: 100%;
-  padding-top: var(--story-padding);
-  padding-bottom: var(--story-padding);
   /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
   padding-right: calc(var(--nav-btn-w) + 1rem);
   padding-left:  calc(var(--nav-btn-w) + 1rem);
