@@ -186,7 +186,15 @@ button {
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  transition: background 0.2s, color 0.2s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, background 0.2s, color 0.2s;
+}
+
+#btn-prev.btn-visible,
+#btn-next.btn-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 #btn-prev:hover,
@@ -203,14 +211,25 @@ button {
 
 /* 戻るボタン：右端（縦書き reading-start 側） */
 #btn-prev {
-  right: 0;
-  border-radius: 4px 0 0 4px;
+  right: 0.5rem;
+  border-radius: 6px;
 }
 
 /* 進行ボタン：左端（縦書き reading-end 側） */
 #btn-next {
-  left: 0;
-  border-radius: 0 4px 4px 0;
+  left: 0.5rem;
+  border-radius: 6px;
+}
+
+/* ワイド画面：本文エリア（max-width: var(--scene-max-w)）の左右端に接して配置 */
+/* --scene-max-w = 38em。本文エリアは中央寄せなので端の位置は calc(50% - 19em) */
+@media (min-width: 900px) {
+  #btn-prev {
+    right: calc(50% - var(--scene-max-w) / 2);
+  }
+  #btn-next {
+    left: calc(50% - var(--scene-max-w) / 2);
+  }
 }
 
 /* タッチ端末：ボタン高さを広げてタップしやすく */

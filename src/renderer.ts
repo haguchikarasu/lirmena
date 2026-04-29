@@ -23,6 +23,10 @@
  *   - writing-mode: vertical-rl の RTL scrollLeft 補正
  *   - モジュール初期化時に #title-card・#scene-content へ各1回登録する
  *   - replaceChildren() は要素自体を保持するため render 関数内ではなくここで呼ぶ
+ *
+ * attachScrollVisibility(el, btnPrev, btnNext, immediate): void
+ *   - スクロール位置を監視し #btn-prev / #btn-next に .btn-visible を付与する
+ *   - DOM 差し替え後に毎回呼ぶことでリスナーが付け直される
  */
 
 import type { Episode, EpisodeSection, Scene } from "./types";
@@ -51,6 +55,10 @@ export function renderTitleCard(ep: Episode, sec: EpisodeSection): void {
 
   titleCardEl.hidden = false;
   sceneContentEl.hidden = true;
+
+  const btnPrev = document.querySelector<HTMLElement>('#btn-prev')!;
+  const btnNext = document.querySelector<HTMLElement>('#btn-next')!;
+  attachScrollVisibility(titleCardEl, btnPrev, btnNext, true);
 }
 
 // エリアCに本文を生成・差し替えし、エリアBを非表示にする
@@ -62,6 +70,10 @@ export function renderScene(scene: Scene): void {
 
   sceneContentEl.hidden = false;
   titleCardEl.hidden = true;
+
+  const btnPrev = document.querySelector<HTMLElement>('#btn-prev')!;
+  const btnNext = document.querySelector<HTMLElement>('#btn-next')!;
+  attachScrollVisibility(sceneContentEl, btnPrev, btnNext, false);
 }
 
 // wheel イベントで deltaY を RTL scrollLeft に変換する（vertical-rl 縦書き補正）
@@ -71,6 +83,44 @@ function attachWheelFix(el: HTMLElement): void {
     e.preventDefault();
     el.scrollLeft -= e.deltaY; // deltaY正 = 下スクロール = 左へ（本文を進む）
   }, { passive: false });
+}
+
+// スクロール位置を監視して #btn-prev / #btn-next に .btn-visible をトグルする
+// writing-mode: vertical-rl では scrollLeft は 0 から負方向に増える
+//   先頭判定: el.scrollLeft >= -THRESHOLD
+//   末尾判定: el.scrollLeft <= -(el.scrollWidth - el.clientWidth) + THRESHOLD
+// 端から離れたら .btn-visible を外して再び非表示に戻す
+// attachScrollVisibility(el: HTMLElement, btnPrev: HTMLElement, btnNext: HTMLElement, immediate: boolean): void
+function attachScrollVisibility(
+  el: HTMLElement,
+  btnPrev: HTMLElement,
+  btnNext: HTMLElement,
+  immediate: boolean = false
+): void {
+  const THRESHOLD = 10;
+
+  btnPrev.classList.remove('btn-visible');
+  btnNext.classList.remove('btn-visible');
+
+  if (immediate) {
+    btnPrev.classList.add('btn-visible');
+    btnNext.classList.add('btn-visible');
+    return;
+  }
+
+  const update = (): void => {
+    if (el.scrollWidth <= el.clientWidth) {
+      btnPrev.classList.add('btn-visible');
+      btnNext.classList.add('btn-visible');
+      return;
+    }
+    // 端から離れたら非表示に戻すため toggle を使う
+    btnPrev.classList.toggle('btn-visible', el.scrollLeft >= -THRESHOLD);
+    btnNext.classList.toggle('btn-visible', el.scrollLeft <= -(el.scrollWidth - el.clientWidth) + THRESHOLD);
+  };
+
+  el.addEventListener('scroll', update, { passive: true });
+  update();
 }
 
 // TextNode[] を DOM Node[] に変換する
