@@ -26,7 +26,7 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 10vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 38rem;           /* メインコンテナの最大横幅 */
+  --scene-max-w: 30rem;           /* メインコンテナの最大横幅 */
   /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
      @media (min-width: 900px) のハードコード値と手動で合わせること */
 
@@ -270,14 +270,18 @@ button {
    タイトルカード・本文表示エリア（renderer.ts が内容を生成し hidden を切り替える）
    B と C は排他表示：hidden 属性で制御
 =================================================== */
-#title-card,
+#title-card {
+  writing-mode: vertical-rl;
+  height: 100%;
+  min-width: 75%;
+  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
+}
+
 #scene-content {
   writing-mode: vertical-rl;
   height: 100%;
-  min-width: 100%;
+  min-width: 75%;
   /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
-  padding-right: calc(var(--nav-btn-w) + 1rem);
-  padding-left:  calc(var(--nav-btn-w) + 1rem);
 }
 
 
