@@ -26,8 +26,9 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 10vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 38em;            /* 縦書き：読書エリアの最大横幅 */
-  --scene-threshold: 900px;       /* 横幅制限を適用するブレークポイント */
+  --scene-max-w: 38em;            /* メインコンテナの最大横幅 */
+  /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
+     @media (min-width: 900px) のハードコード値と手動で合わせること */
 
   /* アニメーション（開発者が調整する定数） */
   --fade-duration: 0.4s;
@@ -152,6 +153,14 @@ button {
   position: relative;
   z-index: 1;
   height: 100vh;
+}
+
+@media (min-width: 900px) {
+  #main-container {
+    max-width: var(--scene-max-w);
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
 
