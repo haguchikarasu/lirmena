@@ -19,7 +19,12 @@
  *       { type: "tcy"  }  → <span style="text-combine-upright: all">value</span>
  *       { type: "br"   }  → <br>
  *
- * シーン差し替え後は #main-container のスクロール位置を先頭（右端）にリセットする。
+ * シーン差し替え後は、表示要素（titleCardEl / sceneContentEl）の
+ * ブロック始端（vertical-rl では右端）がビューポートの右端に来るようスクロールする。
+ * これにより戻るボタン（#btn-container-start）が右端の外に出て、
+ * タイトルカード / 本文との境界が初期表示位置となる。
+ * scrollIntoView({ block: 'start' }) を使う（scrollLeft 直接操作は
+ * writing-mode: vertical-rl での符号が実装依存のため避ける）。
  */
 
 import type { Episode, EpisodeSection, Scene } from "./types";
@@ -46,9 +51,7 @@ export function renderTitleCard(ep: Episode, sec: EpisodeSection): void {
 
   titleCardEl.hidden = false;
   sceneContentEl.hidden = true;
-
-  const container = document.querySelector<HTMLElement>('#main-container')!;
-  container.scrollLeft = 0;
+  titleCardEl.scrollIntoView({ behavior: 'instant', block: 'start' });
 }
 
 // エリアCに本文を生成・差し替えし、エリアBを非表示にする
@@ -60,9 +63,7 @@ export function renderScene(scene: Scene): void {
 
   sceneContentEl.hidden = false;
   titleCardEl.hidden = true;
-
-  const container = document.querySelector<HTMLElement>('#main-container')!;
-  container.scrollLeft = 0;
+  sceneContentEl.scrollIntoView({ behavior: 'instant', block: 'start' });
 }
 
 // TextNode[] を DOM Node[] に変換する
