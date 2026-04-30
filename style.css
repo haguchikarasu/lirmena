@@ -9,7 +9,7 @@
   /* フォントサイズ（settings.ts が --font-size を切り替える） */
   --font-size-sm: 15px;
   --font-size-md: 18px;
-  --font-size-lg: 20px;
+  --font-size-lg: 21px;
   --font-size: var(--font-size-md);
 
   /* フォントファミリー（settings.ts が --font-family を切り替える） */
@@ -26,7 +26,7 @@
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
   --scene-max-w: 30rem;           /* メインコンテナの最大横幅 */
-  --line-max-chars: 40;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
+  --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
   /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
      @media (min-width: 900px) のハードコード値と手動で合わせること */
 
