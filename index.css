@@ -6,197 +6,225 @@
   padding: 0;
 }
 
-:root {
-  --color-bg: #f5f5f0;
-  --color-surface: #ffffff;
-  --color-text: #1a1a1a;
-  --color-text-muted: #666;
-  --color-accent: #2d5a3d;
-  --color-accent-light: #e8f0eb;
-  --color-border: #ddd;
-  --color-read: #2d5a3d;
-  --radius: 6px;
-  --content-max-width: 760px;
-  --page-padding: 1rem;
+[hidden] {
+  display: none !important;
 }
 
-body {
-  font-family: sans-serif;
-  background: var(--color-bg);
-  color: var(--color-text);
-  line-height: 1.6;
+/* === 目次ページ カラーパレット === */
+:root {
+  --idx-bg:            #080808;
+  --idx-surface:       #0e0e0e;
+  --idx-hero-bg:       #0a0a0a;
+  --idx-border:        #1a1a1a;
+  --idx-border-strong: #202020;
+  --idx-border-accent: #1a3a28;
+
+  --idx-text-primary:  #e8e8e8;
+  --idx-text-body:     #b8b8b8;
+  --idx-text-muted:    #a0a0a0;
+  --idx-text-dim:      #505050;
+  --idx-text-faint:    #3a3a3a;
+  --idx-text-date:     #404040;
+
+  --idx-accent:        #2df590;
+}
+
+/* ===== ベース ===== */
+
+.idx-page {
+  background: var(--idx-bg);
+  color: var(--idx-text-body);
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, serif;
   min-height: 100vh;
 }
 
-/* ===== 表紙絵エリア ===== */
+/* ===== ヒーローエリア ===== */
 
-#cover-area {
-  background: var(--color-accent);
-  color: #fff;
-  padding: 4rem 2rem;
+.idx-hero {
+  height: 340px;
+  background: var(--idx-hero-bg);
+  border-bottom: 1px solid var(--idx-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.idx-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='60' x2='60' y2='0' stroke='%23111111' stroke-width='0.5'/%3E%3C/svg%3E");
+}
+
+.idx-hero-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1a1a;
+  font-size: 11px;
+  letter-spacing: 0.5em;
+}
+
+.idx-hero-content {
+  position: relative;
   text-align: center;
 }
 
-.cover-title {
+.idx-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.5em;
+  color: var(--idx-text-faint);
+  margin-bottom: 1.4rem;
+}
+
+.idx-site-title {
   font-size: 2rem;
-  font-weight: bold;
+  font-weight: 400;
   letter-spacing: 0.1em;
+  color: var(--idx-text-primary);
+  line-height: 1.4;
 }
 
-/* ===== ep・sec 一覧エリア ===== */
-
-#episodes-area {
-  max-width: var(--content-max-width);
-  margin: 2rem auto;
-  padding: 0 var(--page-padding);
+.idx-title-rule {
+  width: 24px;
+  height: 1px;
+  background: var(--idx-accent);
+  opacity: 0.5;
+  margin: 1.2rem auto;
 }
 
-.loading-text {
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: 2rem;
+.idx-byline {
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--idx-text-faint);
 }
 
-.ep-block {
-  margin-bottom: 1.5rem;
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+/* ===== コンテンツエリア共通 ===== */
+
+.idx-body {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 3rem;
 }
 
-.ep-title {
-  font-size: 1.05rem;
-  font-weight: bold;
-  margin-bottom: 0.75rem;
-  color: var(--color-text);
+.idx-sec-label {
+  font-size: 9px;
+  letter-spacing: 0.5em;
+  color: var(--idx-text-faint);
+  border-bottom: 1px solid #181818;
+  padding-bottom: 0.7rem;
+  margin-bottom: 1.6rem;
 }
 
-.sec-list {
+/* ===== エピソード一覧 ===== */
+
+.idx-ep {
+  margin-bottom: 1.8rem;
+}
+
+.idx-ep-title {
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--idx-text-body);
+  margin-bottom: 0.9rem;
+}
+
+.idx-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 7px;
 }
 
-.sec-link {
+.idx-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
-  color: var(--color-text);
+  gap: 5px;
+  padding: 5px 13px;
+  border-radius: 2px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--idx-border-strong);
+  color: var(--idx-text-dim);
+  background: var(--idx-surface);
   text-decoration: none;
-  font-size: 0.9rem;
-  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
 }
 
-.sec-link:hover {
-  background: var(--color-accent-light);
-  border-color: var(--color-accent);
+.idx-chip--read {
+  color: var(--idx-accent);
+  border-color: var(--idx-border-accent);
 }
 
-.sec-link--read {
-  /* 既読セクション用クラス。テキストカラーによる区別は行わない（ブラウザの既読色との混同を避けるため）。
-     視覚的な既読表示は .sec-read-badge バッジで行う。将来のスタイル変更はここに追記する。 */
-}
-
-.sec-read-badge {
-  color: var(--color-read);
-  font-size: 0.8rem;
-  font-weight: bold;
+.idx-chip--read::after {
+  content: '✓';
+  font-size: 9px;
+  opacity: 0.7;
 }
 
 /* ===== 栞エリア ===== */
 
-#bookmarks-area {
-  max-width: var(--content-max-width);
-  margin: 0 auto 5rem;
-  padding: 0 var(--page-padding);
+.idx-bm-section {
+  margin-top: 2.8rem;
 }
 
-.section-heading {
-  font-size: 1.05rem;
-  font-weight: bold;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid var(--color-accent);
-  color: var(--color-text);
-}
-
-.bookmarks-empty {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  padding: 0.5rem 0;
-}
-
-.bookmark-slot {
+.idx-bm-card {
+  background: var(--idx-surface);
+  border: 1px solid var(--idx-border);
+  border-radius: 4px;
+  padding: 0.9rem 1.2rem;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 0.875rem 1rem;
-  margin-bottom: 0.75rem;
 }
 
-.bookmark-info {
+.idx-bm-loc {
+  font-size: 0.85rem;
+  color: var(--idx-text-muted);
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+.idx-bm-date {
+  font-size: 10px;
+  color: var(--idx-text-date);
+  letter-spacing: 0.05em;
+}
+
+.idx-bm-btns {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.bookmark-ep-sec {
-  font-size: 0.9rem;
-  font-weight: bold;
-}
-
-.bookmark-date {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.bookmark-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   flex-shrink: 0;
 }
 
-.bookmark-jump {
-  display: inline-block;
-  padding: 0.4rem 0.9rem;
-  background: var(--color-accent);
-  color: #fff;
-  text-decoration: none;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.bookmark-jump:hover {
-  opacity: 0.9;
-}
-
-.bookmark-clear {
-  padding: 0.4rem 0.7rem;
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
+.idx-bm-go {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 13px;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid var(--idx-border-accent);
+  color: var(--idx-accent);
+  background: transparent;
   cursor: pointer;
-  white-space: nowrap;
+  letter-spacing: 0.05em;
+  text-decoration: none;
 }
 
-.bookmark-clear:hover {
-  background: #fff0f0;
-  border-color: #f99;
-  color: #c00;
+.idx-bm-del {
+  padding: 5px 11px;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid var(--idx-border);
+  color: #383838;
+  background: transparent;
+  cursor: pointer;
 }
 
 /* ===== FAB ===== */
@@ -212,30 +240,25 @@ body {
   gap: 0.5rem;
 }
 
-#fab-toggle {
-  width: 3rem;
-  height: 3rem;
+.idx-fab {
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  background: var(--color-accent);
-  color: #fff;
-  border: none;
-  font-size: 1.2rem;
+  background: var(--idx-surface);
+  border: 1px solid var(--idx-border-strong);
+  color: var(--idx-accent);
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-
-#fab-toggle:hover {
-  opacity: 0.9;
 }
 
 #fab-panel {
   list-style: none;
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  background: var(--idx-surface);
+  border: 1px solid var(--idx-border-strong);
+  border-radius: 4px;
   overflow: hidden;
   min-width: 180px;
 }
@@ -247,10 +270,11 @@ body {
   text-align: left;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--idx-border);
   cursor: pointer;
   font-size: 0.9rem;
-  color: var(--color-text);
+  color: var(--idx-text-body);
+  font-family: inherit;
 }
 
 #fab-panel li:last-child .fab-item {
@@ -259,7 +283,7 @@ body {
 
 .fab-item:hover,
 .fab-item:focus {
-  background: var(--color-accent-light);
+  background: #141414;
   outline: none;
 }
 
@@ -268,34 +292,32 @@ body {
 #settings-popup {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
 }
 
-#settings-popup[hidden] {
-  display: none;
-}
-
 .settings-panel {
-  background: var(--color-surface);
-  border-radius: var(--radius);
+  background: var(--idx-surface);
+  border: 1px solid var(--idx-border-strong);
+  border-radius: 4px;
   padding: 1.5rem;
   min-width: 280px;
   max-width: 90vw;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, serif;
 }
 
 .settings-panel__title {
-  font-size: 1rem;
-  font-weight: bold;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--idx-text-muted);
   margin-bottom: 1.25rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--idx-border);
 }
 
 .settings-row {
@@ -308,7 +330,7 @@ body {
 
 .settings-row__label {
   font-size: 0.9rem;
-  color: var(--color-text);
+  color: var(--idx-text-body);
   white-space: nowrap;
 }
 
@@ -319,28 +341,28 @@ body {
 
 .settings-opt {
   padding: 0.3rem 0.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
+  border: 1px solid var(--idx-border-strong);
+  border-radius: 2px;
+  background: var(--idx-bg);
   font-size: 0.85rem;
   cursor: pointer;
-  color: var(--color-text);
+  color: var(--idx-text-body);
+  font-family: inherit;
 }
 
 .settings-opt.active {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: #fff;
+  border-color: var(--idx-border-accent);
+  color: var(--idx-accent);
 }
 
 .settings-opt:focus {
-  outline: 2px solid var(--color-accent);
+  outline: 1px solid var(--idx-accent);
   outline-offset: 1px;
 }
 
 .settings-divider {
   height: 1px;
-  background: var(--color-border);
+  background: var(--idx-border);
   margin: 1rem 0;
 }
 
@@ -349,17 +371,19 @@ body {
   width: 100%;
   padding: 0.6rem 1rem;
   margin-bottom: 0.5rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  font-size: 0.9rem;
+  background: transparent;
+  border: 1px solid var(--idx-border);
+  border-radius: 2px;
+  font-size: 0.85rem;
   cursor: pointer;
-  color: var(--color-text);
+  color: var(--idx-text-muted);
   text-align: left;
+  font-family: inherit;
 }
 
 .settings-action:hover {
-  background: var(--color-accent-light);
+  border-color: var(--idx-border-strong);
+  color: var(--idx-text-body);
 }
 
 .settings-close {
@@ -367,32 +391,39 @@ body {
   width: 100%;
   padding: 0.6rem 1rem;
   margin-top: 1rem;
-  background: var(--color-accent);
-  border: none;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  background: transparent;
+  border: 1px solid var(--idx-border-strong);
+  border-radius: 2px;
+  font-size: 0.85rem;
   cursor: pointer;
-  color: #fff;
+  color: var(--idx-text-muted);
   text-align: center;
+  font-family: inherit;
 }
 
 .settings-close:hover {
-  opacity: 0.9;
+  color: var(--idx-text-body);
+}
+
+/* ===== ローディング・空状態 ===== */
+
+.loading-text,
+.bookmarks-empty {
+  color: var(--idx-text-dim);
+  font-size: 0.85rem;
+  padding: 1rem 0;
 }
 
 /* ===== レスポンシブ ===== */
 
-@media (max-width: 600px) {
-  .cover-title {
-    font-size: 1.5rem;
-  }
-
-  .bookmark-slot {
+@media (max-width: 500px) {
+  .idx-bm-card {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
-  .bookmark-actions {
+  .idx-bm-btns {
     align-self: flex-end;
   }
 

@@ -9,7 +9,7 @@
        - og:description は設定しない
        - contents.html にも同じ OGP 設定が必要
   -->
-  <meta name="theme-color" content="#2d5a3d" />
+  <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
   <meta property="og:title" content="作品タイトル" />
@@ -19,20 +19,30 @@
   <title>作品タイトル</title>
   <link rel="stylesheet" href="index.css" />
 </head>
-<body>
-  <!-- 表紙絵エリア（画像が準備できるまでテキストで代替） -->
-  <header id="cover-area">
-    <p class="cover-title">作品タイトル</p>
-  </header>
+<body class="idx-page">
+  <!-- ヒーローエリア（表紙絵が用意できたら .idx-hero に background-image を設定し .idx-hero-bg と .idx-hero-placeholder を削除する） -->
+  <div class="idx-hero">
+    <div class="idx-hero-bg" aria-hidden="true"></div>
+    <div class="idx-hero-placeholder" aria-hidden="true">表　紙　絵</div>
+    <div class="idx-hero-content">
+      <p class="idx-eyebrow">FANTASY　NOVEL</p>
+      <h1 class="idx-site-title">作品タイトル</h1>
+      <div class="idx-title-rule" aria-hidden="true"></div>
+      <p class="idx-byline">著者名</p>
+    </div>
+  </div>
 
   <!-- ep・sec 一覧エリア（index.ts が動的生成） -->
-  <main id="episodes-area" aria-label="エピソード一覧">
-    <p class="loading-text">読み込み中…</p>
-  </main>
+  <section class="idx-body" aria-label="エピソード一覧">
+    <p class="idx-sec-label">E P I S O D E</p>
+    <div id="episodes-area" class="idx-ep-list">
+      <p class="loading-text">読み込み中…</p>
+    </div>
+  </section>
 
   <!-- 栞エリア（index.ts が動的生成） -->
-  <section id="bookmarks-area" aria-label="栞">
-    <h2 class="section-heading">栞</h2>
+  <section class="idx-body idx-bm-section" aria-label="栞">
+    <p class="idx-sec-label">栞</p>
     <div id="bookmark-slots">
       <!-- index.ts が動的生成 -->
     </div>
@@ -43,7 +53,7 @@
     <ul id="fab-panel" hidden role="menu" aria-label="メニュー">
       <!-- index.ts が動的生成 -->
     </ul>
-    <button id="fab-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
+    <button id="fab-toggle" class="idx-fab" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
   </div>
 
   <!-- 設定ポップアップ（index.ts が操作） -->

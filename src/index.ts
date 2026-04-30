@@ -98,36 +98,28 @@ function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
         const publishedSecs = ep.sections.filter(s => s.published);
         if (publishedSecs.length === 0) continue;
 
-        const epEl = document.createElement('article');
-        epEl.className = 'ep-block';
+        const epEl = document.createElement('div');
+        epEl.className = 'idx-ep';
 
-        const titleEl = document.createElement('h2');
-        titleEl.className = 'ep-title';
+        const titleEl = document.createElement('p');
+        titleEl.className = 'idx-ep-title';
         titleEl.textContent = ep.title;
         epEl.appendChild(titleEl);
 
         const secListEl = document.createElement('div');
-        secListEl.className = 'sec-list';
+        secListEl.className = 'idx-chips';
 
         for (const sec of publishedSecs) {
             const read = isSectionRead(ep.id, sec.id, sceneRead);
 
             const link = document.createElement('a');
-            link.className = 'sec-link' + (read ? ' sec-link--read' : '');
+            link.className = 'idx-chip' + (read ? ' idx-chip--read' : '');
             link.href = `contents.html#${pad(ep.id)}-${pad(sec.id)}-01`;
 
             const labelEl = document.createElement('span');
-            labelEl.className = 'sec-label';
             labelEl.textContent = pad(sec.id);
+            if (read) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
             link.appendChild(labelEl);
-
-            if (read) {
-                const badge = document.createElement('span');
-                badge.className = 'sec-read-badge';
-                badge.setAttribute('aria-label', '既読');
-                badge.textContent = '✓';
-                link.appendChild(badge);
-            }
 
             secListEl.appendChild(link);
         }
@@ -170,32 +162,32 @@ function renderBookmarks(): void {
         const href = `contents.html#${pad(ep)}-${pad(sec)}-${pad(scene)}`;
 
         const slot = document.createElement('div');
-        slot.className = 'bookmark-slot';
+        slot.className = 'idx-bm-card';
 
         const info = document.createElement('div');
-        info.className = 'bookmark-info';
+        info.className = 'idx-bm-info';
 
-        const epSecEl = document.createElement('span');
-        epSecEl.className = 'bookmark-ep-sec';
+        const epSecEl = document.createElement('p');
+        epSecEl.className = 'idx-bm-loc';
         epSecEl.textContent = `Ep.${pad(ep)}  Sec.${pad(sec)}${scene === 0 ? '（タイトル画面）' : ''}`;
         info.appendChild(epSecEl);
 
-        const dateEl = document.createElement('span');
-        dateEl.className = 'bookmark-date';
+        const dateEl = document.createElement('p');
+        dateEl.className = 'idx-bm-date';
         dateEl.textContent = dateStr;
         info.appendChild(dateEl);
 
         const actions = document.createElement('div');
-        actions.className = 'bookmark-actions';
+        actions.className = 'idx-bm-btns';
 
         const jumpBtn = document.createElement('a');
-        jumpBtn.className = 'bookmark-jump';
+        jumpBtn.className = 'idx-bm-go';
         jumpBtn.href = href;
         jumpBtn.textContent = 'ここから読む';
         actions.appendChild(jumpBtn);
 
         const clearBtn = document.createElement('button');
-        clearBtn.className = 'bookmark-clear';
+        clearBtn.className = 'idx-bm-del';
         clearBtn.type = 'button';
         clearBtn.textContent = '削除';
         // savedAt でこの栞1件だけを削除して再描画する
