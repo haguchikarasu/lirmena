@@ -72,7 +72,7 @@ export function setScenesCount(count: number): void {
  * 進行ボタン用。次がなければ null。
  * - タイトルカード → scene 1
  * - シーン N（最後でない）→ scene N+1
- * - 最後のシーン → 次の公開済み sec のタイトルカード（scene 0）。なければ null
+ * - 最後のシーン → 同一 ep 内なら次 sec の scene 1、別 ep なら次 ep のタイトルカード（scene 0）。なければ null
  */
 export function getNext(): SceneAddress | null {
     const { ep, sec, scene } = _current;
@@ -85,12 +85,16 @@ export function getNext(): SceneAddress | null {
         return { ep, sec, scene: scene + 1 };
     }
 
-    return findNextPublishedSec(ep, sec);
+    const next = findNextPublishedSec(ep, sec);
+    if (next === null) return null;
+    // 同一 ep 内の sec 境界はタイトルカードをスキップして scene 1 へ
+    return next.ep === ep ? { ...next, scene: 1 } : next;
 }
 
 /**
  * 戻るボタン用。前がなければ null。
- * - シーン 1 → タイトルカード（scene 0）
+ * - sec 1 のシーン 1 → タイトルカード（scene 0）
+ * - sec > 1 のシーン 1 → 前の公開済み sec の最後のシーン（scene = LAST_SCENE）。なければ null
  * - シーン N（N > 1）→ scene N-1
  * - タイトルカード → 前の公開済み sec の最後のシーン（scene = LAST_SCENE）。なければ null
  */
@@ -98,7 +102,11 @@ export function getPrev(): SceneAddress | null {
     const { ep, sec, scene } = _current;
 
     if (scene === 1) {
-        return { ep, sec, scene: 0 };
+        // sec 1 のシーン 1 のみ ep タイトルカードへ。sec > 1 は前 sec の最後のシーンへ
+        if (sec === 1) return { ep, sec, scene: 0 };
+        const prev = findPrevPublishedSec(ep, sec);
+        if (prev === null) return null;
+        return { ...prev, scene: LAST_SCENE };
     }
 
     if (scene > 1) {

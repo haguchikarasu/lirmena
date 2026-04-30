@@ -157,17 +157,23 @@ function _onTransitionEnd(el: HTMLElement): Promise<void> {
 }
 
 function _fadeOut(): Promise<void> {
-    const p = Promise.all([_onTransitionEnd(_overlay), _onTransitionEnd(_container)]);
+    // #main-container が hidden（タイトル画面中）の場合は transitionend が発火しないためスキップ
+    const containerVisible = !_container.hidden;
+    const promises: Promise<void>[] = [_onTransitionEnd(_overlay)];
+    if (containerVisible) promises.push(_onTransitionEnd(_container));
     _overlay.classList.add('fading');
     _container.classList.add('fading');
-    return p.then(() => {});
+    return Promise.all(promises).then(() => {});
 }
 
 function _fadeIn(): Promise<void> {
-    const p = Promise.all([_onTransitionEnd(_overlay), _onTransitionEnd(_container)]);
+    // renderTitleScreen / renderScene 後に hidden 状態を確認する
+    const containerVisible = !_container.hidden;
+    const promises: Promise<void>[] = [_onTransitionEnd(_overlay)];
+    if (containerVisible) promises.push(_onTransitionEnd(_container));
     _overlay.classList.remove('fading');
     _container.classList.remove('fading');
-    return p.then(() => {});
+    return Promise.all(promises).then(() => {});
 }
 
 // シーンの一意キー（スクロール位置の保存用）
