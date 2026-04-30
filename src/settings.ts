@@ -7,7 +7,7 @@
  * 設定項目とデフォルト値（定数で定義）:
  *   fontSize:   "large" | "medium" | "small"   デフォルト "medium"
  *   fontFamily: "serif" | "sans"               デフォルト "serif"
- *   lineGap:    "large" | "medium" | "small"   デフォルト "medium"
+ *   lineGap:    "on" | "off"                   デフォルト "on"
  *
  * CSS変数:
  *   --font-size, --font-family, --paragraph-margin（値は CSS 変数定義ファイルで管理）
@@ -15,7 +15,7 @@
 
 type FontSize = 'large' | 'medium' | 'small';
 type FontFamily = 'serif' | 'sans';
-type LineGap = 'large' | 'medium' | 'small';
+type LineGap = 'on' | 'off';
 
 interface Settings {
     fontSize: FontSize;
@@ -26,7 +26,7 @@ interface Settings {
 const DEFAULTS: Settings = {
     fontSize: 'medium',
     fontFamily: 'serif',
-    lineGap: 'medium',
+    lineGap: 'on',
 };
 
 const LS_KEYS: Record<keyof Settings, string> = {
@@ -38,7 +38,7 @@ const LS_KEYS: Record<keyof Settings, string> = {
 const CSS_VARS = {
     fontSize: { large: 'var(--font-size-lg)', medium: 'var(--font-size-md)', small: 'var(--font-size-sm)' },
     fontFamily: { serif: 'var(--font-family-serif)', sans: 'var(--font-family-sans)' },
-    lineGap: { large: 'var(--paragraph-margin-lg)', medium: 'var(--paragraph-margin-md)', small: 'var(--paragraph-margin-sm)' },
+    lineGap: { on: 'var(--paragraph-margin-on)', off: 'var(--paragraph-margin-off)' },
 } satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string> };
 
 let _current: Settings = { ...DEFAULTS };
@@ -72,7 +72,7 @@ function _load(): Settings {
     return {
         fontSize: _readEnum(LS_KEYS.fontSize, ['large', 'medium', 'small'] as const, DEFAULTS.fontSize),
         fontFamily: _readEnum(LS_KEYS.fontFamily, ['serif', 'sans'] as const, DEFAULTS.fontFamily),
-        lineGap: _readEnum(LS_KEYS.lineGap, ['large', 'medium', 'small'] as const, DEFAULTS.lineGap),
+        lineGap: _readEnum(LS_KEYS.lineGap, ['on', 'off'] as const, DEFAULTS.lineGap),
     };
 }
 
@@ -139,10 +139,9 @@ function _buildPopup(): void {
         { value: 'serif', label: '明朝体' },
         { value: 'sans', label: 'ゴシック体' },
     ]));
-    panel.appendChild(_buildRow('段落間隔', 'lineGap', [
-        { value: 'small', label: 'なし' },
-        { value: 'medium', label: '標準' },
-        { value: 'large', label: '広め' },
+    panel.appendChild(_buildRow('段落間の空行', 'lineGap', [
+        { value: 'on', label: 'あり' },
+        { value: 'off', label: 'なし' },
     ]));
 
     const divider = document.createElement('div');
