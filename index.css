@@ -14,8 +14,7 @@
 :root {
   --idx-bg:            #080808;
   --idx-surface:       #0e0e0e;
-  --idx-hero-bg:       #0a0a0a;
-  --idx-border:        #1a1a1a;
+--idx-border:        #1a1a1a;
   --idx-border-strong: #202020;
   --idx-border-accent: #1a3a28;
 
@@ -41,65 +40,16 @@
 /* ===== ヒーローエリア ===== */
 
 .idx-hero {
-  height: 340px;
-  background: var(--idx-hero-bg);
   border-bottom: 1px solid var(--idx-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
+  line-height: 0;
 }
 
-.idx-hero-bg {
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='60' x2='60' y2='0' stroke='%23111111' stroke-width='0.5'/%3E%3C/svg%3E");
-}
-
-.idx-hero-placeholder {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1a1a1a;
-  font-size: 11px;
-  letter-spacing: 0.5em;
-}
-
-.idx-hero-content {
-  position: relative;
-  text-align: center;
-}
-
-.idx-eyebrow {
-  font-size: 10px;
-  letter-spacing: 0.5em;
-  color: var(--idx-text-faint);
-  margin-bottom: 1.4rem;
-}
-
-.idx-site-title {
-  font-size: 2rem;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  color: var(--idx-text-primary);
-  line-height: 1.4;
-}
-
-.idx-title-rule {
-  width: 24px;
-  height: 1px;
-  background: var(--idx-accent);
-  opacity: 0.5;
-  margin: 1.2rem auto;
-}
-
-.idx-byline {
-  font-size: 11px;
-  letter-spacing: 0.25em;
-  color: var(--idx-text-faint);
+.idx-hero-img {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  margin: 0 auto;
 }
 
 /* ===== コンテンツエリア共通 ===== */
