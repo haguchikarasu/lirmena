@@ -1,15 +1,19 @@
 /*
  * bookmark.ts
- * 責務: 栞（最大3スロット）・既読 sec の localStorage 保存・復元・クリア
- * export: BookmarkEntry, init(), addBookmark(), getBookmarks(), markRead(), clearSlots(), clearRead()
+ * 責務: 栞（最大3スロット）・既読シーンの localStorage 保存・復元・クリア
+ * export: BookmarkEntry, init(), addBookmark(), getBookmarks(),
+ *         recordSceneRead(), clearSlots(), clearRead()
  * 依存: なし
  *
  * BookmarkEntry:
  *   { address: SceneAddress; scrollY: number; savedAt: number }
  *
  * localStorage キー:
- *   "bookmarks" : BookmarkEntry[]  最大3件、超過時は最古を削除
- *   "readSet"   : string[]         "ep-sec" 形式（ゼロ埋め2桁）で既読 sec を記録
+ *   "bookmarks"  : BookmarkEntry[]  最大3件、超過時は最古を削除
+ *   "sceneRead"  : string[]         "ep-sec-scene" 形式（ゼロ埋め2桁）で既読シーンを記録
+ *
+ * セクション既読の判定は bookmark.ts の責務外。
+ * 判定は index.html（目次ページ）のロード時に sceneRead データをもとに行う。
  */
 
 import type { SceneAddress } from './types';
@@ -22,18 +26,18 @@ export type BookmarkEntry = {
 
 const MAX_SLOTS = 3;
 const KEY_BOOKMARKS = 'bookmarks';
-const KEY_READ_SET = 'readSet';
+const KEY_SCENE_READ = 'sceneRead';
 
 let _bookmarks: BookmarkEntry[] = [];
-let _readSet: Set<string> = new Set();
+let _sceneRead: Set<string> = new Set();
 
-// SceneAddress の ep / sec から "01-02" 形式のキーを生成する（既読 sec 記録用）
-function toSecKey(address: SceneAddress): string {
+// ep / sec / scene から "01-02-03" 形式のキーを生成する（既読シーン記録用）
+function toSceneKey(ep: number, sec: number, scene: number): string {
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(address.ep)}-${pad(address.sec)}`;
+    return `${pad(ep)}-${pad(sec)}-${pad(scene)}`;
 }
 
-// localStorage から栞・既読を復元する。main.ts が起動時に一度だけ呼ぶ。
+// localStorage から栞・既読シーンを復元する。main.ts が起動時に一度だけ呼ぶ。
 // init(): void
 export function init(): void {
     try {
@@ -44,10 +48,10 @@ export function init(): void {
     }
 
     try {
-        const raw = localStorage.getItem(KEY_READ_SET);
-        if (raw) _readSet = new Set(JSON.parse(raw) as string[]);
+        const raw = localStorage.getItem(KEY_SCENE_READ);
+        if (raw) _sceneRead = new Set(JSON.parse(raw) as string[]);
     } catch {
-        _readSet = new Set();
+        _sceneRead = new Set();
     }
 }
 
@@ -70,13 +74,14 @@ export function getBookmarks(): BookmarkEntry[] {
     return [..._bookmarks];
 }
 
-// 指定 SceneAddress の sec を既読としてマークする（scene 0 は transition.ts が呼ばない）
-// markRead(address: SceneAddress): void
-export function markRead(address: SceneAddress): void {
-    const key = toSecKey(address);
-    if (_readSet.has(key)) return;
-    _readSet.add(key);
-    localStorage.setItem(KEY_READ_SET, JSON.stringify([..._readSet]));
+// forward 遷移が成立したシーンを即座に既読として localStorage に保存する。
+// transition.ts が遷移先確定後に呼ぶ（scene 0 への遷移は除く）。
+// recordSceneRead(ep: number, sec: number, scene: number): void
+export function recordSceneRead(ep: number, sec: number, scene: number): void {
+    const key = toSceneKey(ep, sec, scene);
+    if (_sceneRead.has(key)) return;
+    _sceneRead.add(key);
+    localStorage.setItem(KEY_SCENE_READ, JSON.stringify([..._sceneRead]));
 }
 
 // 全栞を削除する
@@ -89,6 +94,6 @@ export function clearSlots(): void {
 // 既読記録を全削除する
 // clearRead(): void
 export function clearRead(): void {
-    _readSet = new Set();
-    localStorage.removeItem(KEY_READ_SET);
+    _sceneRead = new Set();
+    localStorage.removeItem(KEY_SCENE_READ);
 }

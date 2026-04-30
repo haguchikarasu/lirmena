@@ -12,14 +12,20 @@
  *              parseHash(hash: string): SceneAddress | null
  *              isPublished(ep: number, sec: number): boolean
  *              getEpTitle(ep: number): string | undefined
- *   transition: init(scenes: Scene[], loadSec: (ep: number, sec: number) => Promise<Scene[]>, updateNav: () => void): void
- *              / trigger(address: SceneAddress): Promise<void>
- *   renderer : renderTitleCard(ep: Episode, sec: EpisodeSection): void
+ *              getEpisode(ep: number): Episode | undefined
+ *   transition: init(
+ *                 scenes: Scene[],
+ *                 initialEpSceneOffset: number,
+ *                 loadSec: (ep: number, sec: number) => Promise<Scene[]>,
+ *                 getAllEpScenes: (ep: number, currentSec: number) => Promise<{ all: Scene[]; offset: number }>,
+ *                 updateNav: () => void,
+ *               ): void
+ *              trigger(address: SceneAddress): Promise<void>
+ *   renderer : renderTitleScreen(epTitle: string): void
  *              renderScene(scene: Scene): void
  *   bg       : set(bgFile: string | null): void
- *   progress : initProgress(scenes: Scene[]): void
- *              updateProgress(currentScene: number): void
- *              currentScene === 0 のとき 0% 表示
+ *   progress : initProgress(allEpScenes: Scene[]): void
+ *              updateProgress(currentSceneInEp: number): void
  *   nav      : init(): void / update(): void
  *   menu     : init(): void
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
@@ -32,6 +38,8 @@
  * 【注意】wheel 補正（deltaY → scrollLeft 変換）は #main-container に1度だけ登録する
  *         writing-mode: vertical-rl では scrollLeft は右端が 0・左スクロールで負値になるため
  *         deltaY（正＝下スクロール）を反転して加算し縦スクロール入力を横スクロールに変換する
+ * 【注意】_getAllEpScenes は ep ごとにキャッシュする。同 ep 内での sec またぎ遷移では
+ *         ブラウザキャッシュに頼らずメモリキャッシュを使うため2重フェッチにならない
  */
 
 import * as state from './state';
@@ -47,6 +55,10 @@ import * as loader from './loader';
 import * as parser from './parser';
 import type { Scene, EpisodesData, SceneAddress } from './types';
 
+// ep → { allScenes: Scene[]; secOffsets: Map<secId, sceneOffset> }
+// sceneOffset は ep 内でのシーン開始インデックス（0始まり）
+const _epCache = new Map<number, { allScenes: Scene[]; secOffsets: Map<number, number> }>();
+
 document.addEventListener('DOMContentLoaded', () => { void _init(); });
 
 /**
@@ -58,15 +70,16 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   2. _resolveAddress(data) でハッシュを解析・検証
  *   3. state.init(data, address) で現在位置を確定
  *   4. _loadSec(ep, sec) で初期 sec の Scene[] を取得
- *   5. settings.init() でフォント設定を復元（bookmark クリア系コールバックを注入）
- *   6. bookmark.init() で栞・既読を localStorage から復元
- *   7. nav.init() でボタンイベントを登録
- *   8. transition.init(scenes, _loadSec, () => nav.update()) で遷移エンジンを初期化
- *   9. menu.init() で右下メニューを初期化
- *  10. 初期レンダリング（タイトルカード or シーン）
- *  11. bg.set() で初期背景を設定
- *  12. nav.update() でボタン表示を確定
- *  13. progress.update(scenes, scene) で進捗バーを初期化
+ *   5. _getAllEpScenes(ep, sec) で ep 内全 Scene[] とオフセットを取得
+ *   6. settings.init() でフォント設定を復元（bookmark クリア系コールバックを注入）
+ *   7. bookmark.init() で栞・既読を localStorage から復元
+ *   8. nav.init() でボタンイベントを登録
+ *   9. transition.init(scenes, offset, _loadSec, _getAllEpScenes, () => nav.update()) で遷移エンジンを初期化
+ *  10. menu.init() で右下メニューを初期化
+ *  11. 初期レンダリング（タイトル画面 or シーン）
+ *  12. bg.set() で初期背景を設定
+ *  13. nav.update() でボタン表示を確定
+ *  14. progress.initProgress(all) / updateProgress で進捗バーを初期化
  */
 async function _init(): Promise<void> {
     let data: EpisodesData;
@@ -93,6 +106,17 @@ async function _init(): Promise<void> {
         return;
     }
 
+    let epAllScenes: Scene[];
+    let epSceneOffset: number;
+    try {
+        const result = await _getAllEpScenes(address.ep, address.sec);
+        epAllScenes = result.all;
+        epSceneOffset = result.offset;
+    } catch {
+        _showError('本文の読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+
     const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
     mainContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -105,18 +129,18 @@ async function _init(): Promise<void> {
     });
     bookmark.init();
     nav.init();
-    transition.init(scenes, _loadSec, () => nav.update());
+    transition.init(scenes, epSceneOffset, _loadSec, _getAllEpScenes, () => nav.update());
     menu.init();
 
     if (address.scene === 0) {
-        renderer.renderTitleCard(state.getEpisode(address.ep)!, state.getSection(address.ep, address.sec)!);
+        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '');
     } else {
         renderer.renderScene(scenes[address.scene - 1]);
     }
     bg.set(address.scene === 0 ? null : (scenes[address.scene - 1]?.bgFile ?? null));
     nav.update();
-    progress.initProgress(scenes);
-    progress.updateProgress(address.scene);
+    progress.initProgress(epAllScenes);
+    progress.updateProgress(address.scene === 0 ? 0 : epSceneOffset + address.scene);
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;
@@ -127,8 +151,6 @@ async function _init(): Promise<void> {
  * - ハッシュなし → 最初の公開済み sec の scene 0（エラーにしない）
  * - ハッシュあり・形式不正 → null
  * - ハッシュあり・存在しない ep または未公開 sec → null
- *
- * 依存: state.parseHash / state.isPublished / _findFirstPublished
  */
 function _resolveAddress(data: EpisodesData): SceneAddress | null {
     const hash = window.location.hash;
@@ -152,7 +174,6 @@ function _resolveAddress(data: EpisodesData): SceneAddress | null {
  * transition.init に LoadSec コールバックとして渡す。
  * state.setScenesCount() もここで呼ぶ。
  *
- * 依存: loader.loadText / parser.parse / state.setScenesCount
  * @throws fetch 失敗時はそのまま throw する
  */
 async function _loadSec(ep: number, sec: number): Promise<Scene[]> {
@@ -163,10 +184,44 @@ async function _loadSec(ep: number, sec: number): Promise<Scene[]> {
 }
 
 /**
- * エラーメッセージを #error-message に表示し、#main-container を非表示にする。
- * エラーは回復不能とみなし、以降の処理は行わない。
+ * 指定 ep の全公開 sec をロード・パースして結合した Scene[] と
+ * currentSec の ep 内シーンオフセット（0始まり）を返す。
+ * ep ごとにメモリキャッシュする。
  *
- * 依存: DOM (#error-message, #main-container)
+ * @param ep         エピソード番号
+ * @param currentSec オフセットを知りたいセクション番号
+ * @returns { all: ep 内全 Scene[], offset: currentSec の ep 内開始インデックス }
+ * @throws fetch 失敗時はそのまま throw する
+ */
+async function _getAllEpScenes(
+    ep: number,
+    currentSec: number,
+): Promise<{ all: Scene[]; offset: number }> {
+    if (!_epCache.has(ep)) {
+        const episode = state.getEpisode(ep);
+        if (!episode) return { all: [], offset: 0 };
+
+        const allScenes: Scene[] = [];
+        const secOffsets = new Map<number, number>();
+
+        for (const section of episode.sections) {
+            if (!section.published) continue;
+            secOffsets.set(section.id, allScenes.length);
+            const text = await loader.loadText(ep, section.id);
+            const scenes = parser.parse(text);
+            allScenes.push(...scenes);
+        }
+
+        _epCache.set(ep, { allScenes, secOffsets });
+    }
+
+    const cached = _epCache.get(ep)!;
+    const offset = cached.secOffsets.get(currentSec) ?? 0;
+    return { all: cached.allScenes, offset };
+}
+
+/**
+ * エラーメッセージを #error-message に表示し、#main-container を非表示にする。
  */
 function _showError(message: string): void {
     const loadingEl = document.querySelector<HTMLElement>('#loading');
@@ -184,7 +239,6 @@ function _showError(message: string): void {
 
 /**
  * data の中から最初の公開済み sec アドレス（scene 0）を返す。
- * ハッシュなし時のフォールバック先として使用する。
  * 公開済み sec がひとつもなければ null を返す。
  */
 function _findFirstPublished(data: EpisodesData): SceneAddress | null {

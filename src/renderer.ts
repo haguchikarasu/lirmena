@@ -1,18 +1,23 @@
 /*
  * renderer.ts
- * 責務: Scene → DOM 生成（エリアB タイトルカード・エリアC 本文）。ルビ・縦中横の最終変換
- * export: renderTitleCard(), renderScene()
+ * 責務: Scene → DOM 生成（エリアC 本文）、タイトル画面（#title-screen）の DOM 生成
+ * export: renderTitleScreen(), renderScene()
  * 依存: parser.ts（TextNode 型）
  *
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
  *
- * エリアB（タイトルカード）：
- *   - sec.id === 1 のとき #title-ep に ep.title をセットして表示する
- *   - sec.id >= 2 のとき #title-sec に sec.id を縦中横でセットして表示する
- *   - #title-ep / #title-sec は contents.html の静的要素を querySelector で取得し排他表示する
+ * タイトル画面（#title-screen）：
+ *   - #main-container を非表示にして #title-screen を表示する
+ *   - 表示内容：ep タイトル
+ *   - ボタン要素を配置する（ラベル・disabled 状態は nav.ts が制御するため、要素の生成のみ行う）
+ *     - #btn-title-enter  : 本文に入るボタン
+ *     - #btn-title-prev   : 前 ep へ戻るボタン
+ *     - #btn-title-index  : 目次に戻るボタン（contents.html へのリンク）
+ *   - レイアウトは縦長固定
  *
  * エリアC（本文）：
  *   - 既存の本文コンテナ要素の内容を差し替える
+ *   - #title-screen を非表示にして #main-container を表示する
  *   - TextNode[] を <p> 要素に分割して変換する：
  *       { type: "text"  }  → テキストノード（空白・連続スペースを保持）
  *       { type: "ruby"  }  → <ruby>base<rt>rt</rt></ruby>
@@ -27,104 +32,118 @@
  *   - scrollLeft が数値のとき：#main-container の scrollLeft をその値に復元する（戻る遷移用）。
  */
 
-import type { Episode, EpisodeSection, Scene } from "./types";
+import type { Scene } from "./types";
 import type { TextNode } from "./parser";
 
-const titleCardEl = document.querySelector<HTMLElement>("#title-card")!;
-const titleEpEl = document.querySelector<HTMLElement>("#title-ep")!;
-const titleSecEl = document.querySelector<HTMLElement>("#title-sec")!;
-const sceneContentEl = document.querySelector<HTMLElement>("#scene-content")!;
+const mainContainerEl = document.querySelector<HTMLElement>('#main-container')!;
+const titleScreenEl = document.querySelector<HTMLElement>('#title-screen')!;
+const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 
-// #title-sec 内の縦中横 span（初期化時に1度だけ生成）
-const titleSecTcyEl = document.createElement("span");
-titleSecTcyEl.style.textCombineUpright = "all";
-titleSecEl.appendChild(titleSecTcyEl);
+// タイトル画面を #title-screen に描画し、#main-container を非表示にする。
+// ボタン要素（#btn-title-enter, #btn-title-prev, #btn-title-index）は
+// 初回呼び出し時に生成し、以降は ep タイトルの更新のみ行う。
+// nav.ts が querySelector でボタンを取得してイベントを登録する。
+// renderTitleScreen(epTitle: string): void
+export function renderTitleScreen(epTitle: string): void {
+    _ensureTitleScreenDOM();
 
-// エリアBにタイトルカードを表示し、エリアCを非表示にする
-// - sec.id === 1 のとき #title-ep に ep.title をセットして表示、#title-sec を非表示
-// - sec.id >= 2 のとき #title-sec の縦中横 span に sec.id をセットして表示、#title-ep を非表示
-// - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
-// renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void
-export function renderTitleCard(ep: Episode, sec: EpisodeSection, scrollLeft?: number): void {
-  if (sec.id === 1) {
-    titleEpEl.textContent = ep.title;
-    titleEpEl.hidden = false;
-    titleSecEl.hidden = true;
-  } else {
-    titleSecTcyEl.textContent = String(sec.id);
-    titleSecEl.hidden = false;
-    titleEpEl.hidden = true;
-  }
+    const titleEl = titleScreenEl.querySelector<HTMLElement>('.title-screen-ep-title');
+    if (titleEl) titleEl.textContent = epTitle;
 
-  titleCardEl.hidden = false;
-  sceneContentEl.hidden = true;
-  _applyScroll(titleCardEl, scrollLeft);
+    mainContainerEl.hidden = true;
+    titleScreenEl.hidden = false;
 }
 
-// エリアCに本文を生成・差し替えし、エリアBを非表示にする
+// エリアCに本文を生成・差し替えし、#title-screen を非表示にして #main-container を表示する。
 // - scene.content を TextNode[] にキャストして変換する
-// - 改行・空白を保持する
 // - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
 // renderScene(scene: Scene, scrollLeft?: number): void
 export function renderScene(scene: Scene, scrollLeft?: number): void {
-  sceneContentEl.replaceChildren(...buildNodes(scene.content as TextNode[]));
+    sceneContentEl.replaceChildren(...buildNodes(scene.content as TextNode[]));
 
-  sceneContentEl.hidden = false;
-  titleCardEl.hidden = true;
-  _applyScroll(sceneContentEl, scrollLeft);
+    titleScreenEl.hidden = true;
+    mainContainerEl.hidden = false;
+    sceneContentEl.hidden = false;
+    _applyScroll(sceneContentEl, scrollLeft);
+}
+
+// タイトル画面の DOM を初回のみ生成する。
+// #btn-title-enter / #btn-title-prev / #btn-title-index を querySelector で取得できるよう id を付与する。
+function _ensureTitleScreenDOM(): void {
+    if (titleScreenEl.querySelector('.title-screen-ep-title')) return;
+
+    const titleEl = document.createElement('p');
+    titleEl.className = 'title-screen-ep-title';
+
+    const btnEnter = document.createElement('button');
+    btnEnter.type = 'button';
+    btnEnter.id = 'btn-title-enter';
+    btnEnter.textContent = '本文を読む';
+
+    const btnPrev = document.createElement('button');
+    btnPrev.type = 'button';
+    btnPrev.id = 'btn-title-prev';
+    btnPrev.textContent = '前のエピソードへ';
+
+    const btnIndex = document.createElement('a');
+    btnIndex.id = 'btn-title-index';
+    btnIndex.href = 'index.html';
+    btnIndex.textContent = '目次へ戻る';
+
+    titleScreenEl.replaceChildren(titleEl, btnEnter, btnPrev, btnIndex);
 }
 
 // scrollLeft が undefined なら境界スクロール、数値なら指定位置に復元
 // _applyScroll(el: HTMLElement, scrollLeft?: number): void
 function _applyScroll(el: HTMLElement, scrollLeft?: number): void {
-  if (scrollLeft !== undefined) {
-    document.querySelector<HTMLElement>('#main-container')!.scrollLeft = scrollLeft;
-  } else {
-    el.scrollIntoView({ behavior: 'instant', block: 'start' });
-  }
+    if (scrollLeft !== undefined) {
+        mainContainerEl.scrollLeft = scrollLeft;
+    } else {
+        el.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
 }
 
 // TextNode[] を <p> ベースの DOM Node[] に変換する
 // - br は <p> の境界、blank は <p> の境界＋<br>
 // buildNodes(nodes: TextNode[]): Node[]
 function buildNodes(nodes: TextNode[]): Node[] {
-  const result: Node[] = [];
-  let p = document.createElement("p");
+    const result: Node[] = [];
+    let p = document.createElement('p');
 
-  function flushPara(): void {
-    result.push(p);
-    p = document.createElement("p");
-  }
-
-  for (const node of nodes) {
-    switch (node.type) {
-      case "text":
-        p.appendChild(document.createTextNode(node.value));
-        break;
-      case "ruby": {
-        const ruby = document.createElement("ruby");
-        const rt = document.createElement("rt");
-        rt.textContent = node.rt;
-        ruby.append(document.createTextNode(node.base), rt);
-        p.appendChild(ruby);
-        break;
-      }
-      case "tcy": {
-        const span = document.createElement("span");
-        span.style.textCombineUpright = "all";
-        span.textContent = node.value;
-        p.appendChild(span);
-        break;
-      }
-      case "br":
-        flushPara();
-        break;
-      case "blank":
-        flushPara();
-        result.push(document.createElement("br"));
-        break;
+    function flushPara(): void {
+        result.push(p);
+        p = document.createElement('p');
     }
-  }
-  result.push(p);
-  return result;
+
+    for (const node of nodes) {
+        switch (node.type) {
+            case 'text':
+                p.appendChild(document.createTextNode(node.value));
+                break;
+            case 'ruby': {
+                const ruby = document.createElement('ruby');
+                const rt = document.createElement('rt');
+                rt.textContent = node.rt;
+                ruby.append(document.createTextNode(node.base), rt);
+                p.appendChild(ruby);
+                break;
+            }
+            case 'tcy': {
+                const span = document.createElement('span');
+                span.style.textCombineUpright = 'all';
+                span.textContent = node.value;
+                p.appendChild(span);
+                break;
+            }
+            case 'br':
+                flushPara();
+                break;
+            case 'blank':
+                flushPara();
+                result.push(document.createElement('br'));
+                break;
+        }
+    }
+    result.push(p);
+    return result;
 }

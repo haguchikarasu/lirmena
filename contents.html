@@ -19,17 +19,14 @@
   <!-- 背景レイヤー（bg.ts が操作） -->
   <div id="bg-layer" aria-hidden="true"></div>
 
-  <!-- メインコンテナ（B と C は排他表示。renderer.ts が hidden を切り替える） -->
+  <!-- タイトル画面（renderer.ts が内容を生成・hidden を切り替える。scene 0 のみ表示） -->
+  <div id="title-screen" hidden></div>
+
+  <!-- メインコンテナ（renderer.ts が hidden を切り替える。scene >= 1 のみ表示） -->
   <div id="main-container">
     <!-- エリアA: 戻るボタンコンテナ（right端・reading-start）。nav.ts が #btn-prev を querySelector で取得 -->
     <div id="btn-container-start" class="btn-container">
       <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
-    </div>
-
-    <!-- エリアB: タイトルカード（renderer.ts が内容を差し替え） -->
-    <div id="title-card" hidden>
-      <span id="title-ep" hidden></span>
-      <span id="title-sec" hidden></span>
     </div>
 
     <!-- エリアC: 本文表示エリア（renderer.ts が内容を生成） -->

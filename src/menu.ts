@@ -2,15 +2,13 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理
  * export: init()
- * 依存: state.ts, transition.ts, bookmark.ts, settings.ts
+ * 依存: state.ts, bookmark.ts, settings.ts
  *
  * メニュー項目と処理：
- *   目次へ戻る        → index.html（目次ページ）へ遷移
- *   前のセクションへ  → state.getPrevSecAddress() を取得し transition.trigger("backward") を呼ぶ
- *   次のセクションへ  → state.getNextSecAddress() を取得し transition.trigger("forward") を呼ぶ
- *   栞を追加          → bookmark.addBookmark(currentAddress) を呼ぶ
- *   共有              → クリップボード / X / LINE で現在の URL をシェアする
- *   設定を開く        → settings.open() を呼ぶ
+ *   目次へ戻る  → index.html（目次ページ）へ遷移
+ *   栞を追加    → bookmark.addBookmark(currentAddress) を呼ぶ
+ *   共有        → クリップボード / X / LINE で現在の URL をシェアする
+ *   設定を開く  → settings.open() を呼ぶ
  *
  * 開閉制御：
  *   - メニューボタン押下でトグル
@@ -24,19 +22,15 @@
  * 注意：
  *   - 「栞のクリア」「既読のクリア」は settings.ts のポップアップ内ボタンが担当する。
  *     settings.ts へのコールバック注入は main.ts が行う（menu.ts は関与しない）。
- *   - 前/次のセクションへボタンの有効/無効はメニューを開くたびに state から再計算する。
  */
 
 import * as state from './state';
-import * as transition from './transition';
 import * as bookmark from './bookmark';
 import * as settings from './settings';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
 let _items: HTMLButtonElement[] = [];
-let _btnPrevSec: HTMLButtonElement;
-let _btnNextSec: HTMLButtonElement;
 
 // DOM からメニューボタン・パネルを取得し、項目を生成してイベントを登録する。
 // main.ts が起動時に一度だけ呼ぶ。
@@ -71,16 +65,6 @@ function _buildItems(): void {
         location.href = 'index.html';
     });
 
-    _btnPrevSec = makeBtn('前のセクションへ', () => {
-        const addr = state.getPrevSecAddress();
-        if (addr) transition.trigger(addr);
-    });
-
-    _btnNextSec = makeBtn('次のセクションへ', () => {
-        const addr = state.getNextSecAddress();
-        if (addr) transition.trigger(addr);
-    });
-
     const btnBookmark = makeBtn('栞を追加', () => {
         bookmark.addBookmark(state.getCurrent());
     });
@@ -110,9 +94,6 @@ function _buildItems(): void {
     _panel.append(
         btnIndex,
         sep(),
-        _btnPrevSec,
-        _btnNextSec,
-        sep(),
         btnBookmark,
         sep(),
         btnCopy, btnX, btnLine,
@@ -120,14 +101,12 @@ function _buildItems(): void {
         btnSettings,
     );
 
-    _items = [btnIndex, _btnPrevSec, _btnNextSec, btnBookmark, btnCopy, btnX, btnLine, btnSettings];
+    _items = [btnIndex, btnBookmark, btnCopy, btnX, btnLine, btnSettings];
 }
 
-// メニューを開く。前/次セクションの有効・無効を更新してから最初の有効項目にフォーカスする。
+// メニューを開く。最初の有効項目にフォーカスする。
 // _open(): void
 function _open(): void {
-    _btnPrevSec.disabled = state.getPrevSecAddress() === null;
-    _btnNextSec.disabled = state.getNextSecAddress() === null;
     _panel.hidden = false;
     _toggle.setAttribute('aria-expanded', 'true');
     _items.find(b => !b.disabled)?.focus();
