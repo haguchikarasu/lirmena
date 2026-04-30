@@ -23,7 +23,7 @@
  *              trigger(address: SceneAddress): Promise<void>
  *   renderer : renderTitleScreen(epTitle: string): void
  *              renderScene(scene: Scene): void
- *   bg       : set(bgFile: string | null): void
+ *   bg       : set(bgFile: string | null, bgPositionX?: string): void
  *   progress : initProgress(allEpScenes: Scene[]): void
  *              updateProgress(currentSceneInEp: number): void
  *   nav      : init(): void / update(): void
@@ -137,7 +137,8 @@ async function _init(): Promise<void> {
     } else {
         renderer.renderScene(scenes[address.scene - 1]);
     }
-    bg.set(address.scene === 0 ? null : (scenes[address.scene - 1]?.bgFile ?? null));
+    const initSc = address.scene === 0 ? undefined : scenes[address.scene - 1];
+    bg.set(initSc?.bgFile ?? null, initSc?.bgPositionX);
     nav.update();
     progress.initProgress(epAllScenes);
     progress.updateProgress(address.scene === 0 ? 0 : epSceneOffset + address.scene);

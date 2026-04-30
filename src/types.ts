@@ -9,6 +9,7 @@ export type SceneAddress = { ep: number; sec: number; scene: number };
  */
 export type Scene = {
     bgFile: string | null;
+    bgPositionX?: string;  // 例: "30%"。@@BG:file:X%@@ で指定。縦長画面のみ有効
     lineCount: number;
     content: unknown;
 };

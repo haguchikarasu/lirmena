@@ -113,7 +113,8 @@ async function _run(address: SceneAddress): Promise<void> {
         renderer.renderScene(_scenes[target.scene - 1], savedScroll);
     }
 
-    bg.set(target.scene === 0 ? null : (_scenes[target.scene - 1]?.bgFile ?? null));
+    const sc = target.scene === 0 ? undefined : _scenes[target.scene - 1];
+    bg.set(sc?.bgFile ?? null, sc?.bgPositionX);
 
     history.replaceState(null, '', state.toHash(target));
     state.setCurrent(target);

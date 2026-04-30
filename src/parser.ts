@@ -26,7 +26,8 @@ export type TextNode =
 
 // 本文テキスト全体を受け取り Scene[] を返す
 // - @@BG:file@@ でシーン分割・bgFile にファイル名のみ（パスなし）を格納
-// - @@BG@@ は bgFile: null（直前シーンの画像を引き継ぐ指示）
+// - @@BG:file:X%@@ の第3トークン（% を含む）を bgPositionX に格納。% を含まない場合は無視
+// - @@BG@@ は bgFile: null（直前シーンの画像を引き継ぐ指示）。横位置トークンがあっても無視
 // - タグより前のテキストは bgFile: null の先頭シーンとして格納
 // - lineCount は @@BG タグを除いた改行数
 // - タグ直後の改行1つは本文に含めない
@@ -34,19 +35,25 @@ export type TextNode =
 export function parse(text: string): Scene[] {
   const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  type TagInfo = { start: number; end: number; bgFile: string | null };
+  type TagInfo = { start: number; end: number; bgFile: string | null; bgPositionX?: string };
   const tags: TagInfo[] = [];
   const tagRe = /@@BG(?::([^@]+))?@@/g;
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(src)) !== null) {
-    tags.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      bgFile: m[1] !== undefined ? m[1] : null,
-    });
+    let bgFile: string | null = null;
+    let bgPositionX: string | undefined;
+    if (m[1] !== undefined) {
+      const tokens = m[1].split(":");
+      bgFile = tokens[0].length > 0 ? tokens[0] : null;
+      const posToken = tokens[1];
+      if (bgFile !== null && posToken !== undefined && posToken.includes("%")) {
+        bgPositionX = posToken;
+      }
+    }
+    tags.push({ start: m.index, end: m.index + m[0].length, bgFile, bgPositionX });
   }
 
-  const segments: Array<{ bgFile: string | null; raw: string }> = [];
+  const segments: Array<{ bgFile: string | null; bgPositionX?: string; raw: string }> = [];
 
   if (tags.length === 0) {
     segments.push({ bgFile: null, raw: src });
@@ -58,14 +65,14 @@ export function parse(text: string): Scene[] {
       let start = tags[i].end;
       if (src[start] === "\n") start++;  // タグ直後の改行1つを除去
       const end = i + 1 < tags.length ? tags[i + 1].start : src.length;
-      segments.push({ bgFile: tags[i].bgFile, raw: src.slice(start, end) });
+      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, raw: src.slice(start, end) });
     }
   }
 
-  return segments.map(({ bgFile, raw }) => {
+  return segments.map(({ bgFile, bgPositionX, raw }) => {
     const content = tokenize(raw);
     const lineCount = content.reduce((acc, n) => acc + (n.type === "br" ? 1 : n.type === "blank" ? 2 : 0), 0);
-    return { bgFile, lineCount, content };
+    return { bgFile, bgPositionX, lineCount, content };
   });
 }
 

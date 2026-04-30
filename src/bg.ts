@@ -1,6 +1,6 @@
 /*
  * bg.ts
- * 責務: 背景画像の切り替え（object-fit: cover・読込失敗時は黒背景）
+ * 責務: 背景画像の切り替え（background-size: cover・読込失敗時は黒背景）
  * export: set()
  * 依存: なし
  *
@@ -8,20 +8,27 @@
  *   フェードは transition.ts の暗転に乗せる方式のため、set() は即時差し替え。
  *   null を渡すと黒背景になる（タイトルカード表示時など）。
  *   読込失敗時も黒背景にフォールバック。
+ *   bgPositionX が指定されかつ縦長画面（innerWidth < innerHeight）のとき
+ *   background-position: {bgPositionX} center を適用し、それ以外は center center にする。
  */
 
 const IMG_BASE = '/img/';
 
-// ファイル名を受け取り背景画像を即時差し替える。null なら黒背景にする。
-// set(filename: string | null): void
-export function set(filename: string | null): void {
+// ファイル名と横位置指定を受け取り背景画像を即時差し替える。null なら黒背景にする。
+// bgPositionX が指定されかつ縦長画面のとき background-position: {bgPositionX} center を適用する。
+// set(filename: string | null, bgPositionX?: string): void
+export function set(filename: string | null, bgPositionX?: string): void {
   const el = document.getElementById('bg-layer');
   if (!el) return;
 
   if (filename === null) {
     el.style.backgroundImage = '';
+    el.style.backgroundPosition = '';
     return;
   }
+
+  const portrait = window.innerWidth < window.innerHeight;
+  el.style.backgroundPosition = (bgPositionX && portrait) ? `${bgPositionX} center` : 'center center';
 
   const img = new Image();
   img.onload = () => {
