@@ -25,7 +25,7 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 30rem;           /* メインコンテナの最大横幅 */
+  --scene-max-w: 42rem;           /* メインコンテナの最大横幅 */
   --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
   /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
      @media (min-width: 900px) のハードコード値と手動で合わせること */
@@ -365,7 +365,7 @@ button {
    本文テキスト（renderer.ts が生成するクラス）
 =================================================== */
 #scene-content p {
-  line-height: 1.6;
+  line-height: 1.8;
   margin-block-end: var(--paragraph-margin);
   text-align: justify;
   text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 14px rgba(0,0,0,0.5);
