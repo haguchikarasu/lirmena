@@ -145,6 +145,8 @@ async function _init(): Promise<void> {
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;
+
+    window.addEventListener('hashchange', _onHashChange);
 }
 
 /**
@@ -219,6 +221,17 @@ async function _getAllEpScenes(
     const cached = _epCache.get(ep)!;
     const offset = cached.secOffsets.get(currentSec) ?? 0;
     return { all: cached.allScenes, offset };
+}
+
+/**
+ * hashchange イベントを受けて、新しいハッシュに対応するシーンへ遷移する。
+ * 初期化完了後に登録される。
+ */
+function _onHashChange(): void {
+    const address = state.parseHash(window.location.hash);
+    if (!address) return;
+    if (!state.isPublished(address.ep, address.sec)) return;
+    void transition.trigger(address);
 }
 
 /**
