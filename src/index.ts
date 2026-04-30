@@ -1,0 +1,497 @@
+/*
+ * index.ts
+ * 責務: 目次ページ（index.html）の全機能制御
+ * export: なし（script type="module" としてロードされるエントリポイント）
+ * 依存: なし（src/ 内の他モジュールは import しない）
+ *
+ * 機能:
+ *   - episodes.json を fetch して ep・sec 一覧を動的生成
+ *   - localStorage のシーン既読データからセクション既読を判定・表示
+ *   - 栞スロット（最大3件）を常時表示、個別クリア・ジャンプ対応
+ *   - 右下 FAB メニュー（設定・栞クリア・既読クリア・共有）
+ *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
+ *
+ * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
+ *   "bookmarks"          : BookmarkEntry[]  { address:{ep,sec,scene}, scrollY, savedAt }
+ *   "sceneRead"          : string[]         "ep-sec-scene" 形式（ゼロ埋め2桁）
+ *   "lirmena.fontSize"   : 'large' | 'medium' | 'small'   デフォルト 'medium'
+ *   "lirmena.fontFamily" : 'serif' | 'sans'               デフォルト 'serif'
+ *   "lirmena.lineGap"    : 'on' | 'off'                   デフォルト 'on'
+ */
+
+type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
+type BookmarkEntry = {
+    address: { ep: number; sec: number; scene: number };
+    scrollY: number;
+    savedAt: number;
+};
+
+// localStorage キー（bookmark.ts / settings.ts と同一）
+const LS_BOOKMARKS    = 'bookmarks';
+const LS_SCENE_READ   = 'sceneRead';
+const LS_FONT_SIZE    = 'lirmena.fontSize';
+const LS_FONT_FAMILY  = 'lirmena.fontFamily';
+const LS_LINE_GAP     = 'lirmena.lineGap';
+
+const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on' } as const;
+
+// 数値を2桁ゼロ埋め文字列に変換する
+// pad(n: number): string
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// ----- localStorage ヘルパー -----
+
+// sceneRead を localStorage から読み込む
+// loadSceneRead(): Set<string>
+function loadSceneRead(): Set<string> {
+    try {
+        const raw = localStorage.getItem(LS_SCENE_READ);
+        if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* ignore */ }
+    return new Set();
+}
+
+// 栞リストを localStorage から読み込む
+// loadBookmarks(): BookmarkEntry[]
+function loadBookmarks(): BookmarkEntry[] {
+    try {
+        const raw = localStorage.getItem(LS_BOOKMARKS);
+        if (raw) return JSON.parse(raw) as BookmarkEntry[];
+    } catch { /* ignore */ }
+    return [];
+}
+
+// ----- 既読判定 -----
+
+// セクション既読判定: sceneRead から最終シーン N を推定し N-1 と N の両方が既読かを返す
+// 1シーン構成特例: N=1 のとき scene 1 が既読であれば true
+// isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean
+function isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean {
+    const epStr  = pad(ep);
+    const secStr = pad(sec);
+    let maxScene = 0;
+    for (const key of sceneRead) {
+        const parts = key.split('-');
+        if (parts[0] === epStr && parts[1] === secStr) {
+            const n = parseInt(parts[2], 10);
+            if (n > maxScene) maxScene = n;
+        }
+    }
+    if (maxScene === 0) return false;
+    if (maxScene === 1) return sceneRead.has(`${epStr}-${secStr}-01`);
+    return (
+        sceneRead.has(`${epStr}-${secStr}-${pad(maxScene)}`) &&
+        sceneRead.has(`${epStr}-${secStr}-${pad(maxScene - 1)}`)
+    );
+}
+
+// ----- ep・sec 一覧 -----
+
+// ep・sec 一覧を動的生成する。未公開 sec・公開済み sec が0の ep は非表示
+// renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void
+function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
+    const area = document.getElementById('episodes-area');
+    if (!area) return;
+    area.innerHTML = '';
+
+    for (const ep of episodes) {
+        const publishedSecs = ep.sections.filter(s => s.published);
+        if (publishedSecs.length === 0) continue;
+
+        const epEl = document.createElement('article');
+        epEl.className = 'ep-block';
+
+        const titleEl = document.createElement('h2');
+        titleEl.className = 'ep-title';
+        titleEl.textContent = ep.title;
+        epEl.appendChild(titleEl);
+
+        const secListEl = document.createElement('div');
+        secListEl.className = 'sec-list';
+
+        for (const sec of publishedSecs) {
+            const read = isSectionRead(ep.id, sec.id, sceneRead);
+
+            const link = document.createElement('a');
+            link.className = 'sec-link' + (read ? ' sec-link--read' : '');
+            link.href = `contents.html#${pad(ep.id)}-${pad(sec.id)}-01`;
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'sec-label';
+            labelEl.textContent = pad(sec.id);
+            link.appendChild(labelEl);
+
+            if (read) {
+                const badge = document.createElement('span');
+                badge.className = 'sec-read-badge';
+                badge.setAttribute('aria-label', '既読');
+                badge.textContent = '✓';
+                link.appendChild(badge);
+            }
+
+            secListEl.appendChild(link);
+        }
+
+        epEl.appendChild(secListEl);
+        area.appendChild(epEl);
+    }
+
+    if (area.children.length === 0) {
+        const msg = document.createElement('p');
+        msg.className = 'loading-text';
+        msg.textContent = '公開中のエピソードはまだありません。';
+        area.appendChild(msg);
+    }
+}
+
+// ----- 栞 -----
+
+// 栞スロットを描画する（再描画可）
+// renderBookmarks(): void
+function renderBookmarks(): void {
+    const container = document.getElementById('bookmark-slots');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const bookmarks = loadBookmarks().sort((a, b) => b.savedAt - a.savedAt).slice(0, 3);
+
+    if (bookmarks.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'bookmarks-empty';
+        empty.textContent = '栞はまだありません。';
+        container.appendChild(empty);
+        return;
+    }
+
+    for (const entry of bookmarks) {
+        const { ep, sec, scene } = entry.address;
+        const d = new Date(entry.savedAt);
+        const dateStr = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const href = `contents.html#${pad(ep)}-${pad(sec)}-${pad(scene)}`;
+
+        const slot = document.createElement('div');
+        slot.className = 'bookmark-slot';
+
+        const info = document.createElement('div');
+        info.className = 'bookmark-info';
+
+        const epSecEl = document.createElement('span');
+        epSecEl.className = 'bookmark-ep-sec';
+        epSecEl.textContent = `Ep.${pad(ep)}  Sec.${pad(sec)}${scene === 0 ? '（タイトル画面）' : ''}`;
+        info.appendChild(epSecEl);
+
+        const dateEl = document.createElement('span');
+        dateEl.className = 'bookmark-date';
+        dateEl.textContent = dateStr;
+        info.appendChild(dateEl);
+
+        const actions = document.createElement('div');
+        actions.className = 'bookmark-actions';
+
+        const jumpBtn = document.createElement('a');
+        jumpBtn.className = 'bookmark-jump';
+        jumpBtn.href = href;
+        jumpBtn.textContent = 'ここから読む';
+        actions.appendChild(jumpBtn);
+
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'bookmark-clear';
+        clearBtn.type = 'button';
+        clearBtn.textContent = '削除';
+        // savedAt でこの栞1件だけを削除して再描画する
+        clearBtn.addEventListener('click', () => {
+            const remaining = loadBookmarks().filter(b => b.savedAt !== entry.savedAt);
+            if (remaining.length === 0) {
+                localStorage.removeItem(LS_BOOKMARKS);
+            } else {
+                localStorage.setItem(LS_BOOKMARKS, JSON.stringify(remaining));
+            }
+            renderBookmarks();
+        });
+        actions.appendChild(clearBtn);
+
+        slot.appendChild(info);
+        slot.appendChild(actions);
+        container.appendChild(slot);
+    }
+}
+
+// ----- 設定ポップアップ -----
+
+// 設定ポップアップを DOM 構築し、イベントを登録する
+// buildSettingsPopup(episodes: Episode[]): void
+function buildSettingsPopup(episodes: Episode[]): void {
+    const popup = document.getElementById('settings-popup');
+    if (!popup) return;
+
+    // LS キー → ボタンリストの対応（リセット時に active クラスを更新するため保持）
+    const optEntries = new Map<string, Array<{ btn: HTMLButtonElement; value: string }>>();
+
+    function readSetting(key: string, defaultVal: string): string {
+        return localStorage.getItem(key) ?? defaultVal;
+    }
+
+    // 1行分の設定 UI（ラベル＋選択ボタン群）を生成する
+    // buildRow(label, lsKey, defaultVal, opts): HTMLElement
+    function buildRow(
+        label: string,
+        lsKey: string,
+        defaultVal: string,
+        opts: Array<{ value: string; label: string }>,
+    ): HTMLElement {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'settings-row__label';
+        labelEl.textContent = label;
+        row.appendChild(labelEl);
+
+        const optsEl = document.createElement('div');
+        optsEl.className = 'settings-row__opts';
+
+        const current = readSetting(lsKey, defaultVal);
+        const entries: Array<{ btn: HTMLButtonElement; value: string }> = [];
+
+        for (const opt of opts) {
+            const btn = document.createElement('button');
+            btn.className = 'settings-opt';
+            btn.type = 'button';
+            btn.textContent = opt.label;
+            if (current === opt.value) btn.classList.add('active');
+            btn.addEventListener('click', () => {
+                localStorage.setItem(lsKey, opt.value);
+                for (const e of entries) {
+                    e.btn.classList.toggle('active', e.value === opt.value);
+                }
+            });
+            optsEl.appendChild(btn);
+            entries.push({ btn, value: opt.value });
+        }
+        optEntries.set(lsKey, entries);
+        row.appendChild(optsEl);
+        return row;
+    }
+
+    // アクションボタン（クリア・リセット等）を生成する
+    // buildAction(label, handler): HTMLButtonElement
+    function buildAction(label: string, handler: () => void): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.className = 'settings-action';
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.addEventListener('click', handler);
+        return btn;
+    }
+
+    // 全行の active クラスを localStorage の現在値に合わせて更新する（リセット時に使用）
+    // refreshRows(): void
+    function refreshRows(): void {
+        const defs: [string, string][] = [
+            [LS_FONT_SIZE,   DEFAULTS.fontSize],
+            [LS_FONT_FAMILY, DEFAULTS.fontFamily],
+            [LS_LINE_GAP,    DEFAULTS.lineGap],
+        ];
+        for (const [key, def] of defs) {
+            const current = readSetting(key, def);
+            for (const e of optEntries.get(key) ?? []) {
+                e.btn.classList.toggle('active', e.value === current);
+            }
+        }
+    }
+
+    const panel = document.createElement('div');
+    panel.className = 'settings-panel';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'settings-panel__title';
+    titleEl.textContent = '表示設定';
+    panel.appendChild(titleEl);
+
+    panel.appendChild(buildRow('文字サイズ', LS_FONT_SIZE, DEFAULTS.fontSize, [
+        { value: 'small',  label: '小' },
+        { value: 'medium', label: '中' },
+        { value: 'large',  label: '大' },
+    ]));
+    panel.appendChild(buildRow('フォント', LS_FONT_FAMILY, DEFAULTS.fontFamily, [
+        { value: 'serif', label: '明朝体' },
+        { value: 'sans',  label: 'ゴシック体' },
+    ]));
+    panel.appendChild(buildRow('段落間の空行', LS_LINE_GAP, DEFAULTS.lineGap, [
+        { value: 'on',  label: 'あり' },
+        { value: 'off', label: 'なし' },
+    ]));
+
+    const divider = document.createElement('div');
+    divider.className = 'settings-divider';
+    panel.appendChild(divider);
+
+    panel.appendChild(buildAction('栞をクリア', () => {
+        localStorage.removeItem(LS_BOOKMARKS);
+        renderBookmarks();
+    }));
+    panel.appendChild(buildAction('既読をクリア', () => {
+        localStorage.removeItem(LS_SCENE_READ);
+        renderEpisodes(episodes, new Set());
+    }));
+    panel.appendChild(buildAction('設定をリセット', () => {
+        localStorage.removeItem(LS_FONT_SIZE);
+        localStorage.removeItem(LS_FONT_FAMILY);
+        localStorage.removeItem(LS_LINE_GAP);
+        refreshRows();
+    }));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'settings-close';
+    closeBtn.type = 'button';
+    closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', () => { popup.hidden = true; });
+    panel.appendChild(closeBtn);
+
+    popup.appendChild(panel);
+
+    // ポップアップ背景クリックで閉じる
+    popup.addEventListener('click', (e) => {
+        if (e.target === popup) popup.hidden = true;
+    });
+}
+
+// ----- FAB メニュー -----
+
+// 右下 FAB メニューを初期化する
+// initFab(popup: HTMLElement, episodes: Episode[]): void
+function initFab(popup: HTMLElement, episodes: Episode[]): void {
+    const toggleOrNull = document.getElementById('fab-toggle');
+    const panelOrNull  = document.getElementById('fab-panel');
+    if (!toggleOrNull || !panelOrNull) return;
+
+    // null でないことを確認済み。クロージャが非 null 型として参照できるよう再束縛する
+    const toggle = toggleOrNull as HTMLButtonElement;
+    const panel  = panelOrNull  as HTMLUListElement;
+
+    function isOpen() { return !panel.hidden; }
+
+    function openFab() {
+        panel.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.setAttribute('aria-label', 'メニューを閉じる');
+        // 最初の項目にフォーカスを移す
+        panel.querySelector<HTMLButtonElement>('.fab-item')?.focus();
+    }
+
+    function closeFab() {
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'メニューを開く');
+    }
+
+    // メニュー項目を1件追加する
+    // addItem(label, handler): void
+    function addItem(label: string, handler: () => void): void {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'presentation');
+        const btn = document.createElement('button');
+        btn.className = 'fab-item';
+        btn.type = 'button';
+        btn.setAttribute('role', 'menuitem');
+        btn.textContent = label;
+        btn.addEventListener('click', () => { closeFab(); handler(); });
+        li.appendChild(btn);
+        panel.appendChild(li);
+    }
+
+    addItem('設定', () => { popup.hidden = false; });
+    addItem('栞をすべてクリア', () => {
+        localStorage.removeItem(LS_BOOKMARKS);
+        renderBookmarks();
+    });
+    addItem('既読をクリア', () => {
+        localStorage.removeItem(LS_SCENE_READ);
+        renderEpisodes(episodes, new Set());
+    });
+    addItem('URLをコピー', async () => {
+        try {
+            await navigator.clipboard.writeText(location.href);
+            alert('URLをコピーしました');
+        } catch {
+            alert('コピーに失敗しました。URLを手動でコピーしてください。');
+        }
+    });
+    addItem('Xで共有', () => {
+        window.open(
+            `https://x.com/intent/tweet?url=${encodeURIComponent(location.href)}`,
+            '_blank', 'noopener,noreferrer',
+        );
+    });
+    addItem('LINEで共有', () => {
+        window.open(
+            `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(location.href)}`,
+            '_blank', 'noopener,noreferrer',
+        );
+    });
+
+    // トグルボタン
+    toggle.addEventListener('click', () => { isOpen() ? closeFab() : openFab(); });
+
+    // パネル外クリックで閉じる
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('fab-container');
+        if (isOpen() && container && !container.contains(e.target as Node)) {
+            closeFab();
+        }
+    });
+
+    // パネル内の上下キーナビゲーション
+    panel.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        e.preventDefault();
+        const items = Array.from(panel.querySelectorAll<HTMLButtonElement>('.fab-item'));
+        const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+        if (e.key === 'ArrowDown') {
+            items[(idx + 1) % items.length]?.focus();
+        } else {
+            items[(idx - 1 + items.length) % items.length]?.focus();
+        }
+    });
+
+    // Escape: 設定ポップアップが開いていれば閉じる、それ以外は FAB をトグル
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!popup.hidden) { popup.hidden = true; return; }
+        isOpen() ? closeFab() : openFab();
+    });
+}
+
+// ----- エントリポイント -----
+
+// main(): Promise<void>
+async function main(): Promise<void> {
+    let episodes: Episode[] = [];
+
+    try {
+        const res = await fetch('episodes.json');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        episodes = (await res.json()) as Episode[];
+    } catch {
+        const area = document.getElementById('episodes-area');
+        if (area) {
+            area.innerHTML = '';
+            const msg = document.createElement('p');
+            msg.className = 'loading-text';
+            msg.textContent = 'エピソードの読み込みに失敗しました。';
+            area.appendChild(msg);
+        }
+    }
+
+    const sceneRead = loadSceneRead();
+    renderEpisodes(episodes, sceneRead);
+    renderBookmarks();
+
+    const popup = document.getElementById('settings-popup');
+    if (popup) {
+        buildSettingsPopup(episodes);
+        initFab(popup, episodes);
+    }
+}
+
+main();

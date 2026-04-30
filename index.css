@@ -1,0 +1,404 @@
+/* index.css — 目次ページ専用スタイル（style.css とは独立） */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #f5f5f0;
+  --color-surface: #ffffff;
+  --color-text: #1a1a1a;
+  --color-text-muted: #666;
+  --color-accent: #2d5a3d;
+  --color-accent-light: #e8f0eb;
+  --color-border: #ddd;
+  --color-read: #2d5a3d;
+  --radius: 6px;
+  --content-max-width: 760px;
+  --page-padding: 1rem;
+}
+
+body {
+  font-family: sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ===== 表紙絵エリア ===== */
+
+#cover-area {
+  background: var(--color-accent);
+  color: #fff;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.cover-title {
+  font-size: 2rem;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+}
+
+/* ===== ep・sec 一覧エリア ===== */
+
+#episodes-area {
+  max-width: var(--content-max-width);
+  margin: 2rem auto;
+  padding: 0 var(--page-padding);
+}
+
+.loading-text {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 2rem;
+}
+
+.ep-block {
+  margin-bottom: 1.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ep-title {
+  font-size: 1.05rem;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+  color: var(--color-text);
+}
+
+.sec-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sec-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sec-link:hover {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+}
+
+.sec-link--read {
+  /* 既読セクション用クラス。テキストカラーによる区別は行わない（ブラウザの既読色との混同を避けるため）。
+     視覚的な既読表示は .sec-read-badge バッジで行う。将来のスタイル変更はここに追記する。 */
+}
+
+.sec-read-badge {
+  color: var(--color-read);
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* ===== 栞エリア ===== */
+
+#bookmarks-area {
+  max-width: var(--content-max-width);
+  margin: 0 auto 5rem;
+  padding: 0 var(--page-padding);
+}
+
+.section-heading {
+  font-size: 1.05rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--color-accent);
+  color: var(--color-text);
+}
+
+.bookmarks-empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.bookmark-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.875rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.bookmark-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.bookmark-ep-sec {
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.bookmark-date {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.bookmark-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.bookmark-jump {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  background: var(--color-accent);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.bookmark-jump:hover {
+  opacity: 0.9;
+}
+
+.bookmark-clear {
+  padding: 0.4rem 0.7rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bookmark-clear:hover {
+  background: #fff0f0;
+  border-color: #f99;
+  color: #c00;
+}
+
+/* ===== FAB ===== */
+
+#fab-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+#fab-toggle {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+#fab-toggle:hover {
+  opacity: 0.9;
+}
+
+#fab-panel {
+  list-style: none;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  min-width: 180px;
+}
+
+.fab-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+#fab-panel li:last-child .fab-item {
+  border-bottom: none;
+}
+
+.fab-item:hover,
+.fab-item:focus {
+  background: var(--color-accent-light);
+  outline: none;
+}
+
+/* ===== 設定ポップアップ ===== */
+
+#settings-popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+#settings-popup[hidden] {
+  display: none;
+}
+
+.settings-panel {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  min-width: 280px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.settings-panel__title {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.settings-row__label {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.settings-row__opts {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.settings-opt {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.settings-opt.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.settings-opt:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 1rem 0;
+}
+
+.settings-action {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.settings-action:hover {
+  background: var(--color-accent-light);
+}
+
+.settings-close {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  margin-top: 1rem;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #fff;
+  text-align: center;
+}
+
+.settings-close:hover {
+  opacity: 0.9;
+}
+
+/* ===== レスポンシブ ===== */
+
+@media (max-width: 600px) {
+  .cover-title {
+    font-size: 1.5rem;
+  }
+
+  .bookmark-slot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bookmark-actions {
+    align-self: flex-end;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
