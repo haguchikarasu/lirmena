@@ -55,6 +55,9 @@ import * as loader from './loader';
 import * as parser from './parser';
 import type { Scene, EpisodesData, SceneAddress } from './types';
 
+/** マウスホイールのスクロール量倍率 */
+const WHEEL_SCROLL_MULTIPLIER = 2;
+
 // ep → { allScenes: Scene[]; secOffsets: Map<secId, sceneOffset> }
 // sceneOffset は ep 内でのシーン開始インデックス（0始まり）
 const _epCache = new Map<number, { allScenes: Scene[]; secOffsets: Map<number, number> }>();
@@ -120,7 +123,7 @@ async function _init(): Promise<void> {
     const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
     mainContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
-        mainContainer.scrollBy({ left: -e.deltaY, behavior: 'smooth' });
+        mainContainer.scrollBy({ left: -e.deltaY * WHEEL_SCROLL_MULTIPLIER, behavior: 'smooth' });
     }, { passive: false });
 
     settings.init({
