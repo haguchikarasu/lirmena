@@ -58,8 +58,10 @@ export function parse(text: string): Scene[] {
   if (tags.length === 0) {
     segments.push({ bgFile: null, raw: src });
   } else {
-    // 最初のタグより前のテキスト（bgFile なし）
-    segments.push({ bgFile: null, raw: src.slice(0, tags[0].start) });
+    // 最初のタグより前にテキストがある場合のみ先頭シーンを追加
+    if (tags[0].start > 0) {
+      segments.push({ bgFile: null, raw: src.slice(0, tags[0].start) });
+    }
 
     for (let i = 0; i < tags.length; i++) {
       let start = tags[i].end;
