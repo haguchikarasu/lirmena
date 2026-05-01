@@ -114,7 +114,7 @@ function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
 
             const link = document.createElement('a');
             link.className = 'idx-chip' + (read ? ' idx-chip--read' : '');
-            link.href = `contents.html#${pad(ep.id)}-${pad(sec.id)}-01`;
+            link.href = `contents.html#${pad(ep.id)}-${pad(sec.id)}-${sec.id === 1 ? '00' : '01'}`;
 
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
