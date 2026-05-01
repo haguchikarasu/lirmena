@@ -120,7 +120,7 @@ async function _init(): Promise<void> {
     const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
     mainContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
-        mainContainer.scrollLeft -= e.deltaY;
+        mainContainer.scrollBy({ left: -e.deltaY, behavior: 'smooth' });
     }, { passive: false });
 
     settings.init({
