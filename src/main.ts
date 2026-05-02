@@ -5,6 +5,8 @@
  * 【IF】export なし（エントリーポイント）
  * 【依存】
  *   loader   : loadEpisodes(): Promise<EpisodesData>
+ *              fetchCharacters(): Promise<CharactersData>
+ *              fetchVolumes(): Promise<VolumesData>
  *              loadText(ep: number, sec: number): Promise<string>
  *   parser   : parse(text: string): Scene[]
  *   state    : init(data: EpisodesData, address: SceneAddress): void
@@ -27,7 +29,7 @@
  *   progress : initProgress(allEpScenes: Scene[]): void
  *              updateProgress(currentSceneInEp: number): void
  *   nav      : init(): void / update(): void
- *   menu     : init(): void
+ *   menu     : init(characters: CharactersData, volumes: VolumesData): void
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
  *   bookmark : init(): void / clearSlots(): void / clearRead(): void
  * 【被依存】なし
@@ -53,7 +55,7 @@ import * as settings from './settings';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
-import type { Scene, EpisodesData, SceneAddress } from './types';
+import type { Scene, EpisodesData, SceneAddress, CharactersData, VolumesData } from './types';
 
 /** マウスホイールのスクロール量倍率 */
 const WHEEL_SCROLL_MULTIPLIER = 2;
@@ -70,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *
  * 初期化順序:
  *   1. loader.loadEpisodes() で episodes.json を取得
+ *   1'. loader.fetchCharacters() / loader.fetchVolumes() で characters.json / volumes.json を取得
  *   2. _resolveAddress(data) でハッシュを解析・検証
  *   3. state.init(data, address) で現在位置を確定
  *   4. _loadSec(ep, sec) で初期 sec の Scene[] を取得
@@ -78,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   7. bookmark.init() で栞・既読を localStorage から復元
  *   8. nav.init() でボタンイベントを登録
  *   9. transition.init(scenes, offset, _loadSec, _getAllEpScenes, () => nav.update()) で遷移エンジンを初期化
- *  10. menu.init() で右下メニューを初期化
+ *  10. menu.init(characters, volumes) でキャラクター紹介データを渡して右下メニューを初期化
  *  11. 初期レンダリング（タイトル画面 or シーン）
  *  12. bg.set() で初期背景を設定
  *  13. nav.update() でボタン表示を確定
@@ -88,6 +91,18 @@ async function _init(): Promise<void> {
     let data: EpisodesData;
     try {
         data = await loader.loadEpisodes();
+    } catch {
+        _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+
+    let charactersData: CharactersData;
+    let volumesData: VolumesData;
+    try {
+        [charactersData, volumesData] = await Promise.all([
+            loader.fetchCharacters(),
+            loader.fetchVolumes(),
+        ]);
     } catch {
         _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
         return;
@@ -133,7 +148,7 @@ async function _init(): Promise<void> {
     bookmark.init();
     nav.init();
     transition.init(scenes, epSceneOffset, _loadSec, _getAllEpScenes, () => nav.update());
-    menu.init();
+    menu.init(charactersData, volumesData);
 
     if (address.scene === 0) {
         renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '');

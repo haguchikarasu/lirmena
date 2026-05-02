@@ -1,7 +1,7 @@
 /*
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理
- * export: init()
+ * export: init(characters: CharactersData, volumes: VolumesData)
  * 依存: state.ts, bookmark.ts, settings.ts
  *
  * メニュー項目と処理：
@@ -27,15 +27,20 @@
 import * as state from './state';
 import * as bookmark from './bookmark';
 import * as settings from './settings';
+import type { CharactersData, VolumesData } from './types';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
 let _items: HTMLButtonElement[] = [];
+let _charactersData: CharactersData = [];
+let _volumesData: VolumesData = [];
 
 // DOM からメニューボタン・パネルを取得し、項目を生成してイベントを登録する。
-// main.ts が起動時に一度だけ呼ぶ。
-// init(): void
-export function init(): void {
+// main.ts が起動時に一度だけ呼ぶ。キャラクター紹介データを受け取って保持する。
+// init(characters: CharactersData, volumes: VolumesData): void
+export function init(characters: CharactersData, volumes: VolumesData): void {
+    _charactersData = characters;
+    _volumesData = volumes;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
     _buildItems();
