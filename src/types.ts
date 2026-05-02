@@ -3,6 +3,13 @@ export type Episode = { id: number; title: string; sections: EpisodeSection[] };
 export type EpisodesData = Episode[];
 export type SceneAddress = { ep: number; sec: number; scene: number };
 
+export type CharacterEntry = { name: string; description: string };
+export type VolumeCharacters = { volume: number; characters: CharacterEntry[] };
+export type CharactersData = VolumeCharacters[];
+
+export type VolumeRange = { volume: number; epRange: [number, number] };
+export type VolumesData = VolumeRange[];
+
 /**
  * parser.ts が生成するシーン構造体。
  * content フィールドの型は parser.ts の IF 設計時に確定する。
