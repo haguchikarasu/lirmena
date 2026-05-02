@@ -8,6 +8,7 @@
  *   - episodes.json を fetch して ep・sec 一覧を動的生成
  *   - localStorage のシーン既読データからセクション既読を判定・表示
  *   - 栞スロット（最大3件）を常時表示、個別クリア・ジャンプ対応
+ *   - content-changelog.json / site-changelog.json を fetch して更新履歴を表示
  *   - 右下 FAB メニュー（設定・栞クリア・既読クリア・共有）
  *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
  *
@@ -25,6 +26,11 @@ type BookmarkEntry = {
     scrollY: number;
     savedAt: number;
 };
+type ChangelogEntry = {
+    version: string;
+    date: string;
+    changes: string[];
+};
 
 // localStorage キー（bookmark.ts / settings.ts と同一）
 const LS_BOOKMARKS    = 'bookmarks';
@@ -34,6 +40,9 @@ const LS_FONT_FAMILY  = 'lirmena.fontFamily';
 const LS_LINE_GAP     = 'lirmena.lineGap';
 
 const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on' } as const;
+
+const GITHUB_REPO = 'ユーザー名/リポジトリ名';
+const CHANGELOG_INITIAL_COUNT = 3;
 
 // 数値を2桁ゼロ埋め文字列に変換する
 // pad(n: number): string
@@ -454,6 +463,85 @@ function initFab(popup: HTMLElement, episodes: Episode[]): void {
     });
 }
 
+// ----- 更新履歴 -----
+
+// changelog エントリを DOM に描画する。CHANGELOG_INITIAL_COUNT を超える分は折りたたむ
+// _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): void
+function _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): void {
+    const listEl   = document.getElementById(`${type}-changelog-list`);
+    const toggleBtn = document.getElementById(`${type}-changelog-toggle`) as HTMLButtonElement | null;
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    entries.forEach((entry, i) => {
+        const li = document.createElement('li');
+        li.className = 'cl-entry';
+
+        const header = document.createElement('p');
+        header.className = 'cl-header';
+
+        // 1つ古いエントリ（i+1）との比較 URL。最古エントリにはリンクなし
+        const prevEntry = entries[i + 1];
+        if (prevEntry) {
+            const link = document.createElement('a');
+            link.href = `https://github.com/${GITHUB_REPO}/compare/${type}-v${prevEntry.version}...${type}-v${entry.version}`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'cl-version';
+            link.textContent = `v${entry.version}`;
+            header.appendChild(link);
+        } else {
+            const span = document.createElement('span');
+            span.className = 'cl-version';
+            span.textContent = `v${entry.version}`;
+            header.appendChild(span);
+        }
+
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'cl-date';
+        dateSpan.textContent = entry.date;
+        header.appendChild(dateSpan);
+        li.appendChild(header);
+
+        const changesList = document.createElement('ul');
+        changesList.className = 'cl-changes';
+        for (const change of entry.changes) {
+            const changeLi = document.createElement('li');
+            changeLi.textContent = change;
+            changesList.appendChild(changeLi);
+        }
+        li.appendChild(changesList);
+
+        if (i >= CHANGELOG_INITIAL_COUNT) li.hidden = true;
+        listEl.appendChild(li);
+    });
+
+    if (entries.length > CHANGELOG_INITIAL_COUNT && toggleBtn) {
+        toggleBtn.hidden = false;
+        toggleBtn.addEventListener('click', () => {
+            const expanding = toggleBtn.textContent === 'すべて表示';
+            listEl.querySelectorAll<HTMLLIElement>('li').forEach((item, i) => {
+                if (i >= CHANGELOG_INITIAL_COUNT) item.hidden = !expanding;
+            });
+            toggleBtn.textContent = expanding ? '閉じる' : 'すべて表示';
+        });
+    }
+}
+
+// changelog.json を fetch して描画する。失敗時はセクションを非表示にする
+// loadChangelog(type: 'content' | 'site'): Promise<void>
+async function loadChangelog(type: 'content' | 'site'): Promise<void> {
+    try {
+        const res = await fetch(`${type}-changelog.json`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const entries = (await res.json()) as ChangelogEntry[];
+        _renderChangelog(type, entries);
+    } catch {
+        const section = document.getElementById(`${type}-changelog`);
+        if (section) section.hidden = true;
+    }
+}
+
 // ----- エントリポイント -----
 
 // main(): Promise<void>
@@ -478,6 +566,8 @@ async function main(): Promise<void> {
     const sceneRead = loadSceneRead();
     renderEpisodes(episodes, sceneRead);
     renderBookmarks();
+    loadChangelog('content');
+    loadChangelog('site');
 
     const popup = document.getElementById('settings-popup');
     if (popup) {
