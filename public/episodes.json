@@ -12,9 +12,9 @@
     "id": 2,
     "title": "丘の上の影",
     "sections": [
-      { "id": 1, "published": true },
+      { "id": 1, "published": false },
       { "id": 2, "published": false },
-      { "id": 3, "published": true }
+      { "id": 3, "published": false }
     ]
   }
 ]
