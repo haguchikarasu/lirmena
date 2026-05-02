@@ -76,11 +76,20 @@ export function getBookmarks(): BookmarkEntry[] {
 
 // forward 遷移が成立したシーンを即座に既読として localStorage に保存する。
 // transition.ts が遷移先確定後に呼ぶ（scene 0 への遷移は除く）。
-// recordSceneRead(ep: number, sec: number, scene: number): void
-export function recordSceneRead(ep: number, sec: number, scene: number): void {
+// scene === totalScenes のとき、セクション完了マーカー "ep-sec-00" も記録する。
+// このマーカーを index.ts の isSectionRead が参照してセクション既読を判定する。
+// recordSceneRead(ep: number, sec: number, scene: number, totalScenes: number): void
+export function recordSceneRead(ep: number, sec: number, scene: number, totalScenes: number): void {
     const key = toSceneKey(ep, sec, scene);
-    if (_sceneRead.has(key)) return;
-    _sceneRead.add(key);
+    if (!_sceneRead.has(key)) {
+        _sceneRead.add(key);
+    }
+    if (scene === totalScenes) {
+        const markerKey = toSceneKey(ep, sec, 0);
+        if (!_sceneRead.has(markerKey)) {
+            _sceneRead.add(markerKey);
+        }
+    }
     localStorage.setItem(KEY_SCENE_READ, JSON.stringify([..._sceneRead]));
 }
 

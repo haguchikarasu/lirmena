@@ -131,7 +131,7 @@ async function _run(address: SceneAddress): Promise<void> {
 
     // forward 遷移かつ scene >= 1 のときのみ既読を記録する
     if (!isBackward && target.scene >= 1) {
-        bookmark.recordSceneRead(target.ep, target.sec, target.scene);
+        bookmark.recordSceneRead(target.ep, target.sec, target.scene, _scenes.length);
     }
 
     await _fadeIn();

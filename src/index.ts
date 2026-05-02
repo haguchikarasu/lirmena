@@ -72,26 +72,10 @@ function loadBookmarks(): BookmarkEntry[] {
 
 // ----- 既読判定 -----
 
-// セクション既読判定: sceneRead から最終シーン N を推定し N-1 と N の両方が既読かを返す
-// 1シーン構成特例: N=1 のとき scene 1 が既読であれば true
+// セクション既読判定: bookmark.ts が最終シーン到達時に記録する完了マーカー "ep-sec-00" の有無を返す
 // isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean
 function isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean {
-    const epStr  = pad(ep);
-    const secStr = pad(sec);
-    let maxScene = 0;
-    for (const key of sceneRead) {
-        const parts = key.split('-');
-        if (parts[0] === epStr && parts[1] === secStr) {
-            const n = parseInt(parts[2], 10);
-            if (n > maxScene) maxScene = n;
-        }
-    }
-    if (maxScene === 0) return false;
-    if (maxScene === 1) return sceneRead.has(`${epStr}-${secStr}-01`);
-    return (
-        sceneRead.has(`${epStr}-${secStr}-${pad(maxScene)}`) &&
-        sceneRead.has(`${epStr}-${secStr}-${pad(maxScene - 1)}`)
-    );
+    return sceneRead.has(`${pad(ep)}-${pad(sec)}-00`);
 }
 
 // ----- ep・sec 一覧 -----
