@@ -1,0 +1,9 @@
+[
+  {
+    "volume": 1,
+    "characters": [
+      { "name": "キャラA", "description": "説明文", "image": "" },
+      { "name": "キャラB", "description": "説明文", "image": "" }
+    ]
+  }
+]
