@@ -1,19 +1,25 @@
 /*
  * menu.ts
- * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理
- * export: init(characters: CharactersData, volumes: VolumesData)
+ * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
+ * export: init(characters: CharactersData, volumes: VolumesData): void
  * 依存: state.ts, bookmark.ts, settings.ts
  *
  * メニュー項目と処理：
- *   目次へ戻る  → index.html（目次ページ）へ遷移
- *   栞を追加    → bookmark.addBookmark(currentAddress) を呼ぶ
- *   共有        → クリップボード / X / LINE で現在の URL をシェアする
- *   設定を開く  → settings.open() を呼ぶ
+ *   目次へ戻る        → index.html（目次ページ）へ遷移
+ *   栞を追加          → bookmark.addBookmark(currentAddress) を呼ぶ
+ *   キャラクター紹介  → _openCharactersPopup() を呼ぶ
+ *   共有              → クリップボード / X / LINE で現在の URL をシェアする
+ *   設定を開く        → settings.open() を呼ぶ
  *
- * 開閉制御：
+ * 開閉制御（メニュー）：
  *   - メニューボタン押下でトグル
- *   - Escape キーで閉じる
+ *   - Escape キーで閉じる（ポップアップが閉じている場合）
  *   - メニュー外クリックで閉じる
+ *
+ * キャラクター紹介ポップアップ：
+ *   - _openCharactersPopup(): void — 現在 ep の巻を特定してキャラカードを生成・表示する
+ *   - _closeCharactersPopup(): void — オーバーレイを hidden にする
+ *   - 閉じる方法：オーバーレイ背景クリック・Escape キー・閉じるボタン
  *
  * キーボード操作：
  *   - メニュー内で上下キーによる項目選択（disabled 項目はスキップ）
@@ -31,11 +37,12 @@ import type { CharactersData, VolumesData } from './types';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
+let _overlay: HTMLElement;
 let _items: HTMLButtonElement[] = [];
 let _charactersData: CharactersData = [];
 let _volumesData: VolumesData = [];
 
-// DOM からメニューボタン・パネルを取得し、項目を生成してイベントを登録する。
+// DOM からメニューボタン・パネル・オーバーレイを取得し、項目を生成してイベントを登録する。
 // main.ts が起動時に一度だけ呼ぶ。キャラクター紹介データを受け取って保持する。
 // init(characters: CharactersData, volumes: VolumesData): void
 export function init(characters: CharactersData, volumes: VolumesData): void {
@@ -43,6 +50,7 @@ export function init(characters: CharactersData, volumes: VolumesData): void {
     _volumesData = volumes;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
+    _overlay = document.querySelector<HTMLElement>('#characters-overlay')!;
     _buildItems();
     _registerEvents();
 }
@@ -74,6 +82,10 @@ function _buildItems(): void {
         bookmark.addBookmark(state.getCurrent());
     });
 
+    const btnCharacters = makeBtn('キャラクター紹介', () => {
+        _openCharactersPopup();
+    });
+
     const btnCopy = makeBtn('リンクをコピー', () => {
         navigator.clipboard.writeText(location.href).catch(() => {});
     });
@@ -100,13 +112,14 @@ function _buildItems(): void {
         btnIndex,
         sep(),
         btnBookmark,
+        btnCharacters,
         sep(),
         btnCopy, btnX, btnLine,
         sep(),
         btnSettings,
     );
 
-    _items = [btnIndex, btnBookmark, btnCopy, btnX, btnLine, btnSettings];
+    _items = [btnIndex, btnBookmark, btnCharacters, btnCopy, btnX, btnLine, btnSettings];
 }
 
 // メニューを開く。最初の有効項目にフォーカスする。
@@ -124,7 +137,55 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
-// メニューボタン・Escape・外部クリック・上下キーのイベントを登録する。
+// 現在 ep が属する巻のキャラクターカードを生成し、ポップアップを表示する。
+// 巻が特定できない場合は巻1にフォールバックする。
+// _openCharactersPopup(): void
+function _openCharactersPopup(): void {
+    const ep = state.getCurrent().ep;
+    const volume = _volumesData.find(v => v.epRange[0] <= ep && ep <= v.epRange[1])?.volume ?? 1;
+    const volumeEntry = _charactersData.find(c => c.volume === volume);
+    const characters = volumeEntry?.characters ?? [];
+
+    const list = document.querySelector<HTMLElement>('#characters-list')!;
+    list.innerHTML = '';
+
+    for (const chara of characters) {
+        const card = document.createElement('div');
+        card.className = 'character-card';
+
+        if (chara.image !== '') {
+            const img = document.createElement('img');
+            img.src = `public/img/chara/${chara.image}`;
+            img.alt = '';
+            card.appendChild(img);
+        }
+
+        const info = document.createElement('div');
+        info.className = 'character-info';
+
+        const name = document.createElement('p');
+        name.className = 'character-name';
+        name.textContent = chara.name;
+
+        const desc = document.createElement('p');
+        desc.className = 'character-description';
+        desc.textContent = chara.description;
+
+        info.append(name, desc);
+        card.appendChild(info);
+        list.appendChild(card);
+    }
+
+    _overlay.hidden = false;
+}
+
+// キャラクター紹介ポップアップを閉じる。
+// _closeCharactersPopup(): void
+function _closeCharactersPopup(): void {
+    _overlay.hidden = true;
+}
+
+// メニューボタン・Escape・外部クリック・上下キー・ポップアップ閉じるのイベントを登録する。
 // _registerEvents(): void
 function _registerEvents(): void {
     _toggle.addEventListener('click', () => {
@@ -132,13 +193,19 @@ function _registerEvents(): void {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (_panel.hidden) return;
-
         if (e.key === 'Escape') {
-            _close();
-            _toggle.focus();
+            if (!_overlay.hidden) {
+                _closeCharactersPopup();
+                return;
+            }
+            if (!_panel.hidden) {
+                _close();
+                _toggle.focus();
+            }
             return;
         }
+
+        if (_panel.hidden) return;
 
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
@@ -159,4 +226,13 @@ function _registerEvents(): void {
             _close();
         }
     });
+
+    _overlay.addEventListener('click', (e) => {
+        if (e.target === _overlay) {
+            _closeCharactersPopup();
+        }
+    });
+
+    document.querySelector<HTMLButtonElement>('#characters-popup-close')!
+        .addEventListener('click', () => _closeCharactersPopup());
 }

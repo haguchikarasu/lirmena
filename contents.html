@@ -61,6 +61,16 @@
   <!-- 暗転オーバーレイ（transition.ts が操作） -->
   <div id="transition-overlay" aria-hidden="true"></div>
 
+  <!-- キャラクター紹介ポップアップ（menu.ts が操作） -->
+  <div id="characters-overlay" hidden>
+    <div id="characters-popup">
+      <button id="characters-popup-close">閉じる</button>
+      <div id="characters-list">
+        <!-- menu.ts が動的に生成 -->
+      </div>
+    </div>
+  </div>
+
   <!-- エラー表示（main.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>
 

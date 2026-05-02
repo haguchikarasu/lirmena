@@ -36,6 +36,9 @@
   --fade-out-duration-main: 0.01s;   /* メインコンテナ 遷移前暗転時間 */
   --fade-in-duration-main:  0.8s;   /* メインコンテナ 遷移後明け時間 */
 
+  /* キャラクター紹介（開発者が調整する定数） */
+  --chara-img-width: 100%;   /* カード内での画像幅 */
+
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #2d5a3d;
 }

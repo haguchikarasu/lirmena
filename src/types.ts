@@ -3,7 +3,7 @@ export type Episode = { id: number; title: string; sections: EpisodeSection[] };
 export type EpisodesData = Episode[];
 export type SceneAddress = { ep: number; sec: number; scene: number };
 
-export type CharacterEntry = { name: string; description: string };
+export type CharacterEntry = { name: string; description: string; image: string };
 export type VolumeCharacters = { volume: number; characters: CharacterEntry[] };
 export type CharactersData = VolumeCharacters[];
 
