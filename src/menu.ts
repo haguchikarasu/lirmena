@@ -79,7 +79,8 @@ function _buildItems(): void {
     });
 
     const btnBookmark = makeBtn('栞を追加', () => {
-        bookmark.addBookmark(state.getCurrent());
+        const container = document.querySelector<HTMLElement>('#main-container')!;
+        bookmark.addBookmark(state.getCurrent(), container.scrollLeft);
     });
 
     const btnCharacters = makeBtn('キャラクター紹介', () => {

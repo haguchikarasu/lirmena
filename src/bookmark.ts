@@ -6,7 +6,7 @@
  * 依存: なし
  *
  * BookmarkEntry:
- *   { address: SceneAddress; scrollY: number; savedAt: number }
+ *   { address: SceneAddress; scrollLeft: number; savedAt: number }
  *
  * localStorage キー:
  *   "bookmarks"  : BookmarkEntry[]  最大3件、超過時は最古を削除
@@ -20,7 +20,7 @@ import type { SceneAddress } from './types';
 
 export type BookmarkEntry = {
     address: SceneAddress;
-    scrollY: number;
+    scrollLeft: number;
     savedAt: number;
 };
 
@@ -55,11 +55,10 @@ export function init(): void {
     }
 }
 
-// 現在の SceneAddress を栞に保存する。スクロール位置は window.scrollY から取得する（超過時は最古を削除）
-// addBookmark(address: SceneAddress): void
-export function addBookmark(address: SceneAddress): void {
-    const scrollY = window.scrollY;
-    const entry: BookmarkEntry = { address: { ...address }, scrollY, savedAt: Date.now() };
+// 現在の SceneAddress を栞に保存する。scrollLeft は呼び出し元が #main-container.scrollLeft を渡す（超過時は最古を削除）
+// addBookmark(address: SceneAddress, scrollLeft: number): void
+export function addBookmark(address: SceneAddress, scrollLeft: number): void {
+    const entry: BookmarkEntry = { address: { ...address }, scrollLeft, savedAt: Date.now() };
     _bookmarks.push(entry);
     if (_bookmarks.length > MAX_SLOTS) {
         _bookmarks.sort((a, b) => a.savedAt - b.savedAt);

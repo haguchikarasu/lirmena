@@ -24,7 +24,7 @@
  *               ): void
  *              trigger(address: SceneAddress): Promise<void>
  *   renderer : renderTitleScreen(epTitle: string): void
- *              renderScene(scene: Scene): void
+ *              renderScene(scene: Scene, scrollLeft?: number): void
  *   bg       : set(bgFile: string | null, bgPositionX?: string): void
  *   progress : initProgress(allEpScenes: Scene[]): void
  *              updateProgress(currentSceneInEp: number): void
@@ -153,7 +153,12 @@ async function _init(): Promise<void> {
     if (address.scene === 0) {
         renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '');
     } else {
-        renderer.renderScene(scenes[address.scene - 1]);
+        const pendingScroll = sessionStorage.getItem('bookmark-scroll');
+        sessionStorage.removeItem('bookmark-scroll');
+        renderer.renderScene(
+            scenes[address.scene - 1],
+            pendingScroll !== null ? Number(pendingScroll) : undefined,
+        );
     }
     const initSc = address.scene === 0 ? undefined : scenes[address.scene - 1];
     bg.set(initSc?.bgFile ?? null, initSc?.bgPositionX);

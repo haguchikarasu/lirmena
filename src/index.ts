@@ -13,7 +13,7 @@
  *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
  *
  * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
- *   "bookmarks"          : BookmarkEntry[]  { address:{ep,sec,scene}, scrollY, savedAt }
+ *   "bookmarks"          : BookmarkEntry[]  { address:{ep,sec,scene}, scrollLeft, savedAt }
  *   "sceneRead"          : string[]         "ep-sec-scene" 形式（ゼロ埋め2桁）
  *   "lirmena.fontSize"   : 'large' | 'medium' | 'small'   デフォルト 'medium'
  *   "lirmena.fontFamily" : 'serif' | 'sans'               デフォルト 'serif'
@@ -23,7 +23,7 @@
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
 type BookmarkEntry = {
     address: { ep: number; sec: number; scene: number };
-    scrollY: number;
+    scrollLeft: number;
     savedAt: number;
 };
 type ChangelogEntry = {
@@ -177,6 +177,9 @@ function renderBookmarks(): void {
         jumpBtn.className = 'idx-bm-go';
         jumpBtn.href = href;
         jumpBtn.textContent = 'ここから読む';
+        jumpBtn.addEventListener('click', () => {
+            sessionStorage.setItem('bookmark-scroll', String(entry.scrollLeft));
+        });
         actions.appendChild(jumpBtn);
 
         const clearBtn = document.createElement('button');
