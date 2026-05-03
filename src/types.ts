@@ -10,6 +10,8 @@ export type CharactersData = VolumeCharacters[];
 export type VolumeRange = { volume: number; epRange: [number, number] };
 export type VolumesData = VolumeRange[];
 
+export type ChangelogEntry = { version: string; date: string; change: string; sha: string };
+
 /**
  * parser.ts が生成するシーン構造体。
  * content フィールドの型は parser.ts の IF 設計時に確定する。

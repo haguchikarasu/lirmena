@@ -18,7 +18,7 @@
  *         init() の initialEpSceneOffset 引数で初期値を受け取る。
  */
 
-import type { Scene, SceneAddress } from './types';
+import type { Scene, SceneAddress, ChangelogEntry } from './types';
 import * as state from './state';
 import { LAST_SCENE } from './state';
 import * as renderer from './renderer';
@@ -30,9 +30,12 @@ import * as bookmark from './bookmark';
 type LoadSec = (ep: number, sec: number) => Promise<Scene[]>;
 // getAllEpScenes: 指定 ep の全公開 sec をロードして結合した Scene[] と currentSec のオフセットを返す
 type GetAllEpScenes = (ep: number, currentSec: number) => Promise<{ all: Scene[]; offset: number }>;
+// loadChangelog: 指定 ep の changelog/epXX-changelog.json を取得して ChangelogEntry[] を返す
+type LoadChangelog = (ep: number) => Promise<ChangelogEntry[]>;
 
 let _loadSec: LoadSec = () => Promise.resolve([]);
 let _getAllEpScenes: GetAllEpScenes = async () => ({ all: [], offset: 0 });
+let _loadChangelog: LoadChangelog = () => Promise.resolve([]);
 let _updateNav: () => void = () => {};
 let _scenes: Scene[] = [];
 let _currentEpSceneOffset = 0;
@@ -47,6 +50,7 @@ const _scrollPositions = new Map<string, number>();
  * @param initialEpSceneOffset  初期 sec の ep 内シーンオフセット（0始まり）
  * @param loadSec               別 sec へ遷移するとき呼ぶコールバック
  * @param getAllEpScenes         ep 全 sec の Scene[] と currentSec オフセットを返すコールバック
+ * @param loadChangelog         タイトル画面表示時に ep の changelog を取得するコールバック
  * @param updateNav             遷移完了後にナビボタン状態を更新するコールバック
  */
 export function init(
@@ -54,12 +58,14 @@ export function init(
     initialEpSceneOffset: number,
     loadSec: LoadSec,
     getAllEpScenes: GetAllEpScenes,
+    loadChangelog: LoadChangelog,
     updateNav: () => void,
 ): void {
     _scenes = scenes;
     _currentEpSceneOffset = initialEpSceneOffset;
     _loadSec = loadSec;
     _getAllEpScenes = getAllEpScenes;
+    _loadChangelog = loadChangelog;
     _updateNav = updateNav;
     _overlay = document.querySelector('#transition-overlay')!;
     _container = document.querySelector('#main-container')!;
@@ -108,7 +114,8 @@ async function _run(address: SceneAddress): Promise<void> {
     const savedScroll = isBackward ? _scrollPositions.get(_sceneKey(target)) : undefined;
 
     if (target.scene === 0) {
-        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '', state.getEpImg(target.ep));
+        const changelog = await _loadChangelog(target.ep);
+        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '', changelog, state.getEpImg(target.ep));
     } else {
         renderer.renderScene(_scenes[target.scene - 1], savedScroll);
     }

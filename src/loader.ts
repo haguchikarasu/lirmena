@@ -1,11 +1,11 @@
 /*
  * loader.ts
- * 責務: fetch によるリソース取得（episodes.json / characters.json / volumes.json / 本文テキスト）
- * export: loadEpisodes(), fetchCharacters(), fetchVolumes(), loadText()
+ * 責務: fetch によるリソース取得（episodes.json / characters.json / volumes.json / 本文テキスト / ep changelog）
+ * export: loadEpisodes(), fetchCharacters(), fetchVolumes(), loadText(), fetchEpChangelog()
  * 依存: なし
  */
 
-import type { EpisodesData, CharactersData, VolumesData } from './types';
+import type { EpisodesData, CharactersData, VolumesData, ChangelogEntry } from './types';
 
 // episodes.json を取得して EpisodesData を返す
 // loadEpisodes(): Promise<EpisodesData>
@@ -29,6 +29,16 @@ export async function fetchVolumes(): Promise<VolumesData> {
     const res = await fetch(`${import.meta.env.BASE_URL}volumes.json`);
     if (!res.ok) throw new Error(`Failed to load volumes.json: ${res.status}`);
     return res.json() as Promise<VolumesData>;
+}
+
+// changelog/epXX-changelog.json を取得して ChangelogEntry[] を返す
+// fetchEpChangelog(ep: number): Promise<ChangelogEntry[]>
+export async function fetchEpChangelog(ep: number): Promise<ChangelogEntry[]> {
+    const epStr = String(ep).padStart(2, '0');
+    const path = `${import.meta.env.BASE_URL}changelog/ep${epStr}-changelog.json`;
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`Failed to load ep${epStr}-changelog.json: ${res.status}`);
+    return res.json() as Promise<ChangelogEntry[]>;
 }
 
 // 指定 ep/sec の本文テキストを取得して返す

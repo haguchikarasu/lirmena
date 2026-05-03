@@ -305,13 +305,32 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   writing-mode: horizontal-tb;
-  padding: 2rem;
-  gap: 1.5rem;
   background-color: #000;
   background-size: cover;
   background-position: center;
+}
+
+.title-screen-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 25% 2rem 2rem;
+  width: 100%;
+}
+
+.title-screen-changelog {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  line-height: 1.8;
 }
 
 .title-screen-ep-title {

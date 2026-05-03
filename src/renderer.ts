@@ -1,18 +1,21 @@
 /*
  * renderer.ts
  * 責務: Scene → DOM 生成（エリアC 本文）、タイトル画面（#title-screen）の DOM 生成
- * export: renderTitleScreen(), renderScene()
- * 依存: parser.ts（TextNode 型）
+ * export: renderTitleScreen(epTitle, changelog, img?), renderScene()
+ * 依存: parser.ts（TextNode 型）、types.ts（ChangelogEntry 型）
  *
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
  *
  * タイトル画面（#title-screen）：
  *   - #main-container を非表示にして #title-screen を表示する
- *   - 表示内容：ep タイトル
- *   - ボタン要素を配置する（ラベル・disabled 状態は nav.ts が制御するため、要素の生成のみ行う）
- *     - #btn-title-enter  : 本文に入るボタン
- *     - #btn-title-prev   : 前 ep へ戻るボタン
- *     - #btn-title-index  : 目次に戻るボタン（contents.html へのリンク）
+ *   - 呼び出しのたびに replaceChildren() で全体を再構築する
+ *   - DOM 構造：
+ *       .title-screen-header
+ *         .title-screen-ep-title（ep タイトル）
+ *         #btn-title-enter  : 本文に入るボタン
+ *         #btn-title-prev   : 前 ep へ戻るボタン
+ *         #btn-title-index  : 目次に戻るボタン（<a> タグ）
+ *       .title-screen-changelog（ChangelogEntry[] または「更新履歴なし」）
  *   - レイアウトは縦長固定
  *
  * エリアC（本文）：
@@ -32,7 +35,7 @@
  *   - scrollLeft が数値のとき：#main-container の scrollLeft をその値に復元する（戻る遷移用）。
  */
 
-import type { Scene } from "./types";
+import type { Scene, ChangelogEntry } from "./types";
 import type { TextNode } from "./parser";
 
 const mainContainerEl = document.querySelector<HTMLElement>('#main-container')!;
@@ -40,43 +43,17 @@ const titleScreenEl = document.querySelector<HTMLElement>('#title-screen')!;
 const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 
 // タイトル画面を #title-screen に描画し、#main-container を非表示にする。
-// ボタン要素（#btn-title-enter, #btn-title-prev, #btn-title-index）は
-// 初回呼び出し時に生成し、以降は ep タイトル・背景画像の更新のみ行う。
+// 呼び出しのたびに replaceChildren() で全体を再構築する。
 // nav.ts が querySelector でボタンを取得してイベントを登録する。
 // img が指定されたとき img/titlecard/ から画像を全面表示する。未指定なら黒背景のみ。
-// renderTitleScreen(epTitle: string, img?: string): void
-export function renderTitleScreen(epTitle: string, img?: string): void {
-    _ensureTitleScreenDOM();
-
-    const titleEl = titleScreenEl.querySelector<HTMLElement>('.title-screen-ep-title');
-    if (titleEl) titleEl.textContent = epTitle;
-
-    titleScreenEl.style.backgroundImage = img ? `url('img/titlecard/${img}')` : '';
-
-    mainContainerEl.hidden = true;
-    titleScreenEl.hidden = false;
-}
-
-// エリアCに本文を生成・差し替えし、#title-screen を非表示にして #main-container を表示する。
-// - scene.content を TextNode[] にキャストして変換する
-// - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
-// renderScene(scene: Scene, scrollLeft?: number): void
-export function renderScene(scene: Scene, scrollLeft?: number): void {
-    sceneContentEl.replaceChildren(...buildNodes(scene.content as TextNode[]));
-
-    titleScreenEl.hidden = true;
-    mainContainerEl.hidden = false;
-    sceneContentEl.hidden = false;
-    _applyScroll(sceneContentEl, scrollLeft);
-}
-
-// タイトル画面の DOM を初回のみ生成する。
-// #btn-title-enter / #btn-title-prev / #btn-title-index を querySelector で取得できるよう id を付与する。
-function _ensureTitleScreenDOM(): void {
-    if (titleScreenEl.querySelector('.title-screen-ep-title')) return;
+// renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
+export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void {
+    const header = document.createElement('div');
+    header.className = 'title-screen-header';
 
     const titleEl = document.createElement('p');
     titleEl.className = 'title-screen-ep-title';
+    titleEl.textContent = epTitle;
 
     const btnEnter = document.createElement('button');
     btnEnter.type = 'button';
@@ -93,7 +70,43 @@ function _ensureTitleScreenDOM(): void {
     btnIndex.href = 'index.html';
     btnIndex.textContent = '目次へ戻る';
 
-    titleScreenEl.replaceChildren(titleEl, btnEnter, btnPrev, btnIndex);
+    header.append(titleEl, btnEnter, btnPrev, btnIndex);
+
+    const changelogArea = document.createElement('div');
+    changelogArea.className = 'title-screen-changelog';
+    if (changelog.length === 0) {
+        changelogArea.appendChild(document.createTextNode('更新履歴なし'));
+    } else {
+        for (const entry of changelog) {
+            const row = document.createElement('p');
+            const link = document.createElement('a');
+            link.href = `https://github.com/haguchikarasu/lirmena/commit/${entry.sha}`;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = entry.version;
+            row.append(link, document.createTextNode(` ${entry.date} ${entry.change}`));
+            changelogArea.appendChild(row);
+        }
+    }
+
+    titleScreenEl.style.backgroundImage = img ? `url('img/titlecard/${img}')` : '';
+    titleScreenEl.replaceChildren(header, changelogArea);
+
+    mainContainerEl.hidden = true;
+    titleScreenEl.hidden = false;
+}
+
+// エリアCに本文を生成・差し替えし、#title-screen を非表示にして #main-container を表示する。
+// - scene.content を TextNode[] にキャストして変換する
+// - scrollLeft が undefined なら境界位置、数値なら指定位置に復元
+// renderScene(scene: Scene, scrollLeft?: number): void
+export function renderScene(scene: Scene, scrollLeft?: number): void {
+    sceneContentEl.replaceChildren(...buildNodes(scene.content as TextNode[]));
+
+    titleScreenEl.hidden = true;
+    mainContainerEl.hidden = false;
+    sceneContentEl.hidden = false;
+    _applyScroll(sceneContentEl, scrollLeft);
 }
 
 // scrollLeft が undefined なら境界スクロール、数値なら指定位置に復元

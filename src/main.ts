@@ -20,10 +20,11 @@
  *                 initialEpSceneOffset: number,
  *                 loadSec: (ep: number, sec: number) => Promise<Scene[]>,
  *                 getAllEpScenes: (ep: number, currentSec: number) => Promise<{ all: Scene[]; offset: number }>,
+ *                 loadChangelog: (ep: number) => Promise<ChangelogEntry[]>,
  *                 updateNav: () => void,
  *               ): void
  *              trigger(address: SceneAddress): Promise<void>
- *   renderer : renderTitleScreen(epTitle: string, img?: string): void
+ *   renderer : renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
  *              renderScene(scene: Scene, scrollLeft?: number): void
  *   bg       : set(bgFile: string | null, bgPositionX?: string): void
  *   progress : initProgress(allEpScenes: Scene[]): void
@@ -55,7 +56,7 @@ import * as settings from './settings';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
-import type { Scene, EpisodesData, SceneAddress, CharactersData, VolumesData } from './types';
+import type { Scene, EpisodesData, SceneAddress, CharactersData, VolumesData, ChangelogEntry } from './types';
 
 /** マウスホイールのスクロール量倍率 */
 const WHEEL_SCROLL_MULTIPLIER = 2;
@@ -147,11 +148,12 @@ async function _init(): Promise<void> {
     });
     bookmark.init();
     nav.init();
-    transition.init(scenes, epSceneOffset, _loadSec, _getAllEpScenes, () => nav.update());
+    transition.init(scenes, epSceneOffset, _loadSec, _getAllEpScenes, loader.fetchEpChangelog, () => nav.update());
     menu.init(charactersData, volumesData);
 
     if (address.scene === 0) {
-        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '', state.getEpImg(address.ep));
+        const changelog = await loader.fetchEpChangelog(address.ep);
+        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '', changelog, state.getEpImg(address.ep));
     } else {
         const pendingScroll = sessionStorage.getItem('bookmark-scroll');
         sessionStorage.removeItem('bookmark-scroll');
