@@ -14,7 +14,7 @@
 :root {
   --idx-bg:            #080808;
   --idx-surface:       #0e0e0e;
---idx-border:        #1a1a1a;
+  --idx-border:        #1a1a1a;
   --idx-border-strong: #202020;
   --idx-border-accent: #1a3a28;
 
@@ -22,8 +22,8 @@
   --idx-text-body:     #b8b8b8;
   --idx-text-muted:    #a0a0a0;
   --idx-text-dim:      #505050;
-  --idx-text-faint:    #3a3a3a;
-  --idx-text-date:     #404040;
+  --idx-text-faint:    #b8b8b8;
+  --idx-text-date:     #a0a0a0;
 
   --idx-accent:        #2df590;
 }
@@ -33,14 +33,14 @@
 .idx-page {
   background: var(--idx-bg);
   color: var(--idx-text-body);
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, serif;
+  font-family: serif;
   min-height: 100vh;
 }
 
 /* ===== ヒーローエリア ===== */
 
 .idx-hero {
-  border-bottom: 1px solid var(--idx-border);
+  margin-top: 1rem;
   line-height: 0;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .idx-sec-label {
-  font-size: 9px;
+  font-size: 15px;
   letter-spacing: 0.5em;
   color: var(--idx-text-faint);
   border-bottom: 1px solid #181818;
@@ -76,7 +76,7 @@
 }
 
 .idx-ep-title {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 400;
   letter-spacing: 0.05em;
   color: var(--idx-text-body);
@@ -133,14 +133,14 @@
 }
 
 .idx-bm-loc {
-  font-size: 0.85rem;
+  font-size: 1rem;
   color: var(--idx-text-muted);
   letter-spacing: 0.05em;
   margin-bottom: 3px;
 }
 
 .idx-bm-date {
-  font-size: 10px;
+  font-size: 0.9rem;
   color: var(--idx-text-date);
   letter-spacing: 0.05em;
 }
