@@ -98,7 +98,7 @@ function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
 
         const titleEl = document.createElement('p');
         titleEl.className = 'idx-ep-title';
-        titleEl.textContent = ep.title;
+        titleEl.textContent = `第${ep.id}話 ${ep.title}`;
         epEl.appendChild(titleEl);
 
         const secListEl = document.createElement('div');
