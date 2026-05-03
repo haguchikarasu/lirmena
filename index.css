@@ -355,6 +355,14 @@
   color: var(--idx-text-body);
 }
 
+/* ===== 更新履歴 ===== */
+
+.cl-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
 /* ===== ローディング・空状態 ===== */
 
 .loading-text,
