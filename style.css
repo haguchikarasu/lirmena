@@ -305,19 +305,22 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   writing-mode: horizontal-tb;
   background-color: #000;
   background-size: cover;
   background-position: center;
 }
 
-.title-screen-header {
+#title-screen-header {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1.5rem;
-  padding: 25% 2rem 2rem;
+  padding: 0;
   width: 100%;
+  height: 50vh;
 }
 
 .title-screen-changelog {
@@ -333,7 +336,7 @@ button {
   line-height: 1.8;
 }
 
-.title-screen-ep-title {
+#title-screen-ep-title {
   font-size: 2rem;
   font-weight: normal;
   letter-spacing: 0.25em;
@@ -343,7 +346,8 @@ button {
 }
 
 #btn-title-enter,
-#btn-title-prev {
+#btn-title-prev,
+#btn-title-index {
   padding: 0.6rem 1.4rem;
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.45);
@@ -351,13 +355,15 @@ button {
   font-size: 0.9rem;
   letter-spacing: 0.1em;
   cursor: pointer;
+  text-decoration: none;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   transition: background 0.2s;
 }
 
 #btn-title-enter:hover,
-#btn-title-prev:hover {
+#btn-title-prev:hover,
+#btn-title-index:hover {
   background: rgba(0, 0, 0, 0.68);
 }
 
@@ -367,17 +373,6 @@ button {
   cursor: default;
 }
 
-#btn-title-index {
-  font-size: 0.82rem;
-  color: #888;
-  text-decoration: none;
-  letter-spacing: 0.08em;
-  transition: color 0.2s;
-}
-
-#btn-title-index:hover {
-  color: #bbb;
-}
 
 
 /* ===================================================

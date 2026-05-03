@@ -21,13 +21,13 @@
 
   <!-- タイトル画面（renderer.ts が動的部分を更新・hidden を切り替える。scene 0 のみ表示） -->
   <div id="title-screen" hidden>
-    <div class="title-screen-header">
-      <p class="title-screen-ep-title"></p>
+    <div id="title-screen-header">
+      <p id="title-screen-ep-title"></p>
       <button id="btn-title-enter" type="button">本文を読む</button>
       <button id="btn-title-prev" type="button">前のエピソードへ</button>
       <a id="btn-title-index" href="index.html">目次へ戻る</a>
+      <div class="title-screen-changelog"></div>
     </div>
-    <div class="title-screen-changelog"></div>
   </div>
 
   <!-- メインコンテナ（renderer.ts が hidden を切り替える。scene >= 1 のみ表示） -->

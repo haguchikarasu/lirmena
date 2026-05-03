@@ -11,8 +11,8 @@
  *   - #main-container を非表示にして #title-screen を表示する
  *   - 動的更新：ep タイトルのテキスト、背景画像、.title-screen-changelog の中身
  *   - DOM 構造（静的）：
- *       .title-screen-header
- *         .title-screen-ep-title（ep タイトル）
+ *       #title-screen-header
+ *         #title-screen-ep-title（ep タイトル）
  *         #btn-title-enter  : 本文に入るボタン
  *         #btn-title-prev   : 前 ep へ戻るボタン
  *         #btn-title-index  : 目次に戻るボタン（<a> タグ）
@@ -49,7 +49,7 @@ const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 // img が指定されたとき img/titlecard/ から画像を全面表示する。未指定なら黒背景のみ。
 // renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
 export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void {
-    const titleEl = titleScreenEl.querySelector<HTMLElement>('.title-screen-ep-title')!;
+    const titleEl = document.getElementById('title-screen-ep-title')!;
     titleEl.textContent = epTitle;
 
     const changelogArea = titleScreenEl.querySelector<HTMLElement>('.title-screen-changelog')!;
