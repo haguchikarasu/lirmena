@@ -357,10 +357,73 @@
 
 /* ===== 更新履歴 ===== */
 
+.cl-entry {
+  list-style: none;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--idx-border);
+}
+
+.cl-entry:last-child {
+  border-bottom: none;
+}
+
 .cl-header {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
+}
+
+.cl-version {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--idx-text-primary);
+}
+
+a.cl-version {
+  color: var(--idx-accent);
+  text-decoration: none;
+}
+
+a.cl-version:hover {
+  text-decoration: underline;
+}
+
+.cl-date {
+  font-size: 0.8rem;
+  color: var(--idx-text-date);
+}
+
+.cl-change {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--idx-text-body);
+}
+
+.cl-changes {
+  margin-top: 0.25rem;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: var(--idx-text-body);
+}
+
+.cl-ep-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.cl-ep-link {
+  font-size: 0.75rem;
+  color: var(--idx-accent);
+  text-decoration: none;
+  border: 1px solid var(--idx-border-accent);
+  padding: 0.1rem 0.5rem;
+  border-radius: 3px;
+}
+
+.cl-ep-link:hover {
+  background: var(--idx-border-accent);
 }
 
 /* ===== ローディング・空状態 ===== */

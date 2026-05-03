@@ -26,7 +26,14 @@ type BookmarkEntry = {
     scrollLeft: number;
     savedAt: number;
 };
-type ChangelogEntry = {
+type ContentChangelogEntry = {
+    version: string;
+    date: string;
+    change: string;
+    ep: number[];
+    sha: string[];
+};
+type SiteChangelogEntry = {
     version: string;
     date: string;
     changes: string[];
@@ -456,11 +463,78 @@ function initFab(popup: HTMLElement, episodes: Episode[]): void {
 
 // ----- 更新履歴 -----
 
-// changelog エントリを DOM に描画する。CHANGELOG_INITIAL_COUNT を超える分は折りたたむ
-// _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): void
-function _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): void {
-    const listEl   = document.getElementById(`${type}-changelog-list`);
-    const toggleBtn = document.getElementById(`${type}-changelog-toggle`) as HTMLButtonElement | null;
+// 折りたたみトグルを初期化する（CHANGELOG_INITIAL_COUNT を超える分を隠す）
+// _initChangelogToggle(listEl: HTMLElement, toggleBtn: HTMLButtonElement): void
+function _initChangelogToggle(listEl: HTMLElement, toggleBtn: HTMLButtonElement | null): void {
+    if (!toggleBtn) return;
+    toggleBtn.hidden = false;
+    toggleBtn.addEventListener('click', () => {
+        const expanding = toggleBtn.textContent === 'すべて表示';
+        listEl.querySelectorAll<HTMLLIElement>('li').forEach((item, i) => {
+            if (i >= CHANGELOG_INITIAL_COUNT) item.hidden = !expanding;
+        });
+        toggleBtn.textContent = expanding ? '閉じる' : 'すべて表示';
+    });
+}
+
+// コンテンツ更新履歴を DOM に描画する。ep ごとの差分リンク（SHA）を表示
+// _renderContentChangelog(entries: ContentChangelogEntry[]): void
+function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
+    const listEl    = document.getElementById('content-changelog-list');
+    const toggleBtn = document.getElementById('content-changelog-toggle') as HTMLButtonElement | null;
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    entries.forEach((entry, i) => {
+        const li = document.createElement('li');
+        li.className = 'cl-entry';
+
+        const header = document.createElement('p');
+        header.className = 'cl-header';
+
+        const versionSpan = document.createElement('span');
+        versionSpan.className = 'cl-version';
+        versionSpan.textContent = `v${entry.version}`;
+        header.appendChild(versionSpan);
+
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'cl-date';
+        dateSpan.textContent = entry.date;
+        header.appendChild(dateSpan);
+        li.appendChild(header);
+
+        const changeEl = document.createElement('p');
+        changeEl.className = 'cl-change';
+        changeEl.textContent = entry.change;
+        li.appendChild(changeEl);
+
+        if (entry.ep.length > 0) {
+            const epLinks = document.createElement('div');
+            epLinks.className = 'cl-ep-links';
+            entry.ep.forEach((epNum, j) => {
+                const link = document.createElement('a');
+                link.href = `https://github.com/${GITHUB_REPO}/commit/${entry.sha[j]}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'cl-ep-link';
+                link.textContent = `第${epNum}話`;
+                epLinks.appendChild(link);
+            });
+            li.appendChild(epLinks);
+        }
+
+        if (i >= CHANGELOG_INITIAL_COUNT) li.hidden = true;
+        listEl.appendChild(li);
+    });
+
+    if (entries.length > CHANGELOG_INITIAL_COUNT) _initChangelogToggle(listEl, toggleBtn);
+}
+
+// サイト更新履歴を DOM に描画する。バージョン間の比較リンクを表示
+// _renderSiteChangelog(entries: SiteChangelogEntry[]): void
+function _renderSiteChangelog(entries: SiteChangelogEntry[]): void {
+    const listEl    = document.getElementById('site-changelog-list');
+    const toggleBtn = document.getElementById('site-changelog-toggle') as HTMLButtonElement | null;
     if (!listEl) return;
     listEl.innerHTML = '';
 
@@ -475,7 +549,7 @@ function _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): 
         const prevEntry = entries[i + 1];
         if (prevEntry) {
             const link = document.createElement('a');
-            link.href = `https://github.com/${GITHUB_REPO}/compare/${type}-v${prevEntry.version}...${type}-v${entry.version}`;
+            link.href = `https://github.com/${GITHUB_REPO}/compare/site-v${prevEntry.version}...site-v${entry.version}`;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             link.className = 'cl-version';
@@ -507,26 +581,20 @@ function _renderChangelog(type: 'content' | 'site', entries: ChangelogEntry[]): 
         listEl.appendChild(li);
     });
 
-    if (entries.length > CHANGELOG_INITIAL_COUNT && toggleBtn) {
-        toggleBtn.hidden = false;
-        toggleBtn.addEventListener('click', () => {
-            const expanding = toggleBtn.textContent === 'すべて表示';
-            listEl.querySelectorAll<HTMLLIElement>('li').forEach((item, i) => {
-                if (i >= CHANGELOG_INITIAL_COUNT) item.hidden = !expanding;
-            });
-            toggleBtn.textContent = expanding ? '閉じる' : 'すべて表示';
-        });
-    }
+    if (entries.length > CHANGELOG_INITIAL_COUNT) _initChangelogToggle(listEl, toggleBtn);
 }
 
 // changelog.json を fetch して描画する。失敗時はセクションを非表示にする
 // loadChangelog(type: 'content' | 'site'): Promise<void>
 async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     try {
-        const res = await fetch(`${type}-changelog.json`);
+        const res = await fetch(`changelog/${type}-changelog.json`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const entries = (await res.json()) as ChangelogEntry[];
-        _renderChangelog(type, entries);
+        if (type === 'content') {
+            _renderContentChangelog((await res.json()) as ContentChangelogEntry[]);
+        } else {
+            _renderSiteChangelog((await res.json()) as SiteChangelogEntry[]);
+        }
     } catch {
         const section = document.getElementById(`${type}-changelog`);
         if (section) section.hidden = true;
