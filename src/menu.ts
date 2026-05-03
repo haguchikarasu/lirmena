@@ -138,6 +138,25 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
+// |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
+// _applyRuby(text: string, el: HTMLElement): void
+function _applyRuby(text: string, el: HTMLElement): void {
+    const re = /\|([^《\n]+)《([^》\n]+)》/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const ruby = document.createElement('ruby');
+        ruby.appendChild(document.createTextNode(m[1]));
+        const rt = document.createElement('rt');
+        rt.textContent = m[2];
+        ruby.appendChild(rt);
+        el.appendChild(ruby);
+        last = m.index + m[0].length;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
+
 // 現在 ep が属する巻のキャラクターカードを生成し、ポップアップを表示する。
 // 巻が特定できない場合は巻1にフォールバックする。
 // _openCharactersPopup(): void
@@ -166,11 +185,11 @@ function _openCharactersPopup(): void {
 
         const name = document.createElement('p');
         name.className = 'character-name';
-        name.textContent = chara.name;
+        _applyRuby(chara.name, name);
 
         const desc = document.createElement('p');
         desc.className = 'character-description';
-        desc.textContent = chara.description;
+        _applyRuby(chara.description, desc);
 
         info.append(name, desc);
         card.appendChild(info);
