@@ -66,7 +66,7 @@ export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], 
             link.href = `https://github.com/haguchikarasu/lirmena/commit/${entry.sha}`;
             link.target = '_blank';
             link.rel = 'noopener';
-            link.textContent = entry.version;
+            link.textContent = `v${entry.version}`;
             versionSpan.append(link);
 
             const dateSpan = document.createElement('span');
