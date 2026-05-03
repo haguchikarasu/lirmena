@@ -42,6 +42,8 @@ const LS_LINE_GAP     = 'lirmena.lineGap';
 const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on' } as const;
 
 const GITHUB_REPO = 'ユーザー名/リポジトリ名';
+
+let _episodes: Episode[] = [];
 const CHANGELOG_INITIAL_COUNT = 3;
 
 // 数値を2桁ゼロ埋め文字列に変換する
@@ -160,9 +162,11 @@ function renderBookmarks(): void {
         const info = document.createElement('div');
         info.className = 'idx-bm-info';
 
+        const epTitle = _episodes.find(e => e.id === ep)?.title ?? '';
         const epSecEl = document.createElement('p');
         epSecEl.className = 'idx-bm-loc';
-        epSecEl.textContent = `Ep.${pad(ep)}  Sec.${pad(sec)}${scene === 0 ? '（タイトル画面）' : ''}`;
+        const locBase = epTitle ? `第${ep}話 ${epTitle} - ${pad(sec)}` : `第${ep}話 - ${pad(sec)}`;
+        epSecEl.textContent = locBase + (scene === 0 ? '（タイトル画面）' : '');
         info.appendChild(epSecEl);
 
         const dateEl = document.createElement('p');
@@ -550,6 +554,7 @@ async function main(): Promise<void> {
         }
     }
 
+    _episodes = episodes;
     const sceneRead = loadSceneRead();
     renderEpisodes(episodes, sceneRead);
     renderBookmarks();
