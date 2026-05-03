@@ -503,9 +503,9 @@ ruby rt {
 
 .settings-panel__title {
   padding: 0.9rem 1.2rem;
-  font-size: 0.78rem;
+  font-size: 1rem;
   letter-spacing: 0.12em;
-  color: #777;
+  color: #aaa;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -628,9 +628,9 @@ ruby rt {
   margin: 0.8rem 1rem 0;
   padding: 0.3rem 0.8rem;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid #999;
   border-radius: 4px;
-  color: #777;
+  color: #ccc;
   font-size: 0.82rem;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -638,7 +638,7 @@ ruby rt {
 
 #characters-popup-close:hover {
   background: rgba(255, 255, 255, 0.07);
-  color: #aaa;
+  color: #fff;
 }
 
 #characters-list {
@@ -671,14 +671,14 @@ ruby rt {
 }
 
 .character-name {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   color: #e8e4dc;
   letter-spacing: 0.05em;
 }
 
 .character-description {
-  font-size: 0.82rem;
-  color: #8c8880;
+  font-size: 0.9rem;
+  color: #aaa;
   line-height: 1.7;
 }
 

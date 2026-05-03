@@ -19,8 +19,8 @@
   --idx-border-accent: #1a3a28;
 
   --idx-text-primary:  #e8e8e8;
-  --idx-text-body:     #b8b8b8;
-  --idx-text-muted:    #a0a0a0;
+  --idx-text-body:     #cccccc;
+  --idx-text-muted:    #b8b8b8;
   --idx-text-dim:      #505050;
   --idx-text-faint:    #b8b8b8;
   --idx-text-date:     #a0a0a0;
@@ -262,7 +262,7 @@
 }
 
 .settings-panel__title {
-  font-size: 0.78rem;
+  font-size: 1rem;
   letter-spacing: 0.12em;
   color: var(--idx-text-muted);
   margin-bottom: 1.25rem;
@@ -279,7 +279,7 @@
 }
 
 .settings-row__label {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--idx-text-body);
   white-space: nowrap;
 }
