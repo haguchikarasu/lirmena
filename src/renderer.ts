@@ -1,15 +1,16 @@
 /*
  * renderer.ts
- * 責務: Scene → DOM 生成（エリアC 本文）、タイトル画面（#title-screen）の DOM 生成
+ * 責務: Scene → DOM 生成（エリアC 本文）、タイトル画面（#title-screen）の動的部分の更新
  * export: renderTitleScreen(epTitle, changelog, img?), renderScene()
  * 依存: parser.ts（TextNode 型）、types.ts（ChangelogEntry 型）
  *
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
  *
  * タイトル画面（#title-screen）：
+ *   - 静的構造は contents.html に記述済み
  *   - #main-container を非表示にして #title-screen を表示する
- *   - 呼び出しのたびに replaceChildren() で全体を再構築する
- *   - DOM 構造：
+ *   - 動的更新：ep タイトルのテキスト、背景画像、.title-screen-changelog の中身
+ *   - DOM 構造（静的）：
  *       .title-screen-header
  *         .title-screen-ep-title（ep タイトル）
  *         #btn-title-enter  : 本文に入るボタン
@@ -42,55 +43,33 @@ const mainContainerEl = document.querySelector<HTMLElement>('#main-container')!;
 const titleScreenEl = document.querySelector<HTMLElement>('#title-screen')!;
 const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 
-// タイトル画面を #title-screen に描画し、#main-container を非表示にする。
-// 呼び出しのたびに replaceChildren() で全体を再構築する。
+// タイトル画面の動的部分（ep タイトル・背景画像・changelog）を更新し、#main-container を非表示にする。
+// 静的構造（ボタン・リンク等）は contents.html に記述済み。
 // nav.ts が querySelector でボタンを取得してイベントを登録する。
 // img が指定されたとき img/titlecard/ から画像を全面表示する。未指定なら黒背景のみ。
 // renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
 export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void {
-    const header = document.createElement('div');
-    header.className = 'title-screen-header';
-
-    const titleEl = document.createElement('p');
-    titleEl.className = 'title-screen-ep-title';
+    const titleEl = titleScreenEl.querySelector<HTMLElement>('.title-screen-ep-title')!;
     titleEl.textContent = epTitle;
 
-    const btnEnter = document.createElement('button');
-    btnEnter.type = 'button';
-    btnEnter.id = 'btn-title-enter';
-    btnEnter.textContent = '本文を読む';
-
-    const btnPrev = document.createElement('button');
-    btnPrev.type = 'button';
-    btnPrev.id = 'btn-title-prev';
-    btnPrev.textContent = '前のエピソードへ';
-
-    const btnIndex = document.createElement('a');
-    btnIndex.id = 'btn-title-index';
-    btnIndex.href = 'index.html';
-    btnIndex.textContent = '目次へ戻る';
-
-    header.append(titleEl, btnEnter, btnPrev, btnIndex);
-
-    const changelogArea = document.createElement('div');
-    changelogArea.className = 'title-screen-changelog';
+    const changelogArea = titleScreenEl.querySelector<HTMLElement>('.title-screen-changelog')!;
     if (changelog.length === 0) {
-        changelogArea.appendChild(document.createTextNode('更新履歴なし'));
+        changelogArea.replaceChildren(document.createTextNode('更新履歴なし'));
     } else {
-        for (const entry of changelog) {
+        const rows = changelog.map(entry => {
             const row = document.createElement('p');
             const link = document.createElement('a');
             link.href = `https://github.com/haguchikarasu/lirmena/commit/${entry.sha}`;
             link.target = '_blank';
             link.rel = 'noopener';
             link.textContent = entry.version;
-            row.append(link, document.createTextNode(` ${entry.date} ${entry.change}`));
-            changelogArea.appendChild(row);
-        }
+            row.append(link, document.createTextNode(` ${entry.date} ${entry.change}`));
+            return row;
+        });
+        changelogArea.replaceChildren(...rows);
     }
 
     titleScreenEl.style.backgroundImage = img ? `url('img/titlecard/${img}')` : '';
-    titleScreenEl.replaceChildren(header, changelogArea);
 
     mainContainerEl.hidden = true;
     titleScreenEl.hidden = false;
