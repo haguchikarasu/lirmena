@@ -56,7 +56,7 @@ import * as settings from './settings';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
-import type { Scene, EpisodesData, SceneAddress, CharactersData, VolumesData, ChangelogEntry } from './types';
+import type { Scene, EpisodesData, SceneAddress, CharactersData, VolumesData } from './types';
 
 /** マウスホイールのスクロール量倍率 */
 const WHEEL_SCROLL_MULTIPLIER = 2;

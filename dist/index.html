@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報
+       - theme-color は CSS 変数と2箇所で管理。変更時は両方合わせること
+       - og:image は public/img/ogp.png（1200×630px 推奨）
+       - og:description は設定しない
+       - contents.html にも同じ OGP 設定が必要
+  -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="public/img/title01.png" /><!-- TODO: デプロイ時にサイトの URL を設定すること -->
+  <meta property="og:image" content="public/img/ogp.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>輝くもの《リルメナ》</title>
+  <script type="module" crossorigin src="/lirmena/assets/main-Cx4F-cBz.js"></script>
+  <link rel="modulepreload" crossorigin href="/lirmena/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="stylesheet" crossorigin href="/lirmena/assets/main--LomvxUq.css">
+</head>
+<body class="idx-page">
+  <!-- ヒーローエリア -->
+  <div class="idx-hero">
+    <img src="/lirmena/assets/vol01-DrFW8rqb.png" alt="タイトル" class="idx-hero-img" />
+  </div>
+
+  <!-- ep・sec 一覧エリア（index.ts が動的生成） -->
+  <section class="idx-body" aria-label="エピソード一覧">
+    <div id="episodes-area" class="idx-ep-list">
+      <p class="loading-text">読み込み中…</p>
+    </div>
+  </section>
+
+  <!-- 栞エリア（index.ts が動的生成） -->
+  <section class="idx-body idx-bm-section" aria-label="栞">
+    <p class="idx-sec-label">栞</p>
+    <div id="bookmark-slots">
+      <!-- index.ts が動的生成 -->
+    </div>
+  </section>
+
+  <!-- 更新履歴エリア（index.ts が動的生成） -->
+  <section id="content-changelog" class="idx-body">
+    <h2 class="idx-sec-label">コンテンツ更新履歴</h2>
+    <ul id="content-changelog-list">
+      <!-- index.ts が動的に生成 -->
+    </ul>
+    <button id="content-changelog-toggle" hidden>すべて表示</button>
+  </section>
+
+  <section id="site-changelog" class="idx-body">
+    <h2 class="idx-sec-label">サイト更新履歴</h2>
+    <ul id="site-changelog-list">
+      <!-- index.ts が動的に生成 -->
+    </ul>
+    <button id="site-changelog-toggle" hidden>すべて表示</button>
+  </section>
+
+  <!-- 右下 FAB メニュー（index.ts が操作） -->
+  <div id="fab-container">
+    <ul id="fab-panel" hidden role="menu" aria-label="メニュー">
+      <!-- index.ts が動的生成 -->
+    </ul>
+    <button id="fab-toggle" class="idx-fab" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
+  </div>
+
+  <!-- 設定ポップアップ（index.ts が操作） -->
+  <div id="settings-popup" hidden role="dialog" aria-label="設定" aria-modal="true">
+    <!-- index.ts が動的生成 -->
+  </div>
+
+</body>
+</html>
