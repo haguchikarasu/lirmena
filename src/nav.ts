@@ -100,10 +100,12 @@ function _updateReadingButtons(): void {
         _btnNext.disabled = false;
         _btnNext.textContent = '目次へ戻る';
         _btnNext.setAttribute('aria-label', '目次へ戻る');
+        _btnNext.classList.add('is-text-label');
     } else {
         _btnNext.disabled = false;
         _btnNext.textContent = BTN_NEXT_DEFAULT_TEXT;
         _btnNext.setAttribute('aria-label', '次へ');
+        _btnNext.classList.remove('is-text-label');
     }
 
     _btnPrev.disabled = state.getPrev() === null;

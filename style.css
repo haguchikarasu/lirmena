@@ -279,6 +279,13 @@ button {
   border-radius: 6px;
 }
 
+/* 「目次へ戻る」テキストラベル時：フォントサイズを縮小 */
+#btn-next.is-text-label {
+  font-size: 0.85rem;
+  writing-mode: vertical-rl;
+  height: 6rem;
+}
+
 /* タッチ端末：ボタン高さを広げてタップしやすく */
 @media (pointer: coarse) {
   #btn-prev,
