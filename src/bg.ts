@@ -12,12 +12,10 @@
  *   background-position: {bgPositionX} center を適用し、それ以外は center center にする。
  */
 
-const IMG_BASE = '/img/bg/';
-
-// ファイル名と横位置指定を受け取り背景画像を即時差し替える。null なら黒背景にする。
+// ep 番号・ファイル名・横位置指定を受け取り背景画像を即時差し替える。null なら黒背景にする。
 // bgPositionX が指定されかつ縦長画面のとき background-position: {bgPositionX} center を適用する。
-// set(filename: string | null, bgPositionX?: string): void
-export function set(filename: string | null, bgPositionX?: string): void {
+// set(ep: number, filename: string | null, bgPositionX?: string): void
+export function set(ep: number, filename: string | null, bgPositionX?: string): void {
   const el = document.getElementById('bg-layer');
   if (!el) return;
 
@@ -37,5 +35,5 @@ export function set(filename: string | null, bgPositionX?: string): void {
   img.onerror = () => {
     el.style.backgroundImage = '';
   };
-  img.src = IMG_BASE + filename;
+  img.src = `/ep${String(ep).padStart(2, '0')}/img/${filename}`;
 }

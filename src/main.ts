@@ -161,7 +161,7 @@ async function _init(): Promise<void> {
         );
     }
     const initSc = address.scene === 0 ? undefined : scenes[address.scene - 1];
-    bg.set(initSc?.bgFile ?? null, initSc?.bgPositionX);
+    bg.set(address.ep, initSc?.bgFile ?? null, initSc?.bgPositionX);
     nav.update();
     progress.initProgress(epAllScenes);
     progress.updateProgress(address.scene === 0 ? 0 : epSceneOffset + address.scene);

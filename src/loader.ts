@@ -32,11 +32,12 @@ export async function fetchVolumes(): Promise<VolumesData> {
 }
 
 // 指定 ep/sec の本文テキストを取得して返す
-// 命名規則: public/txt/[ep2桁]-[sec2桁].txt
+// 命名規則: public/ep[ep2桁]/txt/[ep2桁]-[sec2桁].txt
 // エラー時（404・ネットワーク失敗）は例外を投げる
 // loadText(ep: number, sec: number): Promise<string>
 export async function loadText(ep: number, sec: number): Promise<string> {
-    const path = `/txt/${String(ep).padStart(2, '0')}-${String(sec).padStart(2, '0')}.txt`;
+    const epStr = String(ep).padStart(2, '0');
+    const path = `/ep${epStr}/txt/${epStr}-${String(sec).padStart(2, '0')}.txt`;
     const res = await fetch(path);
     if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
     return res.text();

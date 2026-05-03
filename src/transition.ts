@@ -114,7 +114,7 @@ async function _run(address: SceneAddress): Promise<void> {
     }
 
     const sc = target.scene === 0 ? undefined : _scenes[target.scene - 1];
-    bg.set(sc?.bgFile ?? null, sc?.bgPositionX);
+    bg.set(target.ep, sc?.bgFile ?? null, sc?.bgPositionX);
 
     history.replaceState(null, '', state.toHash(target));
     state.setCurrent(target);
