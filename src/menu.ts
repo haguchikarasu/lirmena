@@ -175,7 +175,7 @@ function _openCharactersPopup(): void {
 
         if (chara.image !== '') {
             const img = document.createElement('img');
-            img.src = `public/img/chara/${chara.image}`;
+            img.src = `public/chara/${chara.image}`;
             img.alt = '';
             card.appendChild(img);
         }

@@ -1,5 +1,5 @@
 export type EpisodeSection = { id: number; published: boolean };
-export type Episode = { id: number; title: string; img?: string; sections: EpisodeSection[] };
+export type Episode = { id: number; title: string; sections: EpisodeSection[] };
 export type EpisodesData = Episode[];
 export type SceneAddress = { ep: number; sec: number; scene: number };
 

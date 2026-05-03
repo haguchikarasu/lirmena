@@ -24,7 +24,7 @@
  *                 updateNav: () => void,
  *               ): void
  *              trigger(address: SceneAddress): Promise<void>
- *   renderer : renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
+ *   renderer : renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], epId: number): void
  *              renderScene(scene: Scene, scrollLeft?: number): void
  *   bg       : set(bgFile: string | null, bgPositionX?: string): void
  *   progress : initProgress(allEpScenes: Scene[]): void
@@ -153,7 +153,7 @@ async function _init(): Promise<void> {
 
     if (address.scene === 0) {
         const changelog = await loader.fetchEpChangelog(address.ep);
-        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '', changelog, state.getEpImg(address.ep));
+        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '', changelog, address.ep);
     } else {
         const pendingScroll = sessionStorage.getItem('bookmark-scroll');
         sessionStorage.removeItem('bookmark-scroll');

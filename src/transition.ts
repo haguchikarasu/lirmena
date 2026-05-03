@@ -115,7 +115,7 @@ async function _run(address: SceneAddress): Promise<void> {
 
     if (target.scene === 0) {
         const changelog = await _loadChangelog(target.ep);
-        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '', changelog, state.getEpImg(target.ep));
+        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '', changelog, target.ep);
     } else {
         renderer.renderScene(_scenes[target.scene - 1], savedScroll);
     }

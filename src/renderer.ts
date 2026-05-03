@@ -1,7 +1,7 @@
 /*
  * renderer.ts
  * 責務: Scene → DOM 生成（エリアC 本文）、タイトル画面（#title-screen）の動的部分の更新
- * export: renderTitleScreen(epTitle, changelog, img?), renderScene()
+ * export: renderTitleScreen(epTitle, changelog, epId), renderScene()
  * 依存: parser.ts（TextNode 型）、types.ts（ChangelogEntry 型）
  *
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
@@ -46,9 +46,9 @@ const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 // タイトル画面の動的部分（ep タイトル・背景画像・changelog）を更新し、#main-container を非表示にする。
 // 静的構造（ボタン・リンク等）は contents.html に記述済み。
 // nav.ts が querySelector でボタンを取得してイベントを登録する。
-// img が指定されたとき img/titlecard/ から画像を全面表示する。未指定なら黒背景のみ。
-// renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void
-export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], img?: string): void {
+// ep[XX]/title.png を背景画像として全面表示する。ファイルが存在しない場合は黒背景のみ。
+// renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], epId: number): void
+export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], epId: number): void {
     const titleEl = document.getElementById('title-screen-ep-title')!;
     titleEl.textContent = epTitle;
 
@@ -83,7 +83,8 @@ export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], 
         changelogArea.replaceChildren(...rows);
     }
 
-    titleScreenEl.style.backgroundImage = img ? `url('img/titlecard/${img}')` : '';
+    const titlePath = `ep${String(epId).padStart(2, '0')}/title.png`;
+    titleScreenEl.style.backgroundImage = `url('${titlePath}')`;
 
     mainContainerEl.hidden = true;
     titleScreenEl.hidden = false;
