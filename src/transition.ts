@@ -108,7 +108,7 @@ async function _run(address: SceneAddress): Promise<void> {
     const savedScroll = isBackward ? _scrollPositions.get(_sceneKey(target)) : undefined;
 
     if (target.scene === 0) {
-        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '');
+        renderer.renderTitleScreen(state.getEpTitle(target.ep) ?? '', state.getEpImg(target.ep));
     } else {
         renderer.renderScene(_scenes[target.scene - 1], savedScroll);
     }

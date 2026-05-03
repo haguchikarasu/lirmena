@@ -41,6 +41,12 @@ export function getEpTitle(ep: number): string | undefined {
     return _data.find(e => e.id === ep)?.title;
 }
 
+/** ep のタイトルカード画像ファイル名を返す。存在しない・空文字なら undefined */
+export function getEpImg(ep: number): string | undefined {
+    const img = _data.find(e => e.id === ep)?.img;
+    return img || undefined;
+}
+
 /** Episode オブジェクトを返す。存在しなければ undefined */
 export function getEpisode(ep: number): Episode | undefined {
     return _data.find(e => e.id === ep);

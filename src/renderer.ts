@@ -41,14 +41,17 @@ const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
 
 // タイトル画面を #title-screen に描画し、#main-container を非表示にする。
 // ボタン要素（#btn-title-enter, #btn-title-prev, #btn-title-index）は
-// 初回呼び出し時に生成し、以降は ep タイトルの更新のみ行う。
+// 初回呼び出し時に生成し、以降は ep タイトル・背景画像の更新のみ行う。
 // nav.ts が querySelector でボタンを取得してイベントを登録する。
-// renderTitleScreen(epTitle: string): void
-export function renderTitleScreen(epTitle: string): void {
+// img が指定されたとき img/titlecard/ から画像を全面表示する。未指定なら黒背景のみ。
+// renderTitleScreen(epTitle: string, img?: string): void
+export function renderTitleScreen(epTitle: string, img?: string): void {
     _ensureTitleScreenDOM();
 
     const titleEl = titleScreenEl.querySelector<HTMLElement>('.title-screen-ep-title');
     if (titleEl) titleEl.textContent = epTitle;
+
+    titleScreenEl.style.backgroundImage = img ? `url('img/titlecard/${img}')` : '';
 
     mainContainerEl.hidden = true;
     titleScreenEl.hidden = false;

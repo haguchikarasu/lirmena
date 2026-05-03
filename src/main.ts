@@ -23,7 +23,7 @@
  *                 updateNav: () => void,
  *               ): void
  *              trigger(address: SceneAddress): Promise<void>
- *   renderer : renderTitleScreen(epTitle: string): void
+ *   renderer : renderTitleScreen(epTitle: string, img?: string): void
  *              renderScene(scene: Scene, scrollLeft?: number): void
  *   bg       : set(bgFile: string | null, bgPositionX?: string): void
  *   progress : initProgress(allEpScenes: Scene[]): void
@@ -151,7 +151,7 @@ async function _init(): Promise<void> {
     menu.init(charactersData, volumesData);
 
     if (address.scene === 0) {
-        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '');
+        renderer.renderTitleScreen(state.getEpTitle(address.ep) ?? '', state.getEpImg(address.ep));
     } else {
         const pendingScroll = sessionStorage.getItem('bookmark-scroll');
         sessionStorage.removeItem('bookmark-scroll');

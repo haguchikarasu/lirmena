@@ -309,6 +309,9 @@ button {
   writing-mode: horizontal-tb;
   padding: 2rem;
   gap: 1.5rem;
+  background-color: #000;
+  background-size: cover;
+  background-position: center;
 }
 
 .title-screen-ep-title {
