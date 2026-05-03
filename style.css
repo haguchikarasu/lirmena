@@ -323,7 +323,7 @@ button {
   height: 50vh;
 }
 
-.title-screen-changelog {
+#title-screen-changelog {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

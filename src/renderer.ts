@@ -16,7 +16,7 @@
  *         #btn-title-enter  : 本文に入るボタン
  *         #btn-title-prev   : 前 ep へ戻るボタン
  *         #btn-title-index  : 目次に戻るボタン（<a> タグ）
- *       .title-screen-changelog（ChangelogEntry[] または「更新履歴なし」）
+ *       #title-screen-changelog（ChangelogEntry[] または「更新履歴なし」）
  *   - レイアウトは縦長固定
  *
  * エリアC（本文）：
@@ -52,7 +52,7 @@ export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], 
     const titleEl = document.getElementById('title-screen-ep-title')!;
     titleEl.textContent = epTitle;
 
-    const changelogArea = titleScreenEl.querySelector<HTMLElement>('.title-screen-changelog')!;
+    const changelogArea = titleScreenEl.querySelector<HTMLElement>('#title-screen-changelog')!;
     if (changelog.length === 0) {
         changelogArea.replaceChildren(document.createTextNode('更新履歴なし'));
     } else {
