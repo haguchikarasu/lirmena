@@ -348,7 +348,9 @@ button {
 #btn-title-enter,
 #btn-title-prev,
 #btn-title-index {
+  width: 12rem;
   padding: 0.6rem 1.4rem;
+  text-align: center;
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.45);
   color: #e0dcd4;
