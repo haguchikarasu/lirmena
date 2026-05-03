@@ -1,6 +1,0 @@
-[
-  { "volume": 1, "epRange": [1, 3] },
-  { "volume": 2, "epRange": [4, 6] },
-  { "volume": 3, "epRange": [7, 9] },
-  { "volume": 4, "epRange": [10, 12] }
-]
