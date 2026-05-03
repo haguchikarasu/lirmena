@@ -35,5 +35,5 @@ export function set(ep: number, filename: string | null, bgPositionX?: string): 
   img.onerror = () => {
     el.style.backgroundImage = '';
   };
-  img.src = `/ep${String(ep).padStart(2, '0')}/img/${filename}`;
+  img.src = `${import.meta.env.BASE_URL}ep${String(ep).padStart(2, '0')}/img/${filename}`;
 }

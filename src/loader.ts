@@ -10,7 +10,7 @@ import type { EpisodesData, CharactersData, VolumesData } from './types';
 // episodes.json を取得して EpisodesData を返す
 // loadEpisodes(): Promise<EpisodesData>
 export async function loadEpisodes(): Promise<EpisodesData> {
-    const res = await fetch('/episodes.json');
+    const res = await fetch(`${import.meta.env.BASE_URL}episodes.json`);
     if (!res.ok) throw new Error(`Failed to load episodes.json: ${res.status}`);
     return res.json() as Promise<EpisodesData>;
 }
@@ -18,7 +18,7 @@ export async function loadEpisodes(): Promise<EpisodesData> {
 // characters.json を取得して CharactersData を返す
 // fetchCharacters(): Promise<CharactersData>
 export async function fetchCharacters(): Promise<CharactersData> {
-    const res = await fetch('/characters.json');
+    const res = await fetch(`${import.meta.env.BASE_URL}characters.json`);
     if (!res.ok) throw new Error(`Failed to load characters.json: ${res.status}`);
     return res.json() as Promise<CharactersData>;
 }
@@ -26,7 +26,7 @@ export async function fetchCharacters(): Promise<CharactersData> {
 // volumes.json を取得して VolumesData を返す
 // fetchVolumes(): Promise<VolumesData>
 export async function fetchVolumes(): Promise<VolumesData> {
-    const res = await fetch('/volumes.json');
+    const res = await fetch(`${import.meta.env.BASE_URL}volumes.json`);
     if (!res.ok) throw new Error(`Failed to load volumes.json: ${res.status}`);
     return res.json() as Promise<VolumesData>;
 }
@@ -37,7 +37,7 @@ export async function fetchVolumes(): Promise<VolumesData> {
 // loadText(ep: number, sec: number): Promise<string>
 export async function loadText(ep: number, sec: number): Promise<string> {
     const epStr = String(ep).padStart(2, '0');
-    const path = `/ep${epStr}/txt/${epStr}-${String(sec).padStart(2, '0')}.txt`;
+    const path = `${import.meta.env.BASE_URL}ep${epStr}/txt/${epStr}-${String(sec).padStart(2, '0')}.txt`;
     const res = await fetch(path);
     if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
     return res.text();
