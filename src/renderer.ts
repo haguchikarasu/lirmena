@@ -58,12 +58,26 @@ export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], 
     } else {
         const rows = changelog.map(entry => {
             const row = document.createElement('p');
+            row.className = 'changelog-entry';
+
+            const versionSpan = document.createElement('span');
+            versionSpan.className = 'changelog-version';
             const link = document.createElement('a');
             link.href = `https://github.com/haguchikarasu/lirmena/commit/${entry.sha}`;
             link.target = '_blank';
             link.rel = 'noopener';
             link.textContent = entry.version;
-            row.append(link, document.createTextNode(` ${entry.date} ${entry.change}`));
+            versionSpan.append(link);
+
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'changelog-date';
+            dateSpan.textContent = entry.date;
+
+            const changeSpan = document.createElement('span');
+            changeSpan.className = 'changelog-change';
+            changeSpan.textContent = entry.change;
+
+            row.append(dateSpan, versionSpan, changeSpan);
             return row;
         });
         changelogArea.replaceChildren(...rows);

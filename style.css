@@ -336,6 +336,18 @@ button {
   line-height: 1.8;
 }
 
+.changelog-version a:visited {
+  color: inherit;
+}
+
+.changelog-entry {
+  display: grid;
+  grid-template-columns: 7em 4.5em 1fr;
+  align-items: start;
+  gap: 0 0.75em;
+  margin: 0;
+}
+
 #title-screen-ep-title {
   font-size: 3rem;
   font-weight: normal;
