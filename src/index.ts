@@ -50,7 +50,7 @@ const LS_LINE_GAP     = 'lirmena.lineGap';
 
 const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on' } as const;
 
-const GITHUB_REPO = 'ユーザー名/リポジトリ名';
+const GITHUB_REPO = 'haguchikarasu/lirmena';
 
 let _episodes: Episode[] = [];
 const CHANGELOG_INITIAL_COUNT = 3;
