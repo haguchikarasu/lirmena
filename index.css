@@ -1,5 +1,10 @@
 /* index.css — 目次ページ専用スタイル（style.css とは独立） */
 
+html, body {
+  height: 100dvh; /* dynamic viewport height */
+  overflow: hidden;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
