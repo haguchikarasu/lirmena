@@ -44,12 +44,34 @@
   line-height: 0;
 }
 
+.idx-hero-card {
+  position: relative;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
 .idx-hero-img {
   display: block;
   width: 100%;
-  max-width: 600px;
   height: auto;
+}
+
+.idx-version-badges {
+  max-width: 600px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0.4rem 0;
+  line-height: normal;
+}
+
+.idx-version-badge {
+  font-size: 0.65rem;
+  font-family: monospace, sans-serif;
+  color: #484848;
+  letter-spacing: 0.04em;
 }
 
 /* ===== コンテンツエリア共通 ===== */

@@ -53,10 +53,11 @@ export function renderTitleScreen(epTitle: string, changelog: ChangelogEntry[], 
     titleEl.textContent = epTitle;
 
     const changelogArea = titleScreenEl.querySelector<HTMLElement>('#title-screen-changelog')!;
-    if (changelog.length === 0) {
+    const filtered = changelog.filter(entry => entry.version.split('.')[2] === '0');
+    if (filtered.length === 0) {
         changelogArea.replaceChildren(document.createTextNode('更新履歴なし'));
     } else {
-        const rows = changelog.map(entry => {
+        const rows = filtered.map(entry => {
             const row = document.createElement('p');
             row.className = 'changelog-entry';
 

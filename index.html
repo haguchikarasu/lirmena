@@ -22,7 +22,13 @@
 <body class="idx-page">
   <!-- ヒーローエリア -->
   <div class="idx-hero">
-    <img src="public/cover/vol01.png" alt="タイトル" class="idx-hero-img" />
+    <div class="idx-hero-card">
+      <img src="public/cover/vol01.png" alt="タイトル" class="idx-hero-img" />
+    </div>
+    <div class="idx-version-badges">
+      <span id="badge-content-version" class="idx-version-badge"></span>
+      <span id="badge-site-version" class="idx-version-badge"></span>
+    </div>
   </div>
 
   <!-- ep・sec 一覧エリア（index.ts が動的生成） -->
@@ -47,14 +53,6 @@
       <!-- index.ts が動的に生成 -->
     </ul>
     <button id="content-changelog-toggle" hidden>すべて表示</button>
-  </section>
-
-  <section id="site-changelog" class="idx-body">
-    <h2 class="idx-sec-label">サイト更新履歴</h2>
-    <ul id="site-changelog-list">
-      <!-- index.ts が動的に生成 -->
-    </ul>
-    <button id="site-changelog-toggle" hidden>すべて表示</button>
   </section>
 
   <!-- 右下 FAB メニュー（index.ts が操作） -->
