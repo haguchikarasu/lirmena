@@ -58,8 +58,7 @@
 }
 
 html, body {
-  height: 100dvh; /* dynamic viewport height */
-  overflow: hidden;
+  height: 100%;
   background: #000;
   color: #e8e0d0;
   font-family: var(--font-family);
