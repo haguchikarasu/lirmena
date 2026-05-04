@@ -43,7 +43,12 @@
  *         deltaY（正＝下スクロール）を反転して加算し縦スクロール入力を横スクロールに変換する
  * 【注意】_getAllEpScenes は ep ごとにキャッシュする。同 ep 内での sec またぎ遷移では
  *         ブラウザキャッシュに頼らずメモリキャッシュを使うため2重フェッチにならない
+ * 【注意】gtag は contents.html に埋め込んだ GA4 スニペットが window に登録するグローバル関数。
+ *         hashchange 時に page_view イベントを送り、ハッシュ単位でページ遷移を計測する
  */
+
+// GA4 グローバル関数の型宣言（contents.html の gtag.js スニペットが実体を登録する）
+declare function gtag(command: string, ...args: unknown[]): void;
 
 import * as state from './state';
 import * as transition from './transition';
@@ -251,11 +256,16 @@ async function _getAllEpScenes(
 /**
  * hashchange イベントを受けて、新しいハッシュに対応するシーンへ遷移する。
  * 初期化完了後に登録される。
+ * 未公開セクションは弾いた後に GA4 page_view イベントを送信する。
  */
 function _onHashChange(): void {
     const address = state.parseHash(window.location.hash);
     if (!address) return;
     if (!state.isPublished(address.ep, address.sec)) return;
+    gtag('event', 'page_view', {
+        page_location: location.href,
+        page_path: location.pathname + location.hash,
+    });
     void transition.trigger(address);
 }
 
