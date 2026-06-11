@@ -17,6 +17,7 @@
  *              subscribe(cb: (n: ScrollNotification) => void): void
  *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
  *   nav      : init(): void / update(): void
+ *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData, volumes: VolumesData): void
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
  *   tutorial : init(): void
@@ -48,6 +49,7 @@ import * as renderer from './renderer';
 import * as bg from './bg';
 import * as reader from './reader';
 import * as nav from './nav';
+import * as transition from './transition';
 import * as menu from './menu';
 import * as settings from './settings';
 import * as tutorial from './tutorial';
@@ -67,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  * エラー発生時は _showError() を呼んで処理を中断する。
  *
  * 初期化順序:
+ *   0. transition.init()（到着フェードイン起動。await・エラー表示より前）
  *   1. <body> の data-ep / data-sec から自ページの ep/sec を確定
  *   2. loader.loadEpisodes() で episodes.json を取得し、自 sec が公開済みか検証
  *   3. state.init(data, { ep, sec }) で現在位置を確定
@@ -80,6 +83,9 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、ローディングを隠す
  */
 async function _init(): Promise<void> {
+    // 到着フェードイン（シェルは class="fading" で読み込まれる）。await やエラー表示より前に外して黒から明ける。
+    transition.init();
+
     const address = _readAddress();
     if (!address) {
         _showError('ページ情報が不正です。URLをご確認ください。');

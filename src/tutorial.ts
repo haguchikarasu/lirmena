@@ -1,6 +1,6 @@
 /*
  * tutorial.ts
- * 責務: 読書点（基準点）チュートリアル。常時アンカーマーカーの表示とドラッグ移動、初回ガイドポップアップ。
+ * 責務: 読書点（基準点）チュートリアル。常時アンカーマーカーの表示とドラッグ移動、初回ガイドの画像カルーセル。
  * export: init(), open()
  * 依存: settings.ts（読書点の所有者。ドロップ時に setReadingAnchor() で永続化）
  *
@@ -19,8 +19,10 @@
  *     合成 scroll イベントを dispatch して bg.ts のクロスフェード中点を即追従させる（bg を import しない＝疎結合）。
  *   - ドロップ時に settings.setReadingAnchor() で連続値を永続化（スナップ・丸めなし）。
  *
- * 初回ガイド: KEY_TUTORIAL_SEEN 未設定時のみポップアップ表示し、表示後フラグを立てる。再表示は open()（Phase 4 で menu が呼ぶ）。
- * ガイド画像: {BASE_URL}tutorial/guide.png（fetch しない・サイズは CSS 変数 --tutorial-guide-w）。未配置時は onerror で枠を隠す。
+ * 初回ガイド: KEY_TUTORIAL_SEEN 未設定時のみ表示し、表示後フラグを立てる。再表示は menu.ts の「読み方」が open() を呼ぶ。
+ * ガイド画像カルーセル: ステップ（画像＋説明文）は本文シェルの #tutorial-popup に静的記述（.tutorial-step、画像は
+ *   public/contents/img/）。tutorial.ts は現在ステップの hidden 切替ロジックのみを持つ（カードクリックで次へ／最後で閉じる）。
+ *   各画像にキャラクターが描き込まれているため、説明文(.tutorial-text)はキャラクターに被らない縦中央バンドへ重ねる（要件 06-12）。
  */
 
 import * as settings from './settings';
@@ -30,6 +32,8 @@ const KEY_TUTORIAL_SEEN = 'lirmena.tutorialSeen';
 let _marker: HTMLElement | null = null;
 let _container: HTMLElement | null = null;
 let _popup: HTMLElement | null = null;
+let _steps: HTMLElement[] = [];   // #tutorial-popup 内の .tutorial-step（本文シェルに静的記述）
+let _step = 0;                    // 現在表示中のステップ index
 let _dragging = false;
 let _activeGrip: HTMLElement | null = null;
 
@@ -38,7 +42,7 @@ let _activeGrip: HTMLElement | null = null;
 export function init(): void {
     _container = document.getElementById('main-container');
     _marker = document.getElementById('reading-anchor');
-    _buildPopup();
+    _initPopup();
 
     if (_marker && _container) {
         const line = document.createElement('span');
@@ -66,10 +70,13 @@ export function init(): void {
     }
 }
 
-// ガイドポップアップを開く（再表示。Phase 4 で menu.ts の「読み方」が呼ぶ）。
+// ガイドを開く（再表示。menu.ts の「読み方」が呼ぶ）。先頭ステップから表示する。
 // open(): void
 export function open(): void {
-    if (_popup) _popup.hidden = false;
+    if (!_popup) return;
+    _step = 0;
+    _render();
+    _popup.hidden = false;
 }
 
 // 現在の読書点（settings 所有の %）に合わせてマーカーを #main-container 基準の px で配置する。
@@ -132,40 +139,39 @@ function _onPointerUp(e: PointerEvent): void {
     _activeGrip = null;
 }
 
-// #tutorial-popup にガイド内容（ガイド画像・文言・閉じる）を生成し、閉じる挙動を登録する。
-// _buildPopup(): void
-function _buildPopup(): void {
+// #tutorial-popup の静的ステップ(.tutorial-step)を集め、クリック／Escape の挙動を登録する。
+// 中身（画像＋説明文）は本文シェルに静的記述済みで、ここでは生成しない。
+// _initPopup(): void
+function _initPopup(): void {
     _popup = document.getElementById('tutorial-popup');
     if (!_popup) return;
-
-    const panel = document.createElement('div');
-    panel.className = 'tutorial-panel';
-
-    const img = document.createElement('img');
-    img.className = 'tutorial-guide-img';
-    img.alt = '';
-    img.src = `${import.meta.env.BASE_URL}tutorial/guide.png`;
-    img.addEventListener('error', () => { img.hidden = true; }); // 未配置時は画像枠を隠す
-    panel.appendChild(img);
-
-    const msg = document.createElement('p');
-    msg.className = 'tutorial-msg';
-    msg.textContent = '画面の上下にある三角形が「読書点」です。この辺りを読み進めると背景が切り替わります。三角形を左右にドラッグして好きな位置に動かせます。';
-    panel.appendChild(msg);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'tutorial-close';
-    closeBtn.type = 'button';
-    closeBtn.textContent = '閉じる';
-    closeBtn.addEventListener('click', () => { _popup!.hidden = true; });
-    panel.appendChild(closeBtn);
-
-    _popup.appendChild(panel);
+    _steps = Array.from(_popup.querySelectorAll<HTMLElement>('.tutorial-step'));
 
     _popup.addEventListener('click', (e) => {
-        if (e.target === _popup) _popup!.hidden = true;
+        if (e.target === _popup) _close();   // 背景（カード外）クリックでスキップ閉じ
+        else _advance();                     // カード（画像）クリックで次へ／最後なら閉じる
     });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && _popup && !_popup.hidden) _popup.hidden = true;
+        if (e.key === 'Escape' && _popup && !_popup.hidden) _close();
     });
+}
+
+// 現在のステップ(_step)だけを表示し、ほかを隠す。
+// _render(): void
+function _render(): void {
+    _steps.forEach((step, i) => { step.hidden = i !== _step; });
+}
+
+// 次のステップへ進む。最後のステップを越えたら閉じる（カードクリックのハンドラ）。
+// _advance(): void
+function _advance(): void {
+    _step++;
+    if (_step >= _steps.length) { _close(); return; }
+    _render();
+}
+
+// ガイドを閉じる（hidden を付与）。
+// _close(): void
+function _close(): void {
+    if (_popup) _popup.hidden = true;
 }

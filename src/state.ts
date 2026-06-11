@@ -12,6 +12,7 @@
  *   getSection(ep: number, sec: number): EpisodeSection | undefined
  *   isPublished(ep: number, sec: number): boolean
  *   indexUrl(): string                                    目次ページへの相対 URL（'../index.html'）
+ *   getBodyUrl(ep: number, sec: number): string          任意 ep/sec の本文ページ相対 URL（menu「続きから読む」用）
  *   getNextUrl(): string | null                          進行ボタン用。次 sec 本文／ep 境界は次 ep タイトル／無ければ null
  *   getPrevUrl(): string | null                          戻るボタン用（本文ページ）。前 sec 本文／先頭 sec は当 ep タイトル
  *   getTitleEnterUrl(): string | null                    タイトル「本文を読む」用。当 ep 先頭公開 sec の本文ページ
@@ -69,6 +70,11 @@ export function isPublished(ep: number, sec: number): boolean {
 /** 目次ページへの相対 URL（contents/ 配下のページから1階層上がる） */
 export function indexUrl(): string {
     return '../index.html';
+}
+
+/** 任意 ep/sec の本文ページ相対 URL。menu「続きから読む」がオートセーブの ep/sec から遷移先を得るのに使う */
+export function getBodyUrl(ep: number, sec: number): string {
+    return _bodyPath(ep, sec);
 }
 
 /**

@@ -3,14 +3,14 @@
  * 責務: 本文ページの端ボタン（進行 #btn-next・戻る #btn-prev）のイベント登録と表示/有効状態の更新、
  *       および sec 末尾到達の検知と読了記録。
  * export: init(), update()
- * 依存: state.ts / bookmark.ts
+ * 依存: state.ts / bookmark.ts / transition.ts
  *
- * 遷移（マルチページ・ハッシュ廃止）:
+ * 遷移（マルチページ・ハッシュ廃止。離脱フェードは transition.leave 経由）:
  *   進行 #btn-next（エリア D・左端）:
- *     - state.getNextUrl() があれば location.href で遷移（次 sec 本文／ep 境界は次 ep タイトル）
- *     - null（次 ep が無い・未公開）なら「目次へ戻る」ラベルに変え、押下で目次へ即遷移
+ *     - state.getNextUrl() があれば transition.leave で遷移（次 sec 本文／ep 境界は次 ep タイトル）
+ *     - null（次 ep が無い・未公開）なら「目次へ戻る」ラベルに変え、押下で目次へ即遷移（フェードなし・要件 06-1）
  *   戻る #btn-prev（エリア A・右端）:
- *     - state.getPrevUrl()（前 sec 本文／当 ep 先頭 sec は当 ep タイトル）へ location.href で遷移
+ *     - state.getPrevUrl()（前 sec 本文／当 ep 先頭 sec は当 ep タイトル）へ transition.leave で遷移
  *     - 本文ページでは常に遷移先があるため enabled
  *
  * 読了記録（Phase 2）:
@@ -22,6 +22,7 @@
 
 import * as state from './state';
 import * as bookmark from './bookmark';
+import * as transition from './transition';
 
 let _btnNext!: HTMLButtonElement;
 let _btnPrev!: HTMLButtonElement;
@@ -43,12 +44,15 @@ export function init(): void {
     _btnPrev = document.querySelector<HTMLButtonElement>('#btn-prev')!;
 
     _btnNext.addEventListener('click', () => {
-        location.href = state.getNextUrl() ?? state.indexUrl();
+        const next = state.getNextUrl();
+        // 次がある＝離脱フェード。次 ep なし（null）＝目次へ即時遷移（フェードなし・要件 06-1）。
+        if (next) transition.leave(next);
+        else location.href = state.indexUrl();
     });
 
     _btnPrev.addEventListener('click', () => {
         const url = state.getPrevUrl();
-        if (url) location.href = url;
+        if (url) transition.leave(url);
     });
 
     const container = document.querySelector<HTMLElement>('#main-container');

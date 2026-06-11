@@ -4,7 +4,7 @@
  *       <body> の data-ep から自 ep を確定し、ep タイトル・背景画像・変更履歴を描画、
  *       3ボタン（本文を読む／戻る／目次に戻る）の遷移を結線する。
  * export: なし（エントリーポイント）
- * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）
+ * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）/ transition.ts（離脱・到着フェード）
  * 被依存: なし
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
@@ -17,13 +17,14 @@
  *
  * 背景画像: {BASE_URL}ep[XX]/title.png。存在しなければ CSS の黒背景にフォールバック。
  *
- * 【Phase 1（Walking skeleton）】ページ遷移は location.href を直接使う。離脱フェード（transition.ts）
- *         との結線・「戻る」の終端スクロールフラグは後続フェーズで載せる。
+ * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま。
+ *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
  */
 
 import * as state from './state';
 import * as loader from './loader';
 import * as bookmark from './bookmark';
+import * as transition from './transition';
 import type { ChangelogEntry, EpisodesData } from './types';
 
 const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
@@ -31,6 +32,9 @@ const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
 document.addEventListener('DOMContentLoaded', () => { void _init(); });
 
 async function _init(): Promise<void> {
+    // 到着フェードイン（シェルは class="fading" で読み込まれる）。await より前に外して黒から明ける。
+    transition.init();
+
     const ep = _readEp();
     if (ep === null) {
         _showError('ページ情報が不正です。URLをご確認ください。');
@@ -86,7 +90,7 @@ function _wireButtons(): void {
     if (enter) {
         const url = state.getTitleEnterUrl();
         enter.disabled = url === null;
-        if (url) enter.addEventListener('click', () => { location.href = url; });
+        if (url) enter.addEventListener('click', () => { transition.leave(url); });
     }
 
     const prev = document.querySelector<HTMLButtonElement>('#btn-title-prev');
@@ -98,7 +102,7 @@ function _wireButtons(): void {
             prev.addEventListener('click', () => {
                 // 遷移先（前 ep 最終 sec）をロード時に終端へスクロールさせる（オートセーブ復元より優先）。
                 bookmark.writePendingScrollEnd(addr.ep, addr.sec);
-                location.href = url;
+                transition.leave(url);
             });
         }
     }

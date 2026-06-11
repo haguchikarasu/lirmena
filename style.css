@@ -44,9 +44,6 @@
      本文表示幅（#main-container 幅）基準の連続 %。中央(50%)よりやや読み終わり側 */
   --reading-anchor: 45%;
 
-  /* 読み方チュートリアルのガイドキャラクター画像幅（tutorial.ts が参照） */
-  --tutorial-guide-w: 7rem;
-
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #080808;
 }
@@ -163,12 +160,15 @@ button {
 
 
 /* ===================================================
-   暗転オーバーレイ（transition.ts が .fading クラスを切り替える）
+   暗転オーバーレイ（transition.ts が .fading クラスを切り替える＝単一オーバーレイ方式）
+   到着フェードイン: シェルは class="fading"（不透明黒）で初期描画し、init() が外して明ける。
+   離脱フェードアウト: leave() が .fading を付与して暗転後に location.href で遷移する。
+   z-index は全レイヤー（menu=20 等）より上に置き、1つのトグルで bg・本文・ボタン・menu を一律に覆う。
 =================================================== */
 #transition-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 30;                 /* menu(20)・opening(16) 等より上。全画面を覆うため最前面 */
   background: #000;
   opacity: 0;
   pointer-events: none;
@@ -307,6 +307,8 @@ html.at-opening #reading-anchor {
   padding-bottom: 1em;
 }
 
+/* 離脱フェードは #transition-overlay 単独方式へ集約したため、本ルールは現状未使用（無害な残置）。
+   オーバーレイが全画面を覆うので本文を個別に暗転させる必要はない。 */
 #main-container.fading {
   opacity: 0;
   pointer-events: none;
@@ -896,17 +898,17 @@ ruby rt {
   border-right: var(--reading-anchor-cap-size) solid transparent;
 }
 
-/* 上端：下向き三角形 ▽ */
+/* 上端：下向き三角形 ▽（本文から 1em 外へ離す＝下部に余白を取り上端より上へ） */
 .reading-anchor-cap--top {
-  top: 0;
+  top: -1em;
 }
 .reading-anchor-cap--top::before {
   border-top: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
 }
 
-/* 下端：上向き三角形 △ */
+/* 下端：上向き三角形 △（本文から 1em 外へ離す＝上部に余白を取り下端より下へ） */
 .reading-anchor-cap--bottom {
-  bottom: 0;
+  bottom: -1em;
 }
 .reading-anchor-cap--bottom::before {
   border-bottom: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
@@ -928,7 +930,9 @@ ruby rt {
 
 
 /* ===================================================
-   読み方（読書点）チュートリアルのガイドポップアップ（tutorial.ts が操作）
+   読み方（読書点）チュートリアルの初回ガイド（tutorial.ts が step を切替）
+   ステップ（画像＋説明文）は本文シェルに静的記述。クリックで次へ／最後で閉じる。
+   各画像にキャラクターが描かれるため、説明文はキャラに被らない縦中央バンドへ重ねる
 =================================================== */
 #tutorial-popup {
   position: fixed;
@@ -943,44 +947,43 @@ ruby rt {
   writing-mode: horizontal-tb;
 }
 
-.tutorial-panel {
-  width: min(86vw, 20rem);
-  background: rgba(12, 12, 12, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 12px;
-  padding: 1.3rem 1.4rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-  text-align: center;
-}
-
-.tutorial-guide-img {
-  width: var(--tutorial-guide-w);
-  height: auto;
-}
-
-.tutorial-msg {
-  font-size: 0.88rem;
-  color: #c8c4bc;
-  line-height: 1.8;
-}
-
-.tutorial-close {
-  margin-top: 0.2rem;
-  padding: 0.5rem 1.4rem;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  color: #d8d4cc;
-  font-size: 0.84rem;
+/* ステップ＝画像カード。画像にシュリンクラップし（説明文の % 配置を画像基準に保つ）、クリックで次へ */
+.tutorial-step {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+  line-height: 0;             /* img 下の inline 余白を消す */
   cursor: pointer;
-  transition: background 0.15s;
+}
+.tutorial-step[hidden] {
+  display: none;              /* inline-block 指定が hidden を上書きしないよう明示 */
 }
 
-.tutorial-close:hover {
-  background: rgba(255, 255, 255, 0.13);
+.tutorial-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 10px;
+}
+
+/* 説明文：縦中央バンド（キャラは右上・左下に描かれるため中央は安全地帯）。半透明の暗い下地で可読性を確保 */
+.tutorial-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 86%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.8em 0.95em;
+  background: rgba(0, 0, 0, 0.66);
+  border-radius: 8px;
+  color: #f0ece4;
+  font-size: clamp(0.8rem, 3.4vw, 1rem);
+  line-height: 1.9;
+  text-align: center;
 }
 
 

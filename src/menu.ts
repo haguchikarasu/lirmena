@@ -2,14 +2,16 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
  * export: init(characters: CharactersData, volumes: VolumesData): void
- * 依存: state.ts, bookmark.ts, settings.ts
+ * 依存: state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts
  *
- * メニュー項目と処理：
- *   目次へ戻る        → index.html（目次ページ）へ遷移
+ * メニュー項目と処理（順序は要件 06-2）：
+ *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
+ *   続きから読む      → bookmark.getAutoSave() の ep/sec へ transition.leave（遷移先で main.ts がスクロール復元）
  *   栞を追加          → bookmark.addBookmark(currentAddress) を呼ぶ
  *   キャラクター紹介  → _openCharactersPopup() を呼ぶ
  *   共有              → クリップボード / X / LINE で現在の URL をシェアする
  *   設定を開く        → settings.open() を呼ぶ
+ *   読み方            → tutorial.open()（チュートリアル再表示）
  *
  * 開閉制御（メニュー）：
  *   - メニューボタン押下でトグル
@@ -33,6 +35,8 @@
 import * as state from './state';
 import * as bookmark from './bookmark';
 import * as settings from './settings';
+import * as transition from './transition';
+import * as tutorial from './tutorial';
 import type { CharactersData, VolumesData } from './types';
 
 let _toggle: HTMLButtonElement;
@@ -75,7 +79,14 @@ function _buildItems(): void {
     };
 
     const btnIndex = makeBtn('目次へ戻る', () => {
-        location.href = state.indexUrl();
+        transition.leave(state.indexUrl());
+    });
+
+    // 続きから読む：最新オートセーブの ep/sec ページへ。到着先で main.ts の初期復元（優先度3＝オートセーブ）が
+    // scrollLeft を戻す。オートセーブが無ければ何もしない（本文ページでは読み進めた時点で常に存在する）。
+    const btnResume = makeBtn('続きから読む', () => {
+        const auto = bookmark.getAutoSave();
+        if (auto) transition.leave(state.getBodyUrl(auto.ep, auto.sec));
     });
 
     const btnBookmark = makeBtn('栞を追加', () => {
@@ -109,8 +120,13 @@ function _buildItems(): void {
         settings.open();
     });
 
+    const btnTutorial = makeBtn('読み方', () => {
+        tutorial.open();
+    });
+
     _panel.append(
         btnIndex,
+        btnResume,
         sep(),
         btnBookmark,
         btnCharacters,
@@ -118,9 +134,10 @@ function _buildItems(): void {
         btnCopy, btnX, btnLine,
         sep(),
         btnSettings,
+        btnTutorial,
     );
 
-    _items = [btnIndex, btnBookmark, btnCharacters, btnCopy, btnX, btnLine, btnSettings];
+    _items = [btnIndex, btnResume, btnBookmark, btnCharacters, btnCopy, btnX, btnLine, btnSettings, btnTutorial];
 }
 
 // メニューを開く。最初の有効項目にフォーカスする。

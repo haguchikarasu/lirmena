@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- OGP・メタ情報（OGP の本格対応は Phase 4。現状は共通設定） -->
+  <!-- OGP・メタ情報（作品名で静的固定・両ページ共通。og:image は public/ogp.png、og:description は設定しない。
+       theme-color は CSS 変数 --theme-color と2箇所で管理） -->
   <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
@@ -37,8 +38,8 @@
     <section id="title-screen-changelog"></section>
   </section>
 
-  <!-- 暗転オーバーレイ（Phase 4 の離脱フェード用。presentational） -->
-  <div id="transition-overlay" aria-hidden="true"></div>
+  <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->
+  <div id="transition-overlay" class="fading" aria-hidden="true"></div>
 
   <!-- エラー表示（title.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>
