@@ -1,16 +1,19 @@
 /*
  * settings.ts
- * 責務: フォントサイズ・フォント・段落間マージンの localStorage 保存・CSS変数反映・ポップアップ開閉
- * export: init(), open()
+ * 責務: フォントサイズ・フォント・段落間マージン・読書点位置の localStorage 保存・CSS変数反映・ポップアップ開閉
+ * export: init(), open(), getReadingAnchor(), setReadingAnchor()
  * 依存: なし（栞・既読クリアのコールバックは main.ts から注入）
  *
  * 設定項目とデフォルト値（定数で定義）:
- *   fontSize:   "large" | "medium" | "small"   デフォルト "medium"
- *   fontFamily: "serif" | "sans"               デフォルト "serif"
- *   lineGap:    "on" | "off"                   デフォルト "on"
+ *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
+ *   fontFamily:   "serif" | "sans"               デフォルト "serif"
+ *   lineGap:      "on" | "off"                   デフォルト "on"
+ *   readingAnchor: 連続 %（本文表示幅基準）       デフォルト READING_ANCHOR_DEFAULT（中央〜やや読み終わり側）
  *
  * CSS変数:
  *   --font-size, --font-family, --paragraph-margin（値は CSS 変数定義ファイルで管理）
+ *   --reading-anchor: 読書点（基準点）の連続 % 値。settings.ts が単一の源として所有・永続化する。
+ *     tutorial.ts のドラッグが setReadingAnchor() を呼んで更新し、bg.ts は CSS 変数を読むのみ（要件 06-4 / 06-12）。
  */
 
 type FontSize = 'large' | 'medium' | 'small';
@@ -35,6 +38,11 @@ const LS_KEYS: Record<keyof Settings, string> = {
     lineGap: 'lirmena.lineGap',
 };
 
+// 読書点（基準点）。本文表示幅基準の連続 % 値。中央（50）よりやや読み終わり側（縦書きでは左寄り）。
+const READING_ANCHOR_DEFAULT = 45;
+const LS_READING_ANCHOR = 'lirmena.readingAnchor';
+let _readingAnchor = READING_ANCHOR_DEFAULT;
+
 const CSS_VARS = {
     fontSize: { large: 'var(--font-size-lg)', medium: 'var(--font-size-md)', small: 'var(--font-size-sm)' },
     fontFamily: { serif: 'var(--font-family-serif)', sans: 'var(--font-family-sans)' },
@@ -55,7 +63,9 @@ const _optEntries = new Map<keyof Settings, Array<{ btn: HTMLButtonElement; valu
 export function init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void {
     _callbacks = callbacks;
     _current = _load();
+    _readingAnchor = _loadReadingAnchor();
     _applyAll();
+    _applyReadingAnchor();
     _buildPopup();
 }
 
@@ -63,6 +73,36 @@ export function init(callbacks: { onClearBookmarks: () => void; onClearRead: () 
 // open(): void
 export function open(): void {
     if (_popup) _popup.hidden = false;
+}
+
+// 読書点（基準点）の現在値を % で返す。bg.ts は CSS 変数経由で読むが、tutorial.ts はドラッグ初期値に使う。
+// getReadingAnchor(): number
+export function getReadingAnchor(): number {
+    return _readingAnchor;
+}
+
+// 読書点を % で設定し、localStorage 保存＋ CSS 変数 --reading-anchor へ反映する。[0,100] にクランプ。
+// tutorial.ts のドロップが呼ぶ（ドラッグ中のライブ更新は tutorial が CSS 変数を直接書く）。
+// setReadingAnchor(percent: number): void
+export function setReadingAnchor(percent: number): void {
+    _readingAnchor = Math.min(100, Math.max(0, percent));
+    localStorage.setItem(LS_READING_ANCHOR, String(_readingAnchor));
+    _applyReadingAnchor();
+}
+
+// localStorage から読書点を読み込む。未設定・不正値は READING_ANCHOR_DEFAULT。
+// _loadReadingAnchor(): number
+function _loadReadingAnchor(): number {
+    const raw = localStorage.getItem(LS_READING_ANCHOR);
+    const v = raw === null ? NaN : Number(raw);
+    if (!Number.isFinite(v)) return READING_ANCHOR_DEFAULT;
+    return Math.min(100, Math.max(0, v));
+}
+
+// _readingAnchor を CSS 変数 --reading-anchor（"45%"）として documentElement に反映する。
+// _applyReadingAnchor(): void
+function _applyReadingAnchor(): void {
+    document.documentElement.style.setProperty('--reading-anchor', `${_readingAnchor}%`);
 }
 
 // 全設定項目を localStorage から読み込んで返す。
@@ -154,6 +194,7 @@ function _buildPopup(): void {
         _current = { ...DEFAULTS };
         _saveAll();
         _applyAll();
+        setReadingAnchor(READING_ANCHOR_DEFAULT);
         _refreshOpts();
     }));
 

@@ -25,7 +25,7 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 42rem;           /* メインコンテナの最大横幅 */
+  --scene-max-w: 84rem;           /* メインコンテナの最大横幅 */
   --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
   /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
      @media (min-width: 900px) のハードコード値と手動で合わせること */
@@ -38,6 +38,14 @@
 
   /* キャラクター紹介（開発者が調整する定数） */
   --chara-img-width: 100%;   /* カード内での画像幅 */
+
+  /* 読書点（基準点）。settings.ts が localStorage 値で上書きする単一の源。
+     bg.ts はこれを読んでクロスフェード中点に使い、tutorial.ts はマーカー位置に使う。
+     本文表示幅（#main-container 幅）基準の連続 %。中央(50%)よりやや読み終わり側 */
+  --reading-anchor: 45%;
+
+  /* 読み方チュートリアルのガイドキャラクター画像幅（tutorial.ts が参照） */
+  --tutorial-guide-w: 7rem;
 
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #080808;
@@ -120,6 +128,39 @@ button {
   pointer-events: none;
 }
 
+/* ===================================================
+   背景レイヤースタック（bg.ts が #bg-stack に N 枚の .bg-layer<img> を生成し
+   スクロール連動で各レイヤーの opacity を連続更新してクロスフェードする）
+=================================================== */
+#bg-stack {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: #000; /* 画像なし（@@BG@@）・読込失敗時のフォールバック */
+  pointer-events: none;
+}
+
+/* 各シーンの背景画像レイヤー。opacity は bg.ts が rAF ごとに設定する（CSS transition は付けない） */
+.bg-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 全レイヤーをまとめて薄く暗くする暗幕（本文の可読性確保。1枚に集約） */
+#bg-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  pointer-events: none;
+}
+
 
 /* ===================================================
    暗転オーバーレイ（transition.ts が .fading クラスを切り替える）
@@ -163,6 +204,85 @@ button {
   width: 0%;
   background: rgba(255, 255, 255, 0.55);
   transition: width 0.15s linear;
+}
+
+
+/* ===================================================
+   開幕アフォーダンス（opening.ts が <html>.at-opening で表示制御）
+   本文先頭の黒い恒久余白（progress 0）でのみ表示し、本文に入るとフェードアウトする。
+   黒地に浮く素の戻るボタン・読書点マーカーは開幕中は隠し、ここ（「読み進める」＋薄い「もどる」）へ一本化する。
+=================================================== */
+#opening-affordance {
+  position: fixed;
+  inset: 0;
+  z-index: 16;                 /* 本文(2)・読書点マーカー(15)より上、メニュー(20)より下 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  writing-mode: horizontal-tb;
+  pointer-events: none;        /* 余白部分のスクロール／タップは透過。下のボタンだけ拾う */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s ease, visibility 0.45s;
+}
+
+html.at-opening #opening-affordance {
+  opacity: 1;
+  visibility: visible;
+}
+
+#opening-start,
+#opening-back {
+  pointer-events: auto;
+  border: none;
+  background: none;
+  color: #e0dcd4;
+  font-family: inherit;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+#opening-start {
+  font-size: 1.35rem;
+  padding: 0.4rem 1rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+  animation: opening-breathe 2.6s ease-in-out infinite;
+}
+
+#opening-back {
+  font-size: 0.85rem;
+  color: rgba(224, 220, 212, 0.5);
+  transition: color 0.2s;
+}
+#opening-back:hover {
+  color: rgba(224, 220, 212, 0.9);
+}
+
+#opening-start:focus-visible,
+#opening-back:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 4px;
+}
+
+/* 「読み進める」のゆっくりした明滅（誘目）。動きを抑えたい設定では止める。 */
+@keyframes opening-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #opening-start { animation: none; opacity: 0.92; }
+}
+
+/* 開幕中は余白に浮く素の戻るボタン・読書点マーカーを隠してアフォーダンスへ一本化する。 */
+html.at-opening #btn-prev {
+  opacity: 0;
+  pointer-events: none;
+}
+html.at-opening #reading-anchor {
+  opacity: 0;
+  pointer-events: none;
 }
 
 
@@ -217,10 +337,13 @@ button {
 
 /* ===================================================
    ボタンコンテナ（#main-container の vertical-rl をリセットしてボタンを中央寄せする）
+   本文前後の恒久余白も兼ねる：幅をメインコンテナ幅ちょうど（=100%）まで広げて、読書点が
+   本文の両端まで届くようにする（中心ベースの固定アンカーで生じる左右のデッドゾーンを覆う）。
+   読書点の値に依存しない静的な余白（worst-case の片側1コンテナ幅を固定で確保）。
 =================================================== */
 .btn-container {
-  writing-mode: horizontal-tb;
-  width: 25%;
+  writing-mode: horizontal-tb;   /* 横書きにリセット済みなので width は物理水平＝スクロール軸に一致する */
+  width: 100%;                   /* = #main-container 幅。% は包含ブロックの物理幅基準で解決される */
   height: 100%;
   flex-shrink: 0;
   display: flex;
@@ -248,7 +371,8 @@ button {
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  transition: background 0.2s, color 0.2s;
+  /* opacity は開幕（html.at-opening で 0）→本文のフェードイン用。アフォーダンスのフェードに合わせる */
+  transition: background 0.2s, color 0.2s, opacity 0.45s ease;
 }
 
 #btn-prev:disabled,
@@ -709,6 +833,154 @@ ruby rt {
   font-size: 0.9rem;
   color: #aaa;
   line-height: 1.7;
+}
+
+
+/* ===================================================
+   読書点マーカー（tutorial.ts が #main-container 基準の px で left/top/height を設定）
+   本文表示エリア上下端の三角形（▽/△・常時表示）＋それを結ぶ縦線（ドラッグ中のみ表示）。
+   縦線は pointer-events:none で本文スクロールを妨げない。掴み手は三角形のみ
+=================================================== */
+:root {
+  --reading-anchor-color: rgba(255, 255, 255, 0.5);  /* 三角形・縦線の色 */
+  --reading-anchor-cap-size: 0.5rem;                 /* 三角形の一辺（高さ／半幅） */
+}
+
+/* 配置コンテナ（ゼロ幅。子は left:0 を中心線として配置） */
+#reading-anchor {
+  position: fixed;
+  width: 0;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 1;
+  /* 開幕（html.at-opening で opacity:0）から本文へ出るとき、アフォーダンスのフェードに合わせて滑らかに現す */
+  transition: opacity 0.45s ease;
+}
+
+/* 連結の縦線：ドラッグ中のみ表示（#reading-anchor.dragging で opacity 切替） */
+.reading-anchor-line {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: var(--reading-anchor-color);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+#reading-anchor.dragging .reading-anchor-line {
+  opacity: 1;
+}
+
+/* 三角形グリップ（掴み手）。box は透明な広め当たり判定、三角形本体は ::before の CSS ボーダー */
+.reading-anchor-cap {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 0.4rem;            /* 透明な当たり判定の余白（掴みやすさ） */
+  background: transparent;
+  border: 0;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;         /* ドラッグ中のブラウザスクロール／ジェスチャを抑止 */
+  line-height: 0;
+}
+
+.reading-anchor-cap::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: var(--reading-anchor-cap-size) solid transparent;
+  border-right: var(--reading-anchor-cap-size) solid transparent;
+}
+
+/* 上端：下向き三角形 ▽ */
+.reading-anchor-cap--top {
+  top: 0;
+}
+.reading-anchor-cap--top::before {
+  border-top: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
+}
+
+/* 下端：上向き三角形 △ */
+.reading-anchor-cap--bottom {
+  bottom: 0;
+}
+.reading-anchor-cap--bottom::before {
+  border-bottom: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
+}
+
+.reading-anchor-cap:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+}
+
+/* タッチ端末：当たり判定と三角形を大きくして掴みやすく */
+@media (pointer: coarse) {
+  :root {
+    --reading-anchor-cap-size: 0.7rem;
+  }
+  .reading-anchor-cap {
+    padding: 0.7rem;
+  }
+}
+
+
+/* ===================================================
+   読み方（読書点）チュートリアルのガイドポップアップ（tutorial.ts が操作）
+=================================================== */
+#tutorial-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  writing-mode: horizontal-tb;
+}
+
+.tutorial-panel {
+  width: min(86vw, 20rem);
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  padding: 1.3rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  text-align: center;
+}
+
+.tutorial-guide-img {
+  width: var(--tutorial-guide-w);
+  height: auto;
+}
+
+.tutorial-msg {
+  font-size: 0.88rem;
+  color: #c8c4bc;
+  line-height: 1.8;
+}
+
+.tutorial-close {
+  margin-top: 0.2rem;
+  padding: 0.5rem 1.4rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #d8d4cc;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tutorial-close:hover {
+  background: rgba(255, 255, 255, 0.13);
 }
 
 

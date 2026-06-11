@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報（OGP の本格対応は Phase 4。現状は共通設定） -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>輝くもの《リルメナ》</title>
+  <link rel="stylesheet" href="/lirmena/assets/main.css" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D750N4MKZY');
+  </script>
+</head>
+<body data-ep="1" data-sec="0">
+  <!-- 背景レイヤー（CSS の黒背景フォールバック。title.ts が backgroundImage を設定） -->
+  <div id="bg-layer" aria-hidden="true"></div>
+
+  <!-- タイトル画面（title.ts が内容を生成し hidden を解除する） -->
+  <section id="title-screen" hidden>
+    <header id="title-screen-header">
+      <p id="title-screen-ep-title"></p>
+      <button id="btn-title-enter" type="button">本文を読む</button>
+      <button id="btn-title-prev" type="button">前のエピソードへ</button>
+      <a id="btn-title-index" href="../index.html">目次へ戻る</a>
+    </header>
+    <section id="title-screen-changelog"></section>
+  </section>
+
+  <!-- 暗転オーバーレイ（Phase 4 の離脱フェード用。presentational） -->
+  <div id="transition-overlay" aria-hidden="true"></div>
+
+  <!-- エラー表示（title.ts が操作） -->
+  <p id="error-message" hidden role="alert"></p>
+
+  <script type="module" src="/lirmena/assets/title.js"></script>
+</body>
+</html>

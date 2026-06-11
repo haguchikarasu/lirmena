@@ -1,34 +1,27 @@
 /*
  * nav.ts
- * 責務: 読書画面・タイトル画面のボタンのイベント登録・有効無効更新
+ * 責務: 本文ページの端ボタン（進行 #btn-next・戻る #btn-prev）のイベント登録と表示/有効状態の更新、
+ *       および sec 末尾到達の検知と読了記録。
  * export: init(), update()
- * 依存: state.ts, transition.ts（循環依存を main.ts のコールバック注入で解消）
+ * 依存: state.ts / bookmark.ts
  *
- * 循環依存の解消方法：
- *   nav.ts は transition.trigger() を直接呼ぶ（import あり）。
- *   transition.ts は nav.ts を import しない。
- *   代わりに main.ts が `update` をコールバックとして transition に渡し、
- *   遷移完了後に transition 側からコールバック経由で update を呼ぶ。
+ * 遷移（マルチページ・ハッシュ廃止）:
+ *   進行 #btn-next（エリア D・左端）:
+ *     - state.getNextUrl() があれば location.href で遷移（次 sec 本文／ep 境界は次 ep タイトル）
+ *     - null（次 ep が無い・未公開）なら「目次へ戻る」ラベルに変え、押下で目次へ即遷移
+ *   戻る #btn-prev（エリア A・右端）:
+ *     - state.getPrevUrl()（前 sec 本文／当 ep 先頭 sec は当 ep タイトル）へ location.href で遷移
+ *     - 本文ページでは常に遷移先があるため enabled
  *
- * 読書画面ボタン（#btn-next / #btn-prev）：
- *   - 遷移先が存在する場合は transition.trigger(addr) を呼ぶ
- *   - 次の ep がない（state.getNext() === null）場合は location.href = 'index.html' に直接遷移
- *     （フェードなし。CLAUDE.md「次の ep がない場合の挙動」参照）
- *   - update() 時、next が null なら進行ボタンのラベルを「目次へ戻る」に変更し enabled にする
- *
- * タイトル画面ボタン（#btn-title-enter / #btn-title-prev）：
- *   - renderer.renderTitleScreen() 呼び出し後に要素が生成されるため、
- *     クリックはイベント委譲で登録する（init 時点で要素が未生成のため）
- *   - #btn-title-enter 押下 → state.getNext() を取得して transition.trigger()
- *   - #btn-title-prev  押下 → state.getPrev() を取得して transition.trigger()
- *   - ep 1 では #btn-title-prev を disabled にする
- *
- * キーボード操作：
- *   Tab 順序は進行ボタン（エリアD）優先、戻るボタン（エリアA）は後
+ * 読了記録（Phase 2）:
+ *   #main-container のスクロールを監視し、本文末（末尾の恒久余白の手前＝|scrollLeft| ≥ range − clientWidth）へ
+ *   到達した時点で bookmark.recordRead(ep, sec) を1回だけ呼ぶ（フラグでガード）。末尾には本文表示幅ぶんの
+ *   恒久余白（btn-container-end）があるため、絶対終端ではなく余白の手前を閾値にする（最終行で止まる読者を取りこぼさない）。
+ *   ボタンの「端でのみ表示」はスクロールコンテンツ両端配置のレイアウトで実質達成済みのため、表示制御はせず検知のみ行う。
  */
 
 import * as state from './state';
-import * as transition from './transition';
+import * as bookmark from './bookmark';
 
 let _btnNext!: HTMLButtonElement;
 let _btnPrev!: HTMLButtonElement;
@@ -36,8 +29,13 @@ let _btnPrev!: HTMLButtonElement;
 // 進行ボタンの元のテキスト（‹）を保持して「目次へ戻る」との切り替えに使う
 const BTN_NEXT_DEFAULT_TEXT = '‹';
 
-// DOM からボタン要素を querySelector で取得し、クリックイベントを登録する。
-// タイトル画面ボタンはイベント委譲で登録する（init 時点で要素が未生成のため）。
+// sec 末尾到達判定のしきい値（px）。スクロール端のサブピクセル誤差を吸収する。
+const END_EPSILON = 4;
+
+// 当 sec の読了を記録済みかのガード（多重記録防止）
+let _readRecorded = false;
+
+// DOM からボタン要素を取得し、クリック・スクロール監視イベントを登録する。
 // init は起動時に1度だけ main.ts から呼ばれる。
 // init(): void
 export function init(): void {
@@ -45,56 +43,39 @@ export function init(): void {
     _btnPrev = document.querySelector<HTMLButtonElement>('#btn-prev')!;
 
     _btnNext.addEventListener('click', () => {
-        const addr = state.getNext();
-        if (addr) {
-            void transition.trigger(addr);
-        } else {
-            // 次 ep なし → フェードなしで目次へ直遷移
-            location.href = 'index.html';
-        }
+        location.href = state.getNextUrl() ?? state.indexUrl();
     });
 
     _btnPrev.addEventListener('click', () => {
-        const addr = state.getPrev();
-        if (addr) void transition.trigger(addr);
+        const url = state.getPrevUrl();
+        if (url) location.href = url;
     });
 
-    // タイトル画面ボタンはイベント委譲（要素が renderTitleScreen 後に生成されるため）
-    document.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        if (target.id === 'btn-title-enter') {
-            const addr = state.getNext();
-            if (addr) void transition.trigger(addr);
-        } else if (target.id === 'btn-title-prev') {
-            const addr = state.getPrev();
-            if (addr) void transition.trigger(addr);
-        }
-    });
-}
-
-// ボタンのラベルと有効/無効状態を現在のアドレスに応じて更新する。
-// transition 完了後に main.ts が transition へ渡したコールバック経由で呼ばれる。
-// update(): void
-export function update(): void {
-    if (state.isOnTitleCard()) {
-        _updateTitleButtons();
-    } else {
-        _updateReadingButtons();
+    const container = document.querySelector<HTMLElement>('#main-container');
+    if (container) {
+        container.addEventListener('scroll', () => _onScroll(container), { passive: true });
     }
 }
 
-// タイトル画面のボタン状態を更新する
-function _updateTitleButtons(): void {
-    const btnEnter = document.querySelector<HTMLButtonElement>('#btn-title-enter');
-    const btnPrev = document.querySelector<HTMLButtonElement>('#btn-title-prev');
-    if (btnEnter) btnEnter.disabled = false;
-    if (btnPrev) btnPrev.disabled = state.getPrev() === null;
+// 本文末（末尾の恒久余白の手前）への到達を検知し、初回だけ読了として記録する。
+// _onScroll(container: HTMLElement): void
+function _onScroll(container: HTMLElement): void {
+    if (_readRecorded) return;
+    const range = container.scrollWidth - container.clientWidth;
+    if (range <= 1) return; // スクロール不能（極端に短い sec）は対象外
+    // 末尾余白（=clientWidth）の手前＝本文末。ここを越えたら本文を読み切ったとみなす。
+    const textEnd = range - container.clientWidth;
+    if (Math.abs(container.scrollLeft) >= textEnd - END_EPSILON) {
+        _readRecorded = true;
+        const { ep, sec } = state.getCurrent();
+        bookmark.recordRead(ep, sec);
+    }
 }
 
-// 読書画面のボタン状態を更新する
-function _updateReadingButtons(): void {
-    const next = state.getNext();
-
+// ボタンのラベルと有効/無効状態を現在位置に応じて更新する。main.ts が初期描画後に呼ぶ。
+// update(): void
+export function update(): void {
+    const next = state.getNextUrl();
     if (next === null) {
         // 次 ep なし：ボタンを有効にして「目次へ戻る」ラベルに変更
         _btnNext.disabled = false;
@@ -108,5 +89,5 @@ function _updateReadingButtons(): void {
         _btnNext.classList.remove('is-text-label');
     }
 
-    _btnPrev.disabled = state.getPrev() === null;
+    _btnPrev.disabled = state.getPrevUrl() === null;
 }

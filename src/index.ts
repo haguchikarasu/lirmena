@@ -6,8 +6,8 @@
  *
  * 機能:
  *   - episodes.json を fetch して ep・sec 一覧を動的生成
- *   - localStorage のシーン既読データからセクション既読を判定・表示
- *   - 栞スロット（最大3件）を常時表示、個別クリア・ジャンプ対応
+ *   - 到達セット（sec 単位）からセクション既読を表示（判定ロジックは持たず引くだけ）
+ *   - 栞スロット（最大3件）を常時表示、個別クリア・ジャンプ対応（ジャンプは pendingJump を書く）
  *   - content-changelog.json を fetch してコンテンツ更新履歴を表示
  *   - site-changelog.json を fetch してサイトバージョンバッジを更新（詳細一覧は表示しない）
  *   - ヒーローカード右下に content version / site version バッジを表示
@@ -15,16 +15,25 @@
  *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
  *
  * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
- *   "bookmarks"          : BookmarkEntry[]  { address:{ep,sec,scene}, scrollLeft, savedAt }
- *   "sceneRead"          : string[]         "ep-sec-scene" 形式（ゼロ埋め2桁）
+ *   "reached"            : string[]         到達 sec の集合 "ep-sec"（2桁ゼロ埋め）。既読マークの源
+ *   "read"              : string[]         読了 sec の集合 "ep-sec"。クリア対象（表示には未使用）
+ *   "bookmarks"          : BookmarkEntry[]  flat { ep, sec, scene, scrollLeft, savedAt }（旧 nested も後方互換で読む）
+ *   "pendingJump"        : { ep, sec, scene, scrollLeft }   栞ジャンプ受け渡し（書くだけ・消費は遷移先ページ）
+ *   "sceneRead"          : string[]         旧 "ep-sec-scene" 形式。移行前に目次を先に開いた返読者向けフォールバック
  *   "lirmena.fontSize"   : 'large' | 'medium' | 'small'   デフォルト 'medium'
  *   "lirmena.fontFamily" : 'serif' | 'sans'               デフォルト 'serif'
  *   "lirmena.lineGap"    : 'on' | 'off'                   デフォルト 'on'
+ *
+ * 既読マークは到達ベース（一般的な「開いたら既読」方式）。`reached` を引き、加えて移行前の返読者向けに
+ * 旧 `sceneRead` の完了マーカー "ep-sec-00" もフォールバックで既読扱いする（bookmark.ts の移行と整合）。
  */
 
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
+// 栞は flat 形。旧 nested 形（{ address }）は loadBookmarks() で flat に正規化して読む。
 type BookmarkEntry = {
-    address: { ep: number; sec: number; scene: number };
+    ep: number;
+    sec: number;
+    scene: number;
     scrollLeft: number;
     savedAt: number;
 };
@@ -42,7 +51,10 @@ type SiteChangelogEntry = {
 };
 
 // localStorage キー（bookmark.ts / settings.ts と同一）
+const LS_REACHED      = 'reached';
+const LS_READ         = 'read';
 const LS_BOOKMARKS    = 'bookmarks';
+const LS_PENDING_JUMP = 'pendingJump';
 const LS_SCENE_READ   = 'sceneRead';
 const LS_FONT_SIZE    = 'lirmena.fontSize';
 const LS_FONT_FAMILY  = 'lirmena.fontFamily';
@@ -61,39 +73,71 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 // ----- localStorage ヘルパー -----
 
-// sceneRead を localStorage から読み込む
-// loadSceneRead(): Set<string>
-function loadSceneRead(): Set<string> {
+// 文字列配列セットを localStorage から読み込む
+// loadStringSet(key: string): Set<string>
+function loadStringSet(key: string): Set<string> {
     try {
-        const raw = localStorage.getItem(LS_SCENE_READ);
+        const raw = localStorage.getItem(key);
         if (raw) return new Set(JSON.parse(raw) as string[]);
     } catch { /* ignore */ }
     return new Set();
 }
 
-// 栞リストを localStorage から読み込む
+// 到達済みセクションの "ep-sec" 集合を返す。
+// 新スキーマの "reached"（到達ベース）に加え、移行前に目次を先に開いた返読者向けに
+// 旧 "sceneRead" の完了マーカー "ep-sec-00" もフォールバックで取り込む。
+// loadReachedSections(): Set<string>
+function loadReachedSections(): Set<string> {
+    const result = loadStringSet(LS_REACHED);
+    for (const k of loadStringSet(LS_SCENE_READ)) {
+        const parts = k.split('-'); // "ep-sec-scene"
+        if (parts.length === 3 && parts[2] === '00') result.add(`${parts[0]}-${parts[1]}`);
+    }
+    return result;
+}
+
+// 栞リストを localStorage から読み込み flat 形に正規化する。flat・旧 nested の両方を受け付ける。
 // loadBookmarks(): BookmarkEntry[]
 function loadBookmarks(): BookmarkEntry[] {
     try {
         const raw = localStorage.getItem(LS_BOOKMARKS);
-        if (raw) return JSON.parse(raw) as BookmarkEntry[];
+        if (!raw) return [];
+        const list = JSON.parse(raw) as Array<Record<string, unknown>>;
+        return list.map((o) => {
+            const addr = (o.address ?? o) as Record<string, unknown>;
+            return {
+                ep: Number(addr.ep),
+                sec: Number(addr.sec),
+                scene: Number(addr.scene) || 0,
+                scrollLeft: o.address ? 0 : (Number(o.scrollLeft) || 0),
+                savedAt: Number(o.savedAt) || Date.now(),
+            };
+        }).filter((b) => Number.isFinite(b.ep) && Number.isFinite(b.sec));
     } catch { /* ignore */ }
     return [];
 }
 
 // ----- 既読判定 -----
 
-// セクション既読判定: bookmark.ts が最終シーン到達時に記録する完了マーカー "ep-sec-00" の有無を返す
-// isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean
-function isSectionRead(ep: number, sec: number, sceneRead: Set<string>): boolean {
-    return sceneRead.has(`${pad(ep)}-${pad(sec)}-00`);
+// セクション既読判定: 到達セット（"ep-sec"）に含まれるかを返す（判定ロジックは持たず引くだけ）
+// isSectionRead(ep: number, sec: number, reached: Set<string>): boolean
+function isSectionRead(ep: number, sec: number, reached: Set<string>): boolean {
+    return reached.has(`${pad(ep)}-${pad(sec)}`);
+}
+
+// 既読をすべて消す。新スキーマ（reached/read）に加え、フォールバック源の旧 sceneRead も消す。
+// clearAllRead(): void
+function clearAllRead(): void {
+    localStorage.removeItem(LS_REACHED);
+    localStorage.removeItem(LS_READ);
+    localStorage.removeItem(LS_SCENE_READ);
 }
 
 // ----- ep・sec 一覧 -----
 
 // ep・sec 一覧を動的生成する。未公開 sec・公開済み sec が0の ep は非表示
-// renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void
-function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
+// renderEpisodes(episodes: Episode[], reached: Set<string>): void
+function renderEpisodes(episodes: Episode[], reached: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
     area.innerHTML = '';
@@ -114,11 +158,11 @@ function renderEpisodes(episodes: Episode[], sceneRead: Set<string>): void {
         secListEl.className = 'idx-chips';
 
         for (const sec of publishedSecs) {
-            const read = isSectionRead(ep.id, sec.id, sceneRead);
+            const read = isSectionRead(ep.id, sec.id, reached);
 
             const link = document.createElement('a');
             link.className = 'idx-chip' + (read ? ' idx-chip--read' : '');
-            link.href = `contents.html#${pad(ep.id)}-${pad(sec.id)}-${sec.id === 1 ? '00' : '01'}`;
+            link.href = `contents/${pad(ep.id)}-${pad(sec.id)}.html`;
 
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
@@ -160,10 +204,10 @@ function renderBookmarks(): void {
     }
 
     for (const entry of bookmarks) {
-        const { ep, sec, scene } = entry.address;
+        const { ep, sec, scene } = entry;
         const d = new Date(entry.savedAt);
         const dateStr = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        const href = `contents.html#${pad(ep)}-${pad(sec)}-${pad(scene)}`;
+        const href = `contents/${pad(ep)}-${pad(sec)}.html`;
 
         const slot = document.createElement('div');
         slot.className = 'idx-bm-card';
@@ -190,8 +234,9 @@ function renderBookmarks(): void {
         jumpBtn.className = 'idx-bm-go';
         jumpBtn.href = href;
         jumpBtn.textContent = 'ここから読む';
+        // 遷移前に pendingJump を書く（同期。遷移先ページがロード時に読んで復元する＝消費は Phase 3）。
         jumpBtn.addEventListener('click', () => {
-            sessionStorage.setItem('bookmark-scroll', String(entry.scrollLeft));
+            localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep, sec, scene, scrollLeft: entry.scrollLeft }));
         });
         actions.appendChild(jumpBtn);
 
@@ -332,7 +377,7 @@ function buildSettingsPopup(episodes: Episode[]): void {
         renderBookmarks();
     }));
     panel.appendChild(buildAction('既読をクリア', () => {
-        localStorage.removeItem(LS_SCENE_READ);
+        clearAllRead();
         renderEpisodes(episodes, new Set());
     }));
     panel.appendChild(buildAction('設定をリセット', () => {
@@ -407,7 +452,7 @@ function initFab(popup: HTMLElement, episodes: Episode[]): void {
         renderBookmarks();
     });
     addItem('既読をクリア', () => {
-        localStorage.removeItem(LS_SCENE_READ);
+        clearAllRead();
         renderEpisodes(episodes, new Set());
     });
     addItem('URLをコピー', async () => {
@@ -584,8 +629,8 @@ async function main(): Promise<void> {
     }
 
     _episodes = episodes;
-    const sceneRead = loadSceneRead();
-    renderEpisodes(episodes, sceneRead);
+    const reached = loadReachedSections();
+    renderEpisodes(episodes, reached);
     renderBookmarks();
     loadChangelog('content');
     loadChangelog('site');

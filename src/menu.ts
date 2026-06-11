@@ -75,7 +75,7 @@ function _buildItems(): void {
     };
 
     const btnIndex = makeBtn('目次へ戻る', () => {
-        location.href = 'index.html';
+        location.href = state.indexUrl();
     });
 
     const btnBookmark = makeBtn('栞を追加', () => {
