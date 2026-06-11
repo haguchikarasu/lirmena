@@ -35,7 +35,7 @@
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
  *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
  *           1. pendingJump（栞・自 ep/sec 一致）… 新栞=scrollLeft / 移行旧栞=該当シーン先頭 → 消費
- *           2. pendingScrollEnd（タイトル「戻る」・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
+ *           2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
  *           3. オートセーブ（自 ep/sec 一致）… scrollLeft 復元
  *           4. いずれもなし … sec 先頭（右端）
  */
@@ -59,8 +59,12 @@ import * as loader from './loader';
 import * as parser from './parser';
 import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
 
-/** マウスホイールのスクロール量倍率 */
-const WHEEL_SCROLL_MULTIPLIER = 2;
+/**
+ * マウスホイール1ノッチあたりのスクロール量倍率（deltaY → scrollLeft の変換係数）。
+ * 小さいほど1ノッチの移動が細かくなる（＝読書点を狙った位置で止めやすい）。
+ * 「大味すぎる」を解消するためのきめ細かさの調整ノブ。値を変えるだけで粒度を調整できる。
+ */
+const WHEEL_SCROLL_MULTIPLIER = 1;
 
 document.addEventListener('DOMContentLoaded', () => { void _init(); });
 
@@ -166,7 +170,7 @@ async function _init(): Promise<void> {
 /**
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
  * 1. pendingJump（栞）が自 ep/sec と一致 → 新栞=scrollLeft / 移行旧栞(scrollLeft 0 & scene>0)=該当シーン先頭。消費する
- * 2. pendingScrollEnd（タイトル「戻る」）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
+ * 2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
  * 3. オートセーブが自 ep/sec と一致 → scrollLeft 復元
  * 4. いずれもなし → sec 先頭（右端）
  * 縦書き vertical-rl のスクロール符号差は、保存した scrollLeft をそのまま書き戻すことで吸収する。

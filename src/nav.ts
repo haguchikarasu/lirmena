@@ -2,16 +2,19 @@
  * nav.ts
  * 責務: 本文ページの端ボタン（進行 #btn-next・戻る #btn-prev）のイベント登録と表示/有効状態の更新、
  *       および sec 末尾到達の検知と読了記録。
- * export: init(), update()
+ * export: init(), update(), goPrev()
  * 依存: state.ts / bookmark.ts / transition.ts
  *
  * 遷移（マルチページ・ハッシュ廃止。離脱フェードは transition.leave 経由）:
  *   進行 #btn-next（エリア D・左端）:
  *     - state.getNextUrl() があれば transition.leave で遷移（次 sec 本文／ep 境界は次 ep タイトル）
  *     - null（次 ep が無い・未公開）なら「目次へ戻る」ラベルに変え、押下で目次へ即遷移（フェードなし・要件 06-1）
- *   戻る #btn-prev（エリア A・右端）:
+ *   戻る #btn-prev（エリア A・右端）= goPrev():
  *     - state.getPrevUrl()（前 sec 本文／当 ep 先頭 sec は当 ep タイトル）へ transition.leave で遷移
+ *     - 前 sec 本文へ戻るときは、その sec の「本文末（読み終わり側）」へ着地させる pendingScrollEnd を遷移前に書く
+ *       （タイトル「戻る」と同じ仕組み。先頭 sec→ep タイトルは本文末が無いため書かない）
  *     - 本文ページでは常に遷移先があるため enabled
+ *     - goPrev() は開幕アフォーダンスの「もどる ›」（opening.ts）とも共有し、両者の挙動を一致させる
  *
  * 読了記録（Phase 2）:
  *   #main-container のスクロールを監視し、本文末（末尾の恒久余白の手前＝|scrollLeft| ≥ range − clientWidth）へ
@@ -50,10 +53,7 @@ export function init(): void {
         else location.href = state.indexUrl();
     });
 
-    _btnPrev.addEventListener('click', () => {
-        const url = state.getPrevUrl();
-        if (url) transition.leave(url);
-    });
+    _btnPrev.addEventListener('click', goPrev);
 
     const container = document.querySelector<HTMLElement>('#main-container');
     if (container) {
@@ -94,4 +94,17 @@ export function update(): void {
     }
 
     _btnPrev.disabled = state.getPrevUrl() === null;
+}
+
+// 戻る遷移を実行する。前 sec 本文へ戻るときは、その sec の本文末（読み終わり側）へ着地させる
+// pendingScrollEnd を書いてから離脱フェードで遷移する（タイトル「戻る」と同じ仕組み・オートセーブ復元より優先）。
+// 当 ep 先頭 sec からはタイトルページへ戻る（本文末が無いためフラグは書かない）。
+// #btn-prev と opening.ts の「もどる ›」が共有する。
+// goPrev(): void
+export function goPrev(): void {
+    const url = state.getPrevUrl();
+    if (url === null) return;
+    const prev = state.getPrevAddress();
+    if (prev) bookmark.writePendingScrollEnd(prev.ep, prev.sec);
+    transition.leave(url);
 }

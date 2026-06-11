@@ -15,8 +15,8 @@
  *                                    記録: reader.ts がスクロール通知をスロットルして saveAutoSave() を呼ぶ
  *   "pendingJump" : PendingJump      栞ジャンプ受け渡し { ep, sec, scene, scrollLeft }。書くのは menu.ts / index.ts、
  *                                    遷移先ページがロード時に読んで復元・消去する
- *   "pendingScrollEnd": SecAddress   タイトル「戻る」の終端スクロール受け渡し { ep, sec }。書くのは title.ts、
- *                                    遷移先（前 ep 最終 sec）がロード時に読んで末尾へスクロール・消去する（オートセーブより優先）
+ *   "pendingScrollEnd": SecAddress   戻る系の終端スクロール受け渡し { ep, sec }。書くのは title.ts（タイトル「戻る」＝前 ep 最終 sec）と
+ *                                    nav.ts（本文の戻るボタン／開幕「もどる ›」＝前 sec）。遷移先がロード時に読んで本文末へスクロール・消去する（オートセーブより優先）
  *   "schemaVersion": string          スキーマ版数。旧データ移行を一度だけ走らせるための番兵
  *
  * ── 旧データ移行（init() で schemaVersion を見て未変換時のみ1回実行）──────────────────────
@@ -200,7 +200,8 @@ export function clearPendingJump(): void {
 
 // ── pendingScrollEnd（タイトル「戻る」の終端スクロール受け渡し）─────
 
-// 終端スクロール対象 sec を書く。title.ts の「戻る」が遷移前に書き、遷移先がロード時に読む。
+// 終端スクロール対象 sec を書く。title.ts の「戻る」（前 ep 最終 sec）・nav.ts の戻る（前 sec・開幕「もどる ›」含む）が
+// 遷移前に書き、遷移先がロード時に読んで本文末へ着地する。
 // writePendingScrollEnd(ep: number, sec: number): void
 export function writePendingScrollEnd(ep: number, sec: number): void {
     const entry: SecAddress = { ep, sec };

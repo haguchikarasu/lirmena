@@ -233,6 +233,16 @@ html.at-opening #opening-affordance {
   visibility: visible;
 }
 
+/* 現在地ラベル（"01-02"）。黒地に「読み進める」だけだと何の画面か分からないので位置を示す。
+   opening.ts が state.getCurrent() から ep-sec を埋める（テキストは JS、見た目は CSS）。 */
+#opening-label {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.3em;
+  color: rgba(224, 220, 212, 0.55);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+
 #opening-start,
 #opening-back {
   pointer-events: auto;

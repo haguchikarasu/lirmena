@@ -15,6 +15,7 @@
  *   getBodyUrl(ep: number, sec: number): string          任意 ep/sec の本文ページ相対 URL（menu「続きから読む」用）
  *   getNextUrl(): string | null                          進行ボタン用。次 sec 本文／ep 境界は次 ep タイトル／無ければ null
  *   getPrevUrl(): string | null                          戻るボタン用（本文ページ）。前 sec 本文／先頭 sec は当 ep タイトル
+ *   getPrevAddress(): SecAddress | null                  戻る遷移先が前 sec 本文のときの ep/sec（本文末着地フラグ書込用）。先頭 sec（遷移先＝タイトル）は null
  *   getTitleEnterUrl(): string | null                    タイトル「本文を読む」用。当 ep 先頭公開 sec の本文ページ
  *   getTitlePrevUrl(): string | null                     タイトル「戻る」用。前 ep の最終公開 sec の本文ページ（無ければ null）
  *   getTitlePrevAddress(): SecAddress | null             タイトル「戻る」遷移先の ep/sec（終端スクロールフラグ書込用）
@@ -102,6 +103,15 @@ export function getPrevUrl(): string | null {
     const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
     if (prevSec !== null) return _bodyPath(_current.ep, prevSec);
     return _titlePath(_current.ep);
+}
+
+/**
+ * 戻る遷移先が「前 sec の本文ページ」のときの ep/sec を返す。終端スクロール（本文末着地）フラグの
+ * 書込に使う（タイトル「戻る」と同じ仕組み）。先頭 sec で遷移先がタイトルページのときは本文末が無いため null。
+ */
+export function getPrevAddress(): SecAddress | null {
+    const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
+    return prevSec === null ? null : { ep: _current.ep, sec: prevSec };
 }
 
 /** タイトル「本文を読む」の遷移先。当 ep の先頭公開 sec の本文ページ。公開 sec が無ければ null */
