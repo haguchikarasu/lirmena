@@ -41,6 +41,9 @@ function devShellBundles(): Plugin {
 export default defineConfig({
   base: '/lirmena/',
   plugins: [devShellBundles()],
+  // dev サーバを LAN 公開する（スマホ等の実機確認用）。
+  // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
+  server: { host: true },
   build: {
     rollupOptions: {
       input: {
