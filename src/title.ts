@@ -15,7 +15,7 @@
  *   #btn-title-index         … 目次に戻る（<a href="../index.html">。JS では制御しない）
  *   #title-screen-changelog  … 変更履歴（パッチを除外しマイナー以上を表示。無ければ「更新履歴なし」）
  *
- * 背景画像: {BASE_URL}ep[XX]/title.png。存在しなければ CSS の黒背景にフォールバック。
+ * 背景画像: {BASE_URL}ep[XX]/title.avif。存在しなければ CSS の黒背景にフォールバック。
  *
  * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま。
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
@@ -79,7 +79,7 @@ function _renderTitle(ep: number): void {
 
     const titleScreen = document.querySelector<HTMLElement>('#title-screen');
     if (titleScreen) {
-        const path = `${import.meta.env.BASE_URL}ep${String(ep).padStart(2, '0')}/title.png`;
+        const path = `${import.meta.env.BASE_URL}ep${String(ep).padStart(2, '0')}/title.avif`;
         titleScreen.style.backgroundImage = `url('${path}')`;
     }
 }
