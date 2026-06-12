@@ -2,7 +2,6 @@
   {
     "id": 1,
     "title": "太陽の行く先",
-    "img": "ep01.avif",
     "sections": [
       { "id": 1, "published": true },
       { "id": 2, "published": true },
@@ -12,7 +11,6 @@
   {
     "id": 2,
     "title": "丘の上の影",
-    "img": "",
     "sections": [
       { "id": 1, "published": false },
       { "id": 2, "published": false },
