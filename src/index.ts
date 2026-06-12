@@ -5,11 +5,11 @@
  * 依存: なし（src/ 内の他モジュールは import しない）
  *
  * 機能:
- *   - episodes.json を fetch して ep・sec 一覧を動的生成
+ *   - episodes.json を fetch して ep・sec 一覧を動的生成（sec01 のリンク先はタイトルページ [ep]-00.html、sec02 以降は本文ページ）
  *   - 到達セット・読了セット（sec 単位）からセクションの既読/読破を表示（判定ロジックは持たず引くだけ）
  *     既読（到達）＝アクセント色／読破（読了）＝チェック ✓。両セットは独立（読破のみも起こり得る）
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（最上段・ジャンプ＋削除）、スロット1〜3（空き含む常時表示・個別クリア・ジャンプ）
- *   - 続きから読む：オートセーブがあればヒーロー下のボタンと FAB 項目を出し、対象 sec へ遷移（着地先で復元）
+ *   - 続きから読む：オートセーブがあればヒーロー下のボタンと FAB 項目を出し、pendingJump を書いて対象 sec へ遷移（着地先で復元）
  *   - content-changelog.json を fetch してコンテンツ更新履歴を表示
  *   - site-changelog.json を fetch してサイトバージョンバッジを更新（詳細一覧は表示しない）
  *   - ヒーローカード右下に content version / site version バッジを表示
@@ -178,22 +178,34 @@ function clearReadStatus(): void {
 }
 
 // オートセーブ（最新の読書位置）を読む。無ければ null。savedAt はスロット0の日時表示に使う。
-// loadAutoSave(): { ep: number; sec: number; savedAt: number } | null
-function loadAutoSave(): { ep: number; sec: number; savedAt: number } | null {
+// scrollLeft は「続きから読む」が pendingJump に載せて復元させるために返す。
+// loadAutoSave(): { ep: number; sec: number; scrollLeft: number; savedAt: number } | null
+function loadAutoSave(): { ep: number; sec: number; scrollLeft: number; savedAt: number } | null {
     try {
         const raw = localStorage.getItem(LS_AUTOSAVE);
         if (!raw) return null;
-        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; savedAt?: unknown };
+        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; scrollLeft?: unknown; savedAt?: unknown };
         const ep = Number(o.ep);
         const sec = Number(o.sec);
-        if (Number.isFinite(ep) && Number.isFinite(sec)) return { ep, sec, savedAt: Number(o.savedAt) || Date.now() };
+        if (Number.isFinite(ep) && Number.isFinite(sec)) {
+            return { ep, sec, scrollLeft: Number(o.scrollLeft) || 0, savedAt: Number(o.savedAt) || Date.now() };
+        }
     } catch { /* ignore */ }
     return null;
 }
 
-// オートセーブ位置の sec 本文ページへ遷移する。着地先で main.ts がオートセーブから scrollLeft を復元する。
-// resumeReading(auto: { ep: number; sec: number }): void
-function resumeReading(auto: { ep: number; sec: number }): void {
+// 「続きから読む」用に pendingJump を書く。続きから読むはサイト内クリック（明示前進ナビと同種）なので、
+// main.ts の「明示前進ナビでは復元しない」gate に弾かれる。pendingJump（最優先）で確実に scrollLeft を復元させる
+// （栞ジャンプと同じ仕組み。bookmark.ts と共有する localStorage キー）。
+// writeResumeJump(auto: { ep: number; sec: number; scrollLeft: number }): void
+function writeResumeJump(auto: { ep: number; sec: number; scrollLeft: number }): void {
+    localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep: auto.ep, sec: auto.sec, scene: 0, scrollLeft: auto.scrollLeft }));
+}
+
+// オートセーブ位置の sec 本文ページへ遷移する。遷移前に pendingJump を書き、着地先 main.ts が scrollLeft を復元する。
+// resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void
+function resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void {
+    writeResumeJump(auto);
     location.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
 }
 
@@ -213,6 +225,7 @@ function initResumeButton(): void {
 
 // ep・sec 一覧を動的生成する。未公開 sec・公開済み sec が0の ep は非表示。
 // 既読（到達＝色）と読破（読了＝✓）を独立に付与する（読破のみも起こり得る）。
+// リンク先：sec01 は ep のタイトルページ（扉）`contents/[ep2桁]-00.html`、sec02 以降は本文ページ `contents/[ep2桁]-[sec2桁].html`。
 // renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<string>): void
 function renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
@@ -242,7 +255,11 @@ function renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<str
             link.className = 'idx-chip'
                 + (isReached ? ' idx-chip--reached' : '')
                 + (isRead ? ' idx-chip--read' : '');
-            link.href = `contents/${pad(ep.id)}-${pad(sec.id)}.html`;
+            // sec01 は ep の入口なのでタイトルページ（扉）へ。sec02 以降は本文ページへ直接。
+            // 復元対象の栞・続きから読むの本文リンク（後述）は扉を挟まずそのまま本文へ。
+            link.href = sec.id === 1
+                ? `contents/${pad(ep.id)}-00.html`
+                : `contents/${pad(ep.id)}-${pad(sec.id)}.html`;
 
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
@@ -330,7 +347,9 @@ function renderBookmarks(): void {
         resumeBtn.className = 'idx-bm-go';
         resumeBtn.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
         resumeBtn.textContent = '続きから読む';
-        // 着地先で main.ts がオートセーブから scrollLeft を復元する（pendingJump 不要）。
+        // 遷移前に pendingJump を書く（同期。着地先 main.ts が読んで scrollLeft を復元する）。
+        // <a> のままにして中クリック等のネイティブ挙動を維持する（栞スロットのジャンプと同じ流儀）。
+        resumeBtn.addEventListener('click', () => { writeResumeJump(auto); });
         actions.appendChild(resumeBtn);
 
         const delBtn = document.createElement('button');

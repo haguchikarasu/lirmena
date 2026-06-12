@@ -14,8 +14,9 @@
  *                                    記録: menu.ts が栞追加で addBookmark(address, scrollLeft, slot) を呼ぶ
  *   "autosave"    : AutoSaveEntry    最新1件のみ上書き { ep, sec, scrollLeft, savedAt }
  *                                    記録: reader.ts がスクロール通知をスロットルして saveAutoSave() を呼ぶ
- *   "pendingJump" : PendingJump      栞ジャンプ受け渡し { ep, sec, scene, scrollLeft }。書くのは menu.ts / index.ts、
- *                                    遷移先ページがロード時に読んで復元・消去する
+ *   "pendingJump" : PendingJump      位置ジャンプ受け渡し { ep, sec, scene, scrollLeft }。栞ジャンプ（menu.ts / index.ts）と
+ *                                    「続きから読む」（index.ts がオートセーブの scrollLeft を載せる）が書く。
+ *                                    遷移先ページがロード時に読んで復元・消去する（明示前進ナビより優先＝必ず復元される）
  *   "pendingScrollEnd": SecAddress   戻る系の終端スクロール受け渡し { ep, sec }。書くのは title.ts（タイトル「戻る」＝前 ep 最終 sec）と
  *                                    nav.ts（本文の戻るボタン／開幕「もどる ›」＝前 sec）。遷移先がロード時に読んで本文末へスクロール・消去する（オートセーブより優先）
  *   "schemaVersion": string          スキーマ版数。旧データ移行を一度だけ走らせるための番兵
@@ -204,7 +205,7 @@ export function getAutoSave(): AutoSaveEntry | null {
 
 // ── pendingJump（栞ジャンプの受け渡し）─────────────────────────────
 
-// 栞ジャンプ情報を書く。遷移自体は呼び出し元（menu.ts / index.ts）が location.href で行う。
+// 位置ジャンプ情報を書く（栞ジャンプ／続きから読むの復元）。遷移自体は呼び出し元（menu.ts / index.ts）が location.href で行う。
 // writePendingJump(jump: PendingJump): void
 export function writePendingJump(jump: PendingJump): void {
     localStorage.setItem(KEY_PENDING_JUMP, JSON.stringify(jump));

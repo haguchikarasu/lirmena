@@ -39,10 +39,10 @@
  *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
  *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
- *           1. pendingJump（栞・自 ep/sec 一致）… 新栞=scrollLeft / 移行旧栞=該当シーン先頭 → 消費
+ *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… 新栞=scrollLeft / 移行旧栞=該当シーン先頭 → 消費
  *           2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
- *           3. オートセーブ（自 ep/sec 一致）… scrollLeft 復元
- *           4. いずれもなし … sec 先頭（右端）
+ *           3. オートセーブ（自 ep/sec 一致）かつ サイト内の明示前進ナビでない（リロード・ブラウザ戻る・直接/外部アクセス）… scrollLeft 復元
+ *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
  */
 
 // 本文ページの共有スタイル。main.ts を Vite エントリにしたことで、本 import が
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
  *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
  *   8. bg.init() で #bg-stack のクロスフェードレイヤーを構築
- *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd → オートセーブ → sec 先頭）
+ *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd → オートセーブ〔明示前進ナビ以外のみ〕→ sec 先頭）
  *   10. tutorial.init()（読書点マーカー・初回ガイド）・opening.init()（開幕アフォーダンス）・nav.update() でボタン状態を確定
  *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、
  *       復元スクロール発火後に nav.arm()（読了検知を有効化＝復元での誤読了を防ぐ）し、ローディングを隠す
@@ -189,10 +189,10 @@ async function _init(): Promise<void> {
 
 /**
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
- * 1. pendingJump（栞）が自 ep/sec と一致 → 新栞=scrollLeft / 移行旧栞(scrollLeft 0 & scene>0)=該当シーン先頭。消費する
+ * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → 新栞=scrollLeft / 移行旧栞(scrollLeft 0 & scene>0)=該当シーン先頭。消費する
  * 2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
- * 3. オートセーブが自 ep/sec と一致 → scrollLeft 復元
- * 4. いずれもなし → sec 先頭（右端）
+ * 3. オートセーブが自 ep/sec と一致 かつ サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る・直接/外部アクセス）→ scrollLeft 復元
+ * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（右端）
  * 縦書き vertical-rl のスクロール符号差は、保存した scrollLeft をそのまま書き戻すことで吸収する。
  */
 function _restoreInitialScroll(container: HTMLElement, address: SecAddress): void {
@@ -214,8 +214,11 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
         return;
     }
 
+    // オートセーブ復元は「サイト内の明示前進ナビ（目次クリック・進む/戻る・タイトル本文を読む）」では行わない
+    // （前進ナビは先頭/末尾から開始する仕様）。それ以外＝リロード・ブラウザ戻る・直接/外部アクセスでのみ復元する。
+    // 「続きから読む」もサイト内クリックだが、index.ts が pendingJump を書くため上の優先度1で先に復元される。
     const auto = bookmark.getAutoSave();
-    if (auto && auto.ep === ep && auto.sec === sec) {
+    if (auto && auto.ep === ep && auto.sec === sec && !_isInAppNavigation()) {
         container.scrollLeft = auto.scrollLeft;
         return;
     }
@@ -264,9 +267,28 @@ function _isExternalEntry(): boolean {
 }
 
 /**
+ * Navigation Timing のナビゲーション種別を返す（'navigate' | 'reload' | 'back_forward' | 'prerender'）。
+ * 取得できない場合は 'navigate' とみなす。リロード・ブラウザ戻る/進むの判別に使う。
+ */
+function _navigationType(): string {
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    return nav?.type ?? 'navigate';
+}
+
+/**
+ * この到着が「サイト内の明示前進ナビ」（目次クリック・進む/戻るボタン・タイトル「本文を読む」）かを返す。
+ * ＝ 通常遷移（navigate）かつ同一オリジンからのリンククリック。
+ * リロード・ブラウザ戻る（navigate 以外）／直接・外部アクセス（referrer 空 or 別オリジン）は false。
+ * 初期スクロール復元で「前進ナビは先頭/末尾から、それ以外はオートセーブ復元」を分けるのに使う。
+ */
+function _isInAppNavigation(): boolean {
+    return _navigationType() === 'navigate' && !_isExternalEntry();
+}
+
+/**
  * オートセーブが当ページ（ep/sec）を指しているか＝直前まで読んでいたセクションへ戻ってきたか。
- * 外部/直接アクセス時に「読みかけの再開」と判定して記録を有効化するために使う（_restoreInitialScroll が
- * 同じオートセーブでスクロール位置も復元するため、途中再開できる条件と記録を有効化する条件が一致する）。
+ * 外部/直接アクセス時に「読みかけの再開」と判定して到達・オートセーブ記録を有効化するために使う
+ * （スクロール復元の発火条件とは独立。復元は _restoreInitialScroll が pendingJump／ナビ種別で別途決める）。
  */
 function _isResuming(ep: number, sec: number): boolean {
     const auto = bookmark.getAutoSave();
