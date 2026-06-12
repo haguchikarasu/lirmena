@@ -27,14 +27,16 @@
   <!-- 背景レイヤー（CSS の黒背景フォールバック。title.ts が backgroundImage を設定） -->
   <div id="bg-layer" aria-hidden="true"></div>
 
-  <!-- タイトル画面（title.ts が内容を生成し hidden を解除する） -->
+  <!-- タイトル画面（title.ts が内容を生成し hidden を解除する）
+       タイトル・ボタン群（nav）・更新履歴は style.css で #title-screen 基準に絶対配置し、
+       縦位置を4つの CSS 変数で独立調整する（中央を背景の絵に空ける）。 -->
   <section id="title-screen" hidden>
-    <header id="title-screen-header">
-      <p id="title-screen-ep-title"></p>
+    <p id="title-screen-ep-title"></p>
+    <nav id="title-screen-nav">
       <button id="btn-title-enter" type="button">本文を読む</button>
       <button id="btn-title-prev" type="button">前のエピソードへ</button>
       <a id="btn-title-index" href="../index.html">目次へ戻る</a>
-    </header>
+    </nav>
     <section id="title-screen-changelog"></section>
   </section>
 
