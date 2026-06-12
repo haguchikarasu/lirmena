@@ -9,8 +9,9 @@
  *                                    記録: main.ts が本文ページのロード時に recordReached() を呼ぶ
  *   "read"        : SecKey[]         読了 sec の集合（"EP-SEC"）。用途は将来の章・巻読了判定の基礎
  *                                    記録: nav.ts が sec 末尾到達（#btn-next 表示）で recordRead() を呼ぶ
- *   "bookmarks"   : BookmarkEntry[]  最大3件・flat 形 { ep, sec, scene, scrollLeft, savedAt }。超過時は最古を削除
- *                                    記録: menu.ts が栞追加で addBookmark() を呼ぶ
+ *   "bookmarks"   : BookmarkEntry[]  固定3スロット・flat 形 { slot, ep, sec, scene, scrollLeft, savedAt }（slot=1..3）。
+ *                                    読者が保存先 slot を選び、同 slot は上書きする
+ *                                    記録: menu.ts が栞追加で addBookmark(address, scrollLeft, slot) を呼ぶ
  *   "autosave"    : AutoSaveEntry    最新1件のみ上書き { ep, sec, scrollLeft, savedAt }
  *                                    記録: reader.ts がスクロール通知をスロットルして saveAutoSave() を呼ぶ
  *   "pendingJump" : PendingJump      栞ジャンプ受け渡し { ep, sec, scene, scrollLeft }。書くのは menu.ts / index.ts、
@@ -25,6 +26,7 @@
  *     "ep-sec-XX"（XX ≥ 01）          → 当 sec を "reached" に登録
  *   旧 "bookmarks"（nested { address:{ep,sec,scene}, scrollLeft, savedAt }）→ flat 形へ。
  *     旧 scrollLeft はシーン座標で新と非互換のため使わず 0 とし、scene 番号のみ引き継ぐ（ジャンプ時に該当シーン先頭へ）
+ *   旧 flat 栞（slot を持たない）→ savedAt 昇順に slot 1,2,3 を採番する（目次の固定スロット表示と整合）
  *   ★ 旧 "sceneRead" キーは変換後も削除せず保持する（冪等・復旧可能・目次先開きでの参照余地を残す。ユーザー合意済み）
  *
  * セクション既読の判定ロジックは持たない。目次（index.ts）が "reached" を引くだけ。
@@ -45,7 +47,9 @@
 import type { SceneAddress, SecAddress, AutoSaveEntry, PendingJump, SecKey } from './types';
 
 // 栞1件。新形は flat（ep/sec/scene を直に持つ。旧 nested { address } は移行で flat 化する）。
+// slot は読者が選ぶ固定スロット番号（1..3）。旧 flat 栞は slot を持たないため移行で採番する。
 export type BookmarkEntry = {
+    slot: number;
     ep: number;
     sec: number;
     scene: number;
@@ -54,7 +58,7 @@ export type BookmarkEntry = {
 };
 
 const MAX_SLOTS = 3;
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '3';
 
 const KEY_REACHED = 'reached';
 const KEY_READ = 'read';
@@ -144,17 +148,19 @@ export function clearRead(): void {
 
 // ── 栞 ────────────────────────────────────────────────────────────
 
-// 現在位置を栞に保存する。呼び出し元（menu.ts）が SceneAddress と #main-container.scrollLeft を渡す。
-// 内部では flat 形で保存する。最大3件・超過時は最古を削除。
-// addBookmark(address: SceneAddress, scrollLeft: number): void
-export function addBookmark(address: SceneAddress, scrollLeft: number): void {
+// 現在位置を指定スロット（1..3）へ保存する。呼び出し元（menu.ts）が SceneAddress・#main-container.scrollLeft・
+// 読者が選んだ slot を渡す。同 slot の既存エントリは上書きする（固定スロットモデル）。
+// addBookmark(address: SceneAddress, scrollLeft: number, slot: number): void
+export function addBookmark(address: SceneAddress, scrollLeft: number, slot: number): void {
     const entry: BookmarkEntry = {
+        slot,
         ep: address.ep,
         sec: address.sec,
         scene: address.scene,
         scrollLeft,
         savedAt: Date.now(),
     };
+    _bookmarks = _bookmarks.filter(b => b.slot !== slot);
     _bookmarks.push(entry);
     if (_bookmarks.length > MAX_SLOTS) {
         _bookmarks.sort((a, b) => a.savedAt - b.savedAt);
@@ -280,6 +286,7 @@ function _loadBookmarks(): BookmarkEntry[] {
 }
 
 // 1件の栞を flat 形へ正規化する。flat・nested いずれも受け付ける。不正なら null。
+// slot が 1..3 でなければ 0（未割当）とし、移行（_assignSlots）で採番する。
 function _normalizeBookmark(raw: unknown): BookmarkEntry | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const o = raw as Record<string, unknown>;
@@ -293,7 +300,28 @@ function _normalizeBookmark(raw: unknown): BookmarkEntry | null {
     // 旧 nested の scrollLeft はシーン座標で非互換のため引き継がない（flat の自分自身は除く）。
     const scrollLeft = (o.address !== undefined) ? 0 : Number(o.scrollLeft) || 0;
     const savedAt = Number(o.savedAt) || Date.now();
-    return { ep, sec, scene: Number.isFinite(scene) ? scene : 0, scrollLeft, savedAt };
+    const slotRaw = Number(o.slot);
+    const slot = (slotRaw === 1 || slotRaw === 2 || slotRaw === 3) ? slotRaw : 0;
+    return { slot, ep, sec, scene: Number.isFinite(scene) ? scene : 0, scrollLeft, savedAt };
+}
+
+// slot 未割当（0）の栞へ savedAt 昇順で空きスロット（1..3）を採番する。
+// 既に有効な slot を持つエントリは尊重し、その番号を避ける。戻り値は採番が起きたか。
+function _assignSlots(bookmarks: BookmarkEntry[]): boolean {
+    const taken = new Set(bookmarks.filter(b => b.slot >= 1 && b.slot <= 3).map(b => b.slot));
+    const unassigned = bookmarks.filter(b => b.slot === 0).sort((a, b) => a.savedAt - b.savedAt);
+    let changed = false;
+    for (const b of unassigned) {
+        for (let s = 1; s <= MAX_SLOTS; s++) {
+            if (!taken.has(s)) {
+                b.slot = s;
+                taken.add(s);
+                changed = true;
+                break;
+            }
+        }
+    }
+    return changed;
 }
 
 // 旧 sceneRead / 旧 bookmarks を新スキーマへ一度だけ変換する。
@@ -317,8 +345,9 @@ function _migrate(): void {
     if (reachedChanged) _persistSet(KEY_REACHED, _reached);
     if (readChanged) _persistSet(KEY_READ, _read);
 
-    // 旧 nested bookmarks → flat（_loadBookmarks が既に正規化済み。flat 形で書き戻す）
+    // 旧 nested bookmarks → flat（_loadBookmarks が既に正規化済み）／旧 flat 栞 → slot 採番。
     if (_bookmarks.length > 0) {
+        _assignSlots(_bookmarks);
         localStorage.setItem(KEY_BOOKMARKS, JSON.stringify(_bookmarks));
     }
 }

@@ -16,7 +16,7 @@
  *   bg       : init(layers: BgLayerSpec[], ep: number): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
  *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
- *   nav      : init(): void / update(): void
+ *   nav      : init(): void / update(): void / arm(): void（初期スクロール復元後に読了検知を有効化）
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData, volumes: VolumesData): void
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
@@ -87,7 +87,8 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   8. bg.init() で #bg-stack のクロスフェードレイヤーを構築
  *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd → オートセーブ → sec 先頭）
  *   10. tutorial.init()（読書点マーカー・初回ガイド）・opening.init()（開幕アフォーダンス）・nav.update() でボタン状態を確定
- *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、ローディングを隠す
+ *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、
+ *       復元スクロール発火後に nav.arm()（読了検知を有効化＝復元での誤読了を防ぐ）し、ローディングを隠す
  */
 async function _init(): Promise<void> {
     // 到着フェードイン（シェルは class="fading" で読み込まれる）。await やエラー表示より前に外して黒から明ける。
@@ -170,6 +171,11 @@ async function _init(): Promise<void> {
     // スクロール由来の通知を progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する結線。
     reader.init({ ep, sec });
     bg.subscribe(reader.handleScroll);
+
+    // 初期スクロール復元（_restoreInitialScroll のプログラム的スクロール）が発火する scroll イベントを
+    // 読了として誤記録しないよう、復元イベントが dispatch され終えてから nav の読了検知を有効化する。
+    // scroll ステップは rAF コールバックより前に走る（同フレーム）ため、二重 rAF で確実に復元後に arm する。
+    requestAnimationFrame(() => requestAnimationFrame(() => nav.arm()));
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;

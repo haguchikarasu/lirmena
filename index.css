@@ -74,6 +74,29 @@
   letter-spacing: 0.04em;
 }
 
+/* ===== 続きから読む（ヒーロー下・オートセーブがある時だけ表示） ===== */
+
+.idx-resume {
+  display: block;
+  margin: 1.2rem auto 0;
+  padding: 0.7rem 2.4rem;
+  background: transparent;
+  border: 1px solid var(--idx-border-accent);
+  border-radius: 4px;
+  color: var(--idx-accent);
+  font-family: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.idx-resume:hover,
+.idx-resume:focus {
+  background: rgba(45, 245, 144, 0.08);
+  outline: none;
+}
+
 /* ===== コンテンツエリア共通 ===== */
 
 .idx-body {
@@ -119,14 +142,15 @@
   border-radius: 2px;
   font-size: 12px;
   letter-spacing: 0.12em;
-  border: 1px solid var(--idx-border-strong);
-  color: var(--idx-text-dim);
+  border: 1px solid #3a3a3a;
+  color: #9a9a9a;
   background: var(--idx-surface);
   text-decoration: none;
   font-family: inherit;
 }
 
-.idx-chip--read {
+/* 既読（到達）＝アクセント色。読破（読了）＝チェック ✓。両クラスは独立に付く（読破のみも起こり得る） */
+.idx-chip--reached {
   color: var(--idx-accent);
   border-color: var(--idx-border-accent);
 }
@@ -152,6 +176,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* スロット0（オートセーブ）はアクセント縁取りで手動栞と区別する */
+.idx-bm-card--auto {
+  border-color: var(--idx-border-accent);
+}
+
+/* 空きスロットはトーンを落として「保存できる枠」と分かるようにする */
+.idx-bm-card--empty {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+/* スロット見出し（「スロット0：オートセーブ」「スロット1」…） */
+.idx-bm-slot {
+  font-size: 0.78rem;
+  color: var(--idx-text-date);
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
 }
 
 .idx-bm-loc {
@@ -193,8 +236,8 @@
   border-radius: 2px;
   font-size: 11px;
   font-family: inherit;
-  border: 1px solid var(--idx-border);
-  color: #383838;
+  border: 1px solid #3a3a3a;
+  color: #9a9a9a;
   background: transparent;
   cursor: pointer;
 }
@@ -259,9 +302,10 @@
   outline: none;
 }
 
-/* ===== 設定ポップアップ ===== */
+/* ===== 設定ポップアップ／共有ポップアップ（同じオーバーレイ様式を共有） ===== */
 
-#settings-popup {
+#settings-popup,
+#share-popup {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);

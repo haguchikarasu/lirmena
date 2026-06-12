@@ -2,7 +2,7 @@
  * nav.ts
  * 責務: 本文ページの端ボタン（進行 #btn-next・戻る #btn-prev）のイベント登録と表示/有効状態の更新、
  *       および sec 末尾到達の検知と読了記録。
- * export: init(), update(), goPrev()
+ * export: init(), update(), goPrev(), arm()
  * 依存: state.ts / bookmark.ts / transition.ts
  *
  * 遷移（マルチページ・ハッシュ廃止。離脱フェードは transition.leave 経由）:
@@ -21,6 +21,9 @@
  *   到達した時点で bookmark.recordRead(ep, sec) を1回だけ呼ぶ（フラグでガード）。末尾には本文表示幅ぶんの
  *   恒久余白（btn-container-end）があるため、絶対終端ではなく余白の手前を閾値にする（最終行で止まる読者を取りこぼさない）。
  *   ボタンの「端でのみ表示」はスクロールコンテンツ両端配置のレイアウトで実質達成済みのため、表示制御はせず検知のみ行う。
+ *   ★ 検知は arm() で有効化されるまで no-op。main.ts が初期スクロール復元（pendingScrollEnd の本文末着地・
+ *     オートセーブ復元など）のプログラム的スクロールを発火し終えてから arm() する。これがないと、戻る系で
+ *     本文末へ復元しただけのページが「読んでいないのに読了」記録されてしまう（誤読了の防止）。
  */
 
 import * as state from './state';
@@ -38,6 +41,10 @@ const END_EPSILON = 4;
 
 // 当 sec の読了を記録済みかのガード（多重記録防止）
 let _readRecorded = false;
+
+// 読了検知の有効化ガード。初期スクロール復元（プログラム的スクロール）での誤読了を防ぐため、
+// main.ts が復元スクロール発火後に arm() するまで _onScroll は no-op。
+let _readDetectionArmed = false;
 
 // DOM からボタン要素を取得し、クリック・スクロール監視イベントを登録する。
 // init は起動時に1度だけ main.ts から呼ばれる。
@@ -62,8 +69,10 @@ export function init(): void {
 }
 
 // 本文末（末尾の恒久余白の手前）への到達を検知し、初回だけ読了として記録する。
+// arm() 前（初期スクロール復元中）は no-op。
 // _onScroll(container: HTMLElement): void
 function _onScroll(container: HTMLElement): void {
+    if (!_readDetectionArmed) return;
     if (_readRecorded) return;
     const range = container.scrollWidth - container.clientWidth;
     if (range <= 1) return; // スクロール不能（極端に短い sec）は対象外
@@ -94,6 +103,13 @@ export function update(): void {
     }
 
     _btnPrev.disabled = state.getPrevUrl() === null;
+}
+
+// 読了検知を有効化する。main.ts が初期スクロール復元のプログラム的スクロール（scroll イベント）を
+// 発火し終えてから呼ぶ。これ以降の「実スクロールでの本文末到達」だけが読了として記録される。
+// arm(): void
+export function arm(): void {
+    _readDetectionArmed = true;
 }
 
 // 戻る遷移を実行する。前 sec 本文へ戻るときは、その sec の本文末（読み終わり側）へ着地させる

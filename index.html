@@ -39,6 +39,9 @@
     </div>
   </div>
 
+  <!-- 続きから読む（オートセーブがある時だけ index.ts が hidden を外す） -->
+  <button id="idx-resume" class="idx-resume" type="button" hidden>続きから読む</button>
+
   <!-- ep・sec 一覧エリア（index.ts が動的生成） -->
   <section class="idx-body" aria-label="エピソード一覧">
     <div id="episodes-area" class="idx-ep-list">
@@ -73,6 +76,11 @@
 
   <!-- 設定ポップアップ（index.ts が操作） -->
   <div id="settings-popup" hidden role="dialog" aria-label="設定" aria-modal="true">
+    <!-- index.ts が動的生成 -->
+  </div>
+
+  <!-- 共有ポップアップ（index.ts が操作） -->
+  <div id="share-popup" hidden role="dialog" aria-label="共有" aria-modal="true">
     <!-- index.ts が動的生成 -->
   </div>
 

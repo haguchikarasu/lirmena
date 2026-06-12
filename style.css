@@ -642,8 +642,11 @@ ruby rt {
 
 /* ===================================================
    設定ポップアップ（settings.ts が操作）
+   共有ポップアップ・栞ポップアップ（menu.ts が操作）も同じオーバーレイ様式を共有する
 =================================================== */
-#settings-popup {
+#settings-popup,
+#share-popup,
+#bookmark-popup {
   position: fixed;
   inset: 0;
   z-index: 30;

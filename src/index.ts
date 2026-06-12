@@ -6,31 +6,37 @@
  *
  * 機能:
  *   - episodes.json を fetch して ep・sec 一覧を動的生成
- *   - 到達セット（sec 単位）からセクション既読を表示（判定ロジックは持たず引くだけ）
- *   - 栞スロット（最大3件）を常時表示、個別クリア・ジャンプ対応（ジャンプは pendingJump を書く）
+ *   - 到達セット・読了セット（sec 単位）からセクションの既読/読破を表示（判定ロジックは持たず引くだけ）
+ *     既読（到達）＝アクセント色／読破（読了）＝チェック ✓。両セットは独立（読破のみも起こり得る）
+ *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（最上段・ジャンプ＋削除）、スロット1〜3（空き含む常時表示・個別クリア・ジャンプ）
+ *   - 続きから読む：オートセーブがあればヒーロー下のボタンと FAB 項目を出し、対象 sec へ遷移（着地先で復元）
  *   - content-changelog.json を fetch してコンテンツ更新履歴を表示
  *   - site-changelog.json を fetch してサイトバージョンバッジを更新（詳細一覧は表示しない）
  *   - ヒーローカード右下に content version / site version バッジを表示
- *   - 右下 FAB メニュー（設定・栞クリア・既読クリア・共有）
+ *   - 右下 FAB メニュー（続きから読む・栞をすべてクリア・既読をクリア・読破状況をクリア・設定・共有）
  *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
  *
  * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
- *   "reached"            : string[]         到達 sec の集合 "ep-sec"（2桁ゼロ埋め）。既読マークの源
- *   "read"              : string[]         読了 sec の集合 "ep-sec"。クリア対象（表示には未使用）
- *   "bookmarks"          : BookmarkEntry[]  flat { ep, sec, scene, scrollLeft, savedAt }（旧 nested も後方互換で読む）
+ *   "reached"            : string[]         到達 sec の集合 "ep-sec"（2桁ゼロ埋め）。既読マーク（色）の源。「既読をクリア」対象
+ *   "read"              : string[]         読了 sec の集合 "ep-sec"。読破マーク（✓）の源。「読破状況をクリア」対象
+ *   "autosave"           : { ep, sec, scrollLeft, savedAt }   最新の読書位置。スロット0／「続きから読む」の遷移先
+ *   "bookmarks"          : BookmarkEntry[]  flat { slot, ep, sec, scene, scrollLeft, savedAt }（slot=1..3。旧 nested/旧 flat も後方互換で読む）
  *   "pendingJump"        : { ep, sec, scene, scrollLeft }   栞ジャンプ受け渡し（書くだけ・消費は遷移先ページ）
  *   "sceneRead"          : string[]         旧 "ep-sec-scene" 形式。移行前に目次を先に開いた返読者向けフォールバック
  *   "lirmena.fontSize"   : 'large' | 'medium' | 'small'   デフォルト 'medium'
  *   "lirmena.fontFamily" : 'serif' | 'sans'               デフォルト 'serif'
  *   "lirmena.lineGap"    : 'on' | 'off'                   デフォルト 'on'
  *
- * 既読マークは到達ベース（一般的な「開いたら既読」方式）。`reached` を引き、加えて移行前の返読者向けに
- * 旧 `sceneRead` の完了マーカー "ep-sec-00" もフォールバックで既読扱いする（bookmark.ts の移行と整合）。
+ * 既読マーク（色）は到達ベース（一般的な「開いたら既読」方式）。`reached` を引き、加えて移行前の返読者向けに
+ * 旧 `sceneRead` の完了マーカー "ep-sec-00" もフォールバックで既読扱いする。読破マーク（✓）は読了ベースで `read`
+ * を引き、同様に旧 "ep-sec-00" を読破扱いにする（bookmark.ts の移行と整合）。
  */
 
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
-// 栞は flat 形。旧 nested 形（{ address }）は loadBookmarks() で flat に正規化して読む。
+// 栞は flat 形＋固定スロット（slot=1..3）。旧 nested 形（{ address }）・旧 flat（slot 無し）は
+// loadBookmarks() で正規化して読む（slot 無しは表示用に savedAt 昇順で採番）。
 type BookmarkEntry = {
+    slot: number;
     ep: number;
     sec: number;
     scene: number;
@@ -53,6 +59,7 @@ type SiteChangelogEntry = {
 // localStorage キー（bookmark.ts / settings.ts と同一）
 const LS_REACHED      = 'reached';
 const LS_READ         = 'read';
+const LS_AUTOSAVE     = 'autosave';
 const LS_BOOKMARKS    = 'bookmarks';
 const LS_PENDING_JUMP = 'pendingJump';
 const LS_SCENE_READ   = 'sceneRead';
@@ -83,12 +90,11 @@ function loadStringSet(key: string): Set<string> {
     return new Set();
 }
 
-// 到達済みセクションの "ep-sec" 集合を返す。
-// 新スキーマの "reached"（到達ベース）に加え、移行前に目次を先に開いた返読者向けに
-// 旧 "sceneRead" の完了マーカー "ep-sec-00" もフォールバックで取り込む。
-// loadReachedSections(): Set<string>
-function loadReachedSections(): Set<string> {
-    const result = loadStringSet(LS_REACHED);
+// 旧 "sceneRead" の完了マーカー "ep-sec-00"（＝読了相当）を "ep-sec" 集合として返す。
+// 移行前に目次を先に開いた返読者向けのフォールバック源（reached/read 双方の取り込みに使う）。
+// loadLegacyDoneSections(): Set<string>
+function loadLegacyDoneSections(): Set<string> {
+    const result = new Set<string>();
     for (const k of loadStringSet(LS_SCENE_READ)) {
         const parts = k.split('-'); // "ep-sec-scene"
         if (parts.length === 3 && parts[2] === '00') result.add(`${parts[0]}-${parts[1]}`);
@@ -96,16 +102,39 @@ function loadReachedSections(): Set<string> {
     return result;
 }
 
+// 到達済み（既読＝色）セクションの "ep-sec" 集合を返す。
+// 新スキーマの "reached" ＋ 旧 "sceneRead" の完了マーカー（フォールバック）。
+// loadReachedSections(): Set<string>
+function loadReachedSections(): Set<string> {
+    const result = loadStringSet(LS_REACHED);
+    for (const k of loadLegacyDoneSections()) result.add(k);
+    return result;
+}
+
+// 読了済み（読破＝✓）セクションの "ep-sec" 集合を返す。
+// 新スキーマの "read" ＋ 旧 "sceneRead" の完了マーカー（フォールバック。完了マーカーは読了相当）。
+// loadReadSections(): Set<string>
+function loadReadSections(): Set<string> {
+    const result = loadStringSet(LS_READ);
+    for (const k of loadLegacyDoneSections()) result.add(k);
+    return result;
+}
+
 // 栞リストを localStorage から読み込み flat 形に正規化する。flat・旧 nested の両方を受け付ける。
+// slot（1..3）は保持し、未割当（旧 flat）は表示用に savedAt 昇順で空きスロットへ採番する
+// （bookmark.ts の移行と同一規則。ここでは永続化しない）。
 // loadBookmarks(): BookmarkEntry[]
 function loadBookmarks(): BookmarkEntry[] {
     try {
         const raw = localStorage.getItem(LS_BOOKMARKS);
         if (!raw) return [];
         const list = JSON.parse(raw) as Array<Record<string, unknown>>;
-        return list.map((o) => {
+        const entries = list.map((o) => {
             const addr = (o.address ?? o) as Record<string, unknown>;
+            const slotRaw = Number(o.slot);
+            const slot = (slotRaw === 1 || slotRaw === 2 || slotRaw === 3) ? slotRaw : 0;
             return {
+                slot,
                 ep: Number(addr.ep),
                 sec: Number(addr.sec),
                 scene: Number(addr.scene) || 0,
@@ -113,31 +142,79 @@ function loadBookmarks(): BookmarkEntry[] {
                 savedAt: Number(o.savedAt) || Date.now(),
             };
         }).filter((b) => Number.isFinite(b.ep) && Number.isFinite(b.sec));
+
+        // slot 未割当に空きスロットを採番（表示用・永続化なし）
+        const taken = new Set(entries.filter(b => b.slot >= 1 && b.slot <= 3).map(b => b.slot));
+        for (const b of entries.filter(b => b.slot === 0).sort((a, b) => a.savedAt - b.savedAt)) {
+            for (let s = 1; s <= 3; s++) {
+                if (!taken.has(s)) { b.slot = s; taken.add(s); break; }
+            }
+        }
+        return entries;
     } catch { /* ignore */ }
     return [];
 }
 
-// ----- 既読判定 -----
+// ----- 既読/読破判定 -----
 
-// セクション既読判定: 到達セット（"ep-sec"）に含まれるかを返す（判定ロジックは持たず引くだけ）
-// isSectionRead(ep: number, sec: number, reached: Set<string>): boolean
-function isSectionRead(ep: number, sec: number, reached: Set<string>): boolean {
-    return reached.has(`${pad(ep)}-${pad(sec)}`);
+// セクションが集合（"ep-sec" の到達 or 読了セット）に含まれるかを返す（判定ロジックは持たず引くだけ）
+// isSectionInSet(ep: number, sec: number, set: Set<string>): boolean
+function isSectionInSet(ep: number, sec: number, set: Set<string>): boolean {
+    return set.has(`${pad(ep)}-${pad(sec)}`);
 }
 
-// 既読をすべて消す。新スキーマ（reached/read）に加え、フォールバック源の旧 sceneRead も消す。
-// clearAllRead(): void
-function clearAllRead(): void {
+// 既読（到達）を消す。目次の既読マーク（色）の源（reached）と、その旧フォールバック源 sceneRead を消す。
+// 読了（read）は残す（「読破状況をクリア」が別途担当する）。
+// clearReached(): void
+function clearReached(): void {
     localStorage.removeItem(LS_REACHED);
-    localStorage.removeItem(LS_READ);
     localStorage.removeItem(LS_SCENE_READ);
+}
+
+// 読破状況（読了）を消す。目次の読破マーク（✓）の源（read）を削除する。
+// clearReadStatus(): void
+function clearReadStatus(): void {
+    localStorage.removeItem(LS_READ);
+}
+
+// オートセーブ（最新の読書位置）を読む。無ければ null。savedAt はスロット0の日時表示に使う。
+// loadAutoSave(): { ep: number; sec: number; savedAt: number } | null
+function loadAutoSave(): { ep: number; sec: number; savedAt: number } | null {
+    try {
+        const raw = localStorage.getItem(LS_AUTOSAVE);
+        if (!raw) return null;
+        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; savedAt?: unknown };
+        const ep = Number(o.ep);
+        const sec = Number(o.sec);
+        if (Number.isFinite(ep) && Number.isFinite(sec)) return { ep, sec, savedAt: Number(o.savedAt) || Date.now() };
+    } catch { /* ignore */ }
+    return null;
+}
+
+// オートセーブ位置の sec 本文ページへ遷移する。着地先で main.ts がオートセーブから scrollLeft を復元する。
+// resumeReading(auto: { ep: number; sec: number }): void
+function resumeReading(auto: { ep: number; sec: number }): void {
+    location.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
+}
+
+// ヒーロー下の「続きから読む」本体ボタンを初期化する。
+// オートセーブがあれば hidden を外して click を結線し、なければ hidden のままにする（要件 06-7）。
+// initResumeButton(): void
+function initResumeButton(): void {
+    const btn = document.getElementById('idx-resume') as HTMLButtonElement | null;
+    if (!btn) return;
+    const auto = loadAutoSave();
+    if (!auto) return;
+    btn.hidden = false;
+    btn.addEventListener('click', () => resumeReading(auto));
 }
 
 // ----- ep・sec 一覧 -----
 
-// ep・sec 一覧を動的生成する。未公開 sec・公開済み sec が0の ep は非表示
-// renderEpisodes(episodes: Episode[], reached: Set<string>): void
-function renderEpisodes(episodes: Episode[], reached: Set<string>): void {
+// ep・sec 一覧を動的生成する。未公開 sec・公開済み sec が0の ep は非表示。
+// 既読（到達＝色）と読破（読了＝✓）を独立に付与する（読破のみも起こり得る）。
+// renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<string>): void
+function renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
     area.innerHTML = '';
@@ -158,15 +235,20 @@ function renderEpisodes(episodes: Episode[], reached: Set<string>): void {
         secListEl.className = 'idx-chips';
 
         for (const sec of publishedSecs) {
-            const read = isSectionRead(ep.id, sec.id, reached);
+            const isReached = isSectionInSet(ep.id, sec.id, reached);
+            const isRead = isSectionInSet(ep.id, sec.id, read);
 
             const link = document.createElement('a');
-            link.className = 'idx-chip' + (read ? ' idx-chip--read' : '');
+            link.className = 'idx-chip'
+                + (isReached ? ' idx-chip--reached' : '')
+                + (isRead ? ' idx-chip--read' : '');
             link.href = `contents/${pad(ep.id)}-${pad(sec.id)}.html`;
 
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
-            if (read) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
+            // 読破 > 既読 の優先で読み上げラベルを出し分ける
+            if (isRead) link.setAttribute('aria-label', `${pad(sec.id)} 読破`);
+            else if (isReached) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
             link.appendChild(labelEl);
 
             secListEl.appendChild(link);
@@ -186,55 +268,105 @@ function renderEpisodes(episodes: Episode[], reached: Set<string>): void {
 
 // ----- 栞 -----
 
-// 栞スロットを描画する（再描画可）
+// savedAt を "YYYY/MM/DD HH:MM" 文字列にする。
+// fmtDate(savedAt: number): string
+function fmtDate(savedAt: number): string {
+    const d = new Date(savedAt);
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ep・sec を「第N話 タイトル - SS」表記にする（タイトルが無ければ番号のみ）。
+// locLabel(ep: number, sec: number): string
+function locLabel(ep: number, sec: number): string {
+    const epTitle = _episodes.find(e => e.id === ep)?.title ?? '';
+    return epTitle ? `第${ep}話 ${epTitle} - ${pad(sec)}` : `第${ep}話 - ${pad(sec)}`;
+}
+
+// 1枚の栞カード（スロットラベル＋場所・日時＋アクション）を生成する。
+// buildSlotCard(slotLabel, locText, dateText, actions): HTMLElement
+function buildSlotCard(slotLabel: string, locText: string, dateText: string, actions: HTMLElement | null): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'idx-bm-card' + (actions ? '' : ' idx-bm-card--empty');
+
+    const info = document.createElement('div');
+    info.className = 'idx-bm-info';
+
+    const slotEl = document.createElement('p');
+    slotEl.className = 'idx-bm-slot';
+    slotEl.textContent = slotLabel;
+    info.appendChild(slotEl);
+
+    const locEl = document.createElement('p');
+    locEl.className = 'idx-bm-loc';
+    locEl.textContent = locText;
+    info.appendChild(locEl);
+
+    if (dateText) {
+        const dateEl = document.createElement('p');
+        dateEl.className = 'idx-bm-date';
+        dateEl.textContent = dateText;
+        info.appendChild(dateEl);
+    }
+
+    card.appendChild(info);
+    if (actions) card.appendChild(actions);
+    return card;
+}
+
+// 栞欄を固定スロットで描画する（再描画可）。
+// スロット0＝オートセーブ（あれば最上段・ジャンプのみ）、スロット1〜3＝手動栞（空き含め常時表示）。
 // renderBookmarks(): void
 function renderBookmarks(): void {
     const container = document.getElementById('bookmark-slots');
     if (!container) return;
     container.innerHTML = '';
 
-    const bookmarks = loadBookmarks().sort((a, b) => b.savedAt - a.savedAt).slice(0, 3);
+    // スロット0：オートセーブ（あるときだけ。auto は scene を持たないので（タイトル画面）注記なし）
+    const auto = loadAutoSave();
+    if (auto) {
+        const actions = document.createElement('div');
+        actions.className = 'idx-bm-btns';
+        const resumeBtn = document.createElement('a');
+        resumeBtn.className = 'idx-bm-go';
+        resumeBtn.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
+        resumeBtn.textContent = '続きから読む';
+        // 着地先で main.ts がオートセーブから scrollLeft を復元する（pendingJump 不要）。
+        actions.appendChild(resumeBtn);
 
-    if (bookmarks.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'bookmarks-empty';
-        empty.textContent = '栞はまだありません。';
-        container.appendChild(empty);
-        return;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'idx-bm-del';
+        delBtn.type = 'button';
+        delBtn.textContent = '削除';
+        // オートセーブ本体を消して再描画する。ヒーロー下／FAB の「続きから読む」は次回ロードで消える。
+        delBtn.addEventListener('click', () => {
+            localStorage.removeItem(LS_AUTOSAVE);
+            renderBookmarks();
+        });
+        actions.appendChild(delBtn);
+
+        const card = buildSlotCard('スロット0：オートセーブ', locLabel(auto.ep, auto.sec), fmtDate(auto.savedAt), actions);
+        card.classList.add('idx-bm-card--auto');
+        container.appendChild(card);
     }
 
-    for (const entry of bookmarks) {
+    // スロット1〜3：手動栞（埋まっていればジャンプ＋削除、空きはプレースホルダ）
+    const bySlot = new Map(loadBookmarks().map(b => [b.slot, b]));
+    for (let slot = 1; slot <= 3; slot++) {
+        const entry = bySlot.get(slot);
+        if (!entry) {
+            container.appendChild(buildSlotCard(`スロット${slot}`, '空き', '', null));
+            continue;
+        }
+
         const { ep, sec, scene } = entry;
-        const d = new Date(entry.savedAt);
-        const dateStr = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        const href = `contents/${pad(ep)}-${pad(sec)}.html`;
-
-        const slot = document.createElement('div');
-        slot.className = 'idx-bm-card';
-
-        const info = document.createElement('div');
-        info.className = 'idx-bm-info';
-
-        const epTitle = _episodes.find(e => e.id === ep)?.title ?? '';
-        const epSecEl = document.createElement('p');
-        epSecEl.className = 'idx-bm-loc';
-        const locBase = epTitle ? `第${ep}話 ${epTitle} - ${pad(sec)}` : `第${ep}話 - ${pad(sec)}`;
-        epSecEl.textContent = locBase + (scene === 0 ? '（タイトル画面）' : '');
-        info.appendChild(epSecEl);
-
-        const dateEl = document.createElement('p');
-        dateEl.className = 'idx-bm-date';
-        dateEl.textContent = dateStr;
-        info.appendChild(dateEl);
-
         const actions = document.createElement('div');
         actions.className = 'idx-bm-btns';
 
         const jumpBtn = document.createElement('a');
         jumpBtn.className = 'idx-bm-go';
-        jumpBtn.href = href;
+        jumpBtn.href = `contents/${pad(ep)}-${pad(sec)}.html`;
         jumpBtn.textContent = 'ここから読む';
-        // 遷移前に pendingJump を書く（同期。遷移先ページがロード時に読んで復元する＝消費は Phase 3）。
+        // 遷移前に pendingJump を書く（同期。遷移先ページがロード時に読んで復元する）。
         jumpBtn.addEventListener('click', () => {
             localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep, sec, scene, scrollLeft: entry.scrollLeft }));
         });
@@ -244,7 +376,7 @@ function renderBookmarks(): void {
         clearBtn.className = 'idx-bm-del';
         clearBtn.type = 'button';
         clearBtn.textContent = '削除';
-        // savedAt でこの栞1件だけを削除して再描画する
+        // savedAt でこの栞1件だけを削除して再描画する（保存形に slot が無い旧データでも一致する）
         clearBtn.addEventListener('click', () => {
             const remaining = loadBookmarks().filter(b => b.savedAt !== entry.savedAt);
             if (remaining.length === 0) {
@@ -256,9 +388,8 @@ function renderBookmarks(): void {
         });
         actions.appendChild(clearBtn);
 
-        slot.appendChild(info);
-        slot.appendChild(actions);
-        container.appendChild(slot);
+        const locText = locLabel(ep, sec) + (scene === 0 ? '（タイトル画面）' : '');
+        container.appendChild(buildSlotCard(`スロット${slot}`, locText, fmtDate(entry.savedAt), actions));
     }
 }
 
@@ -377,8 +508,8 @@ function buildSettingsPopup(episodes: Episode[]): void {
         renderBookmarks();
     }));
     panel.appendChild(buildAction('既読をクリア', () => {
-        clearAllRead();
-        renderEpisodes(episodes, new Set());
+        clearReached();
+        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
     }));
     panel.appendChild(buildAction('設定をリセット', () => {
         localStorage.removeItem(LS_FONT_SIZE);
@@ -402,11 +533,66 @@ function buildSettingsPopup(episodes: Episode[]): void {
     });
 }
 
+// ----- 共有ポップアップ -----
+
+// 共有ポップアップ（#share-popup）を DOM 構築し、背景クリックで閉じるイベントを登録する。
+// 設定ポップアップと同じ .settings-panel / .settings-action / .settings-close 様式を流用する。
+// buildSharePopup(sharePopup: HTMLElement): void
+function buildSharePopup(sharePopup: HTMLElement): void {
+    const panel = document.createElement('div');
+    panel.className = 'settings-panel';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'settings-panel__title';
+    titleEl.textContent = '共有';
+    panel.appendChild(titleEl);
+
+    const makeAction = (label: string, handler: () => void): HTMLButtonElement => {
+        const btn = document.createElement('button');
+        btn.className = 'settings-action';
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.addEventListener('click', () => { sharePopup.hidden = true; handler(); });
+        return btn;
+    };
+
+    panel.append(
+        makeAction('リンクをコピー', () => {
+            navigator.clipboard.writeText(location.href).catch(() => {});
+        }),
+        makeAction('Xでシェア', () => {
+            window.open(
+                `https://x.com/intent/tweet?url=${encodeURIComponent(location.href)}`,
+                '_blank', 'noopener,noreferrer',
+            );
+        }),
+        makeAction('LINEでシェア', () => {
+            window.open(
+                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(location.href)}`,
+                '_blank', 'noopener,noreferrer',
+            );
+        }),
+    );
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'settings-close';
+    closeBtn.type = 'button';
+    closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', () => { sharePopup.hidden = true; });
+    panel.appendChild(closeBtn);
+
+    sharePopup.appendChild(panel);
+
+    sharePopup.addEventListener('click', (e) => {
+        if (e.target === sharePopup) sharePopup.hidden = true;
+    });
+}
+
 // ----- FAB メニュー -----
 
 // 右下 FAB メニューを初期化する
-// initFab(popup: HTMLElement, episodes: Episode[]): void
-function initFab(popup: HTMLElement, episodes: Episode[]): void {
+// initFab(popup: HTMLElement, sharePopup: HTMLElement, episodes: Episode[]): void
+function initFab(popup: HTMLElement, sharePopup: HTMLElement, episodes: Episode[]): void {
     const toggleOrNull = document.getElementById('fab-toggle');
     const panelOrNull  = document.getElementById('fab-panel');
     if (!toggleOrNull || !panelOrNull) return;
@@ -446,35 +632,23 @@ function initFab(popup: HTMLElement, episodes: Episode[]): void {
         panel.appendChild(li);
     }
 
-    addItem('設定', () => { popup.hidden = false; });
+    // 続きから読む：オートセーブがある時だけ項目を出す（要件 06-7「なければ非表示」）
+    const auto = loadAutoSave();
+    if (auto) addItem('続きから読む', () => { resumeReading(auto); });
     addItem('栞をすべてクリア', () => {
         localStorage.removeItem(LS_BOOKMARKS);
         renderBookmarks();
     });
     addItem('既読をクリア', () => {
-        clearAllRead();
-        renderEpisodes(episodes, new Set());
+        clearReached();
+        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
     });
-    addItem('URLをコピー', async () => {
-        try {
-            await navigator.clipboard.writeText(location.href);
-            alert('URLをコピーしました');
-        } catch {
-            alert('コピーに失敗しました。URLを手動でコピーしてください。');
-        }
+    addItem('読破状況をクリア', () => {
+        clearReadStatus();
+        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
     });
-    addItem('Xで共有', () => {
-        window.open(
-            `https://x.com/intent/tweet?url=${encodeURIComponent(location.href)}`,
-            '_blank', 'noopener,noreferrer',
-        );
-    });
-    addItem('LINEで共有', () => {
-        window.open(
-            `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(location.href)}`,
-            '_blank', 'noopener,noreferrer',
-        );
-    });
+    addItem('設定', () => { popup.hidden = false; });
+    addItem('共有', () => { sharePopup.hidden = false; });
 
     // トグルボタン
     toggle.addEventListener('click', () => { isOpen() ? closeFab() : openFab(); });
@@ -500,9 +674,10 @@ function initFab(popup: HTMLElement, episodes: Episode[]): void {
         }
     });
 
-    // Escape: 設定ポップアップが開いていれば閉じる、それ以外は FAB をトグル
+    // Escape: 共有／設定ポップアップが開いていれば閉じる、それ以外は FAB をトグル
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
+        if (!sharePopup.hidden) { sharePopup.hidden = true; return; }
         if (!popup.hidden) { popup.hidden = true; return; }
         isOpen() ? closeFab() : openFab();
     });
@@ -629,16 +804,19 @@ async function main(): Promise<void> {
     }
 
     _episodes = episodes;
-    const reached = loadReachedSections();
-    renderEpisodes(episodes, reached);
+    renderEpisodes(episodes, loadReachedSections(), loadReadSections());
     renderBookmarks();
     loadChangelog('content');
     loadChangelog('site');
 
+    initResumeButton();
+
     const popup = document.getElementById('settings-popup');
-    if (popup) {
+    const sharePopup = document.getElementById('share-popup');
+    if (popup && sharePopup) {
         buildSettingsPopup(episodes);
-        initFab(popup, episodes);
+        buildSharePopup(sharePopup);
+        initFab(popup, sharePopup, episodes);
     }
 }
 
