@@ -20,9 +20,9 @@
       { "name": "セテ",
         "description": "メレム隊の隊員。冷静で抜け目がない。",
         "image": "vol1_セテ.png" },
-      { "name": "ヨナハ",
+      { "name": "ピアナ",
         "description": "メレム隊の隊員。怖がりな性格。",
-        "image": "vol1_ヨナハ.png" },
+        "image": "vol1_ピアナ.png" },
       { "name": "ミシュナ",
         "description": "ベティカの所属するミシュナ隊の隊長。ベティカと仲が良い。",
         "image": "vol1_ミシュナ.png" },
@@ -38,9 +38,9 @@
       { "name": "トルト",
         "description": "フォルの左腕を務める男。光輝学の知識を有している。",
         "image": "vol1_トルト.png" },
-      { "name": "ブロルバル",
+      { "name": "クレーヴァウ",
         "description": "自由都市エシュカを牛耳る商会の頭取。",
-        "image": "vol1_ブロルバル.png" }
+        "image": "vol1_クレーヴァウ.png" }
     ]
   }
 ]
