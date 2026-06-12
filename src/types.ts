@@ -1,5 +1,11 @@
 export type EpisodeSection = { id: number; published: boolean };
-export type Episode = { id: number; title: string; sections: EpisodeSection[] };
+/**
+ * Episode: episodes.json の ep エントリ。
+ * coverFile / coverPositionX は ep扉（タイトル画面）背景の指定。任意（省略時は従来挙動）。
+ *   coverFile      … 扉背景のファイル名。省略時 'title.avif'。常に epNN/ 配下から解決する
+ *   coverPositionX … 例 "30%"。縦長画面（スマホ）のみ background-position-x に反映。横長・未指定は中央
+ */
+export type Episode = { id: number; title: string; coverFile?: string; coverPositionX?: string; sections: EpisodeSection[] };
 export type EpisodesData = Episode[];
 
 /**

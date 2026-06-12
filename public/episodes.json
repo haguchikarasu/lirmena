@@ -2,6 +2,8 @@
   {
     "id": 1,
     "title": "太陽の行く先",
+    "coverFile": "title01.avif",
+    "coverPositionX": "20%",
     "sections": [
       { "id": 1, "published": true },
       { "id": 2, "published": true },
@@ -10,11 +12,30 @@
   },
   {
     "id": 2,
-    "title": "丘の上の影",
+    "title": "|翠昴晶《ペラティラ》探し -前編-",
+    "coverFile": "title02.avif",
+    "coverPositionX": "50%",
     "sections": [
       { "id": 1, "published": false },
       { "id": 2, "published": false },
-      { "id": 3, "published": false }
+      { "id": 3, "published": false },
+      { "id": 4, "published": false },
+      { "id": 5, "published": false }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "|翠昴晶《ペラティラ》探し -後編-",
+    "coverFile": "title03.avif",
+    "coverPositionX": "50%",
+    "sections": [
+      { "id": 1, "published": false },
+      { "id": 2, "published": false },
+      { "id": 3, "published": false },
+      { "id": 4, "published": false },
+      { "id": 5, "published": false },
+      { "id": 6, "published": false },
+      { "id": 7, "published": false }
     ]
   }
 ]

@@ -463,6 +463,14 @@ html.is-selecting #main-container {
   background-position: center;
 }
 
+/* 縦長画面（スマホ）では cover で左右が切れるため、ep ごとの横位置（title.ts が --cover-position-x を設定）で
+   切り出し位置を調整する。未設定なら center に解決＝従来どおり中央。横長は上のルール（中央）のまま。 */
+@media (orientation: portrait) {
+  #title-screen {
+    background-position: var(--cover-position-x, center) center;
+  }
+}
+
 #title-screen-header {
   display: flex;
   flex-direction: column;
