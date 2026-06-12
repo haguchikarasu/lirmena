@@ -315,6 +315,21 @@ html.at-opening #reading-anchor {
   letter-spacing: 10%;
   padding-top: 1em;
   padding-bottom: 1em;
+  /* 既定＝手のひらツール（pan.ts）：ドラッグ＝スクロールなのでテキスト選択は無効・カーソルは grab。
+     子のボタン（cursor:pointer）・読書点ノブ（cursor:grab）は要素側がより具体的なので勝つ。 */
+  user-select: none;
+  cursor: grab;
+}
+
+/* パン中（pan.ts が .is-panning を付与）：掴んでいることを示す grabbing カーソル。 */
+#main-container.is-panning {
+  cursor: grabbing;
+}
+
+/* Shift 押下中だけ選択ツール（pan.ts が <html>.is-selecting を付与）：テキスト選択を許可し Iビーム。 */
+html.is-selecting #main-container {
+  user-select: text;
+  cursor: text;
 }
 
 /* 離脱フェードは #transition-overlay 単独方式へ集約したため、本ルールは現状未使用（無害な残置）。
@@ -887,6 +902,10 @@ ruby rt {
 #reading-anchor.dragging .reading-anchor-line {
   opacity: 1;
 }
+/* ドラッグ中：掴んでいることを示す grabbing カーソル（手のひらツール） */
+#reading-anchor.dragging .reading-anchor-cap {
+  cursor: grabbing;
+}
 
 /* 三角形グリップ（掴み手）。box は透明な広め当たり判定、三角形本体は ::before の CSS ボーダー */
 .reading-anchor-cap {
@@ -896,7 +915,7 @@ ruby rt {
   padding: 0.4rem;            /* 透明な当たり判定の余白（掴みやすさ） */
   background: transparent;
   border: 0;
-  cursor: ew-resize;
+  cursor: grab;               /* 手のひらツール（pan.ts と統一）：掴んで左右へ動かす */
   pointer-events: auto;
   touch-action: none;         /* ドラッグ中のブラウザスクロール／ジェスチャを抑止 */
   line-height: 0;

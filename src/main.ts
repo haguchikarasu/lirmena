@@ -22,6 +22,7 @@
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
+ *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
  *   bookmark : init(): void / setAutoRecordSuppressed(suppressed: boolean): void / recordReached(ep, sec): void
  *              clearSlots(): void / clearRead(): void
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
@@ -30,6 +31,8 @@
  *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
  * 【注意】wheel 補正（deltaY → scrollLeft 変換）は #main-container に1度だけ登録する。
  *         writing-mode: vertical-rl では deltaY（正＝下スクロール）を反転して横スクロールに変換する。
+ *         加えて pan.init() でマウス手のひらツール（左ドラッグ横スクロール）を有効化する（微調整＝ホイール／
+ *         大量移動＝ドラッグの棲み分け）。スクロールは scrollLeft 直接更新で既存 fan-out に自動追従する。
  * 【Phase 2】bookmark.init() で旧データ移行を起動。外部サイト/直接アクセス（オートセーブ未一致）でない限り
  *         recordReached() で自 sec を到達記録する（外部流入時は setAutoRecordSuppressed(true) で到達・読了・オートセーブを抑止）。
  *         render 後に reader.init() → bg.subscribe(reader.handleScroll) を結線し、スクロール由来の通知を
@@ -56,6 +59,7 @@ import * as menu from './menu';
 import * as settings from './settings';
 import * as tutorial from './tutorial';
 import * as opening from './opening';
+import * as pan from './pan';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
@@ -80,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   2. loader.loadEpisodes() で episodes.json を取得し、自 sec が公開済みか検証
  *   3. state.init(data, { ep, sec }) で現在位置を確定
  *   4. characters.json / volumes.json と本文 txt を取得・パース
- *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）
+ *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）し、pan.init() で手のひらツールを有効化
  *   6. settings / bookmark / nav / menu を初期化（bookmark.init で旧データ移行）。遷移元を判定し、外部サイト/
  *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
  *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
@@ -143,6 +147,8 @@ async function _init(): Promise<void> {
         e.preventDefault();
         mainContainer.scrollBy({ left: -e.deltaY * WHEEL_SCROLL_MULTIPLIER, behavior: 'smooth' });
     }, { passive: false });
+    // マウス手のひらツール（左ドラッグ横スクロール）。ホイール（微調整）と棲み分ける大量移動の手段。
+    pan.init();
 
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),
