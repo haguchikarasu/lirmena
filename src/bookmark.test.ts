@@ -11,7 +11,11 @@
  *   （init() が module 内 state を localStorage から再構築するため、これでクリーンに戻る）。
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { init, getReached, getRead, getBookmarks } from './bookmark';
+import {
+    init, getReached, getRead, getBookmarks,
+    setAutoRecordSuppressed, recordReached, recordRead, saveAutoSave, getAutoSave, addBookmark,
+} from './bookmark';
+import type { SceneAddress } from './types';
 
 const seed = (key: string, value: unknown) =>
     localStorage.setItem(key, JSON.stringify(value));
@@ -88,6 +92,49 @@ describe('移行は一度だけ（schemaVersion 番兵）', () => {
         localStorage.removeItem('reached');
         init(); // 2回目: schemaVersion=2 なので移行はスキップされる
         expect(getReached()).not.toContain('09-09');
+    });
+});
+
+describe('自動記録の抑止（外部サイト/直接アクセス）', () => {
+    // 仕様: setAutoRecordSuppressed(true) の間、到達・読了・オートセーブの自動記録は no-op になる。
+    //   栞追加（明示操作）は抑止対象外。init() は抑止を false に戻す。
+    const addr: SceneAddress = { ep: 1, sec: 2, scene: 3 };
+
+    it('抑止中は recordReached / recordRead / saveAutoSave が何も記録しない', () => {
+        init();
+        setAutoRecordSuppressed(true);
+        recordReached(1, 1);
+        recordRead(2, 1);
+        saveAutoSave(3, 1, 100);
+        expect(getReached()).toEqual([]);
+        expect(getRead()).toEqual([]);
+        expect(getAutoSave()).toBeNull();
+    });
+
+    it('抑止を解除すると通常どおり記録する', () => {
+        init();
+        setAutoRecordSuppressed(true);
+        recordReached(1, 1);
+        setAutoRecordSuppressed(false);
+        recordReached(1, 1);
+        saveAutoSave(1, 1, 50);
+        expect(getReached()).toContain('01-01');
+        expect(getAutoSave()).toMatchObject({ ep: 1, sec: 1, scrollLeft: 50 });
+    });
+
+    it('抑止中でも栞追加（明示操作）は保存される', () => {
+        init();
+        setAutoRecordSuppressed(true);
+        addBookmark(addr, 200);
+        expect(getBookmarks()).toHaveLength(1);
+        expect(getBookmarks()[0]).toMatchObject({ ep: 1, sec: 2, scene: 3, scrollLeft: 200 });
+    });
+
+    it('init() は抑止フラグを false に戻す（前ページの抑止を持ち越さない）', () => {
+        setAutoRecordSuppressed(true);
+        init(); // 新しいページのロード相当
+        recordReached(5, 5);
+        expect(getReached()).toContain('05-05');
     });
 });
 

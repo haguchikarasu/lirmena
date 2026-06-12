@@ -29,6 +29,13 @@
  *
  * セクション既読の判定ロジックは持たない。目次（index.ts）が "reached" を引くだけ。
  *
+ * ── 外部サイト/直接アクセスでの自動記録抑止 ──────────────────────────────────────
+ * recordReached / recordRead / saveAutoSave は _autoRecordSuppressed が true の間 no-op になる。
+ * main.ts が起動時に遷移元を判定し setAutoRecordSuppressed() で設定する：外部サイト・直接アクセス
+ * （referrer が同一オリジンでない）で開いた本文ページは、SNS 共有リンク等を「ちょっと見ただけ」で既読化／
+ * オートセーブ上書きされるのを防ぐため記録しない。ただしオートセーブが当 sec を指す＝読みかけの再開なら
+ * 記録を有効化する（判定は main.ts 側）。栞追加（addBookmark）など明示操作は抑止対象外。
+ *
  * ── Phase 2 配線状況 ─────────────────────────────────────────────────────────────
  * 記録系（recordReached / recordRead / addBookmark / saveAutoSave / writePendingJump）を本フェーズで配線。
  * 消費系（getAutoSave / readPendingJump / clearPendingJump）は API を用意するのみで、利用は Phase 3
@@ -62,6 +69,10 @@ let _reached: Set<SecKey> = new Set();
 let _read: Set<SecKey> = new Set();
 let _bookmarks: BookmarkEntry[] = [];
 
+// 自動記録（到達・読了・オートセーブ）の抑止フラグ。外部サイト/直接アクセスで開いた本文ページで立てる
+// （main.ts が遷移元を判定して設定）。栞追加（addBookmark）など明示操作は対象外。既定は false（記録する）。
+let _autoRecordSuppressed = false;
+
 // ep / sec から "01-02" 形式の SecKey を生成する
 function secKey(ep: number, sec: number): SecKey {
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -75,6 +86,7 @@ export function init(): void {
     _reached = _loadStringSet(KEY_REACHED);
     _read = _loadStringSet(KEY_READ);
     _bookmarks = _loadBookmarks();
+    _autoRecordSuppressed = false; // 抑止は main.ts が init 後に setAutoRecordSuppressed() で明示設定する
 
     if (localStorage.getItem(KEY_SCHEMA_VERSION) !== SCHEMA_VERSION) {
         _migrate();
@@ -82,11 +94,19 @@ export function init(): void {
     }
 }
 
+// 自動記録（到達・読了・オートセーブ）の抑止を設定する。main.ts が起動時に遷移元を判定して呼ぶ。
+// true の間は recordReached / recordRead / saveAutoSave が no-op になる（栞追加 addBookmark は対象外）。
+// setAutoRecordSuppressed(suppressed: boolean): void
+export function setAutoRecordSuppressed(suppressed: boolean): void {
+    _autoRecordSuppressed = suppressed;
+}
+
 // ── 既読（到達／読了）──────────────────────────────────────────────
 
 // 当 sec を到達として記録する。main.ts が本文ページのロード時に呼ぶ。
 // recordReached(ep: number, sec: number): void
 export function recordReached(ep: number, sec: number): void {
+    if (_autoRecordSuppressed) return;
     if (_addTo(_reached, secKey(ep, sec))) _persistSet(KEY_REACHED, _reached);
 }
 
@@ -94,6 +114,7 @@ export function recordReached(ep: number, sec: number): void {
 // nav.ts が sec 末尾到達（#btn-next 表示）時に呼ぶ。
 // recordRead(ep: number, sec: number): void
 export function recordRead(ep: number, sec: number): void {
+    if (_autoRecordSuppressed) return;
     const key = secKey(ep, sec);
     let changed = _addTo(_read, key);
     if (changed) _persistSet(KEY_READ, _read);
@@ -160,6 +181,7 @@ export function clearSlots(): void {
 // 現在 sec の読書位置を最新1件だけ上書き保存する。スロットルは呼び出し元（reader.ts）が行う。
 // saveAutoSave(ep: number, sec: number, scrollLeft: number): void
 export function saveAutoSave(ep: number, sec: number, scrollLeft: number): void {
+    if (_autoRecordSuppressed) return;
     const entry: AutoSaveEntry = { ep, sec, scrollLeft, savedAt: Date.now() };
     localStorage.setItem(KEY_AUTOSAVE, JSON.stringify(entry));
 }

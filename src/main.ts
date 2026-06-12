@@ -22,14 +22,16 @@
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
- *   bookmark : init(): void / recordReached(ep, sec): void / clearSlots(): void / clearRead(): void
+ *   bookmark : init(): void / setAutoRecordSuppressed(suppressed: boolean): void / recordReached(ep, sec): void
+ *              clearSlots(): void / clearRead(): void
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
  * 【被依存】なし
  * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
  *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
  * 【注意】wheel 補正（deltaY → scrollLeft 変換）は #main-container に1度だけ登録する。
  *         writing-mode: vertical-rl では deltaY（正＝下スクロール）を反転して横スクロールに変換する。
- * 【Phase 2】bookmark.init() で旧データ移行を起動し recordReached() で自 sec を到達記録。
+ * 【Phase 2】bookmark.init() で旧データ移行を起動。外部サイト/直接アクセス（オートセーブ未一致）でない限り
+ *         recordReached() で自 sec を到達記録する（外部流入時は setAutoRecordSuppressed(true) で到達・読了・オートセーブを抑止）。
  *         render 後に reader.init() → bg.subscribe(reader.handleScroll) を結線し、スクロール由来の通知を
  *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
@@ -79,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   3. state.init(data, { ep, sec }) で現在位置を確定
  *   4. characters.json / volumes.json と本文 txt を取得・パース
  *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）
- *   6. settings / bookmark / nav / menu を初期化（bookmark.init で旧データ移行）→ 自 sec を到達記録
+ *   6. settings / bookmark / nav / menu を初期化（bookmark.init で旧データ移行）。遷移元を判定し、外部サイト/
+ *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
  *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
  *   8. bg.init() で #bg-stack のクロスフェードレイヤーを構築
  *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd → オートセーブ → sec 先頭）
@@ -145,7 +148,12 @@ async function _init(): Promise<void> {
         onClearRead: () => bookmark.clearRead(),
     });
     bookmark.init();
-    bookmark.recordReached(ep, sec);
+    // 外部サイト/直接アクセスで開いた本文ページは「到達・オートセーブ」を記録しない（SNS 共有リンク等を
+    // ちょっと見ただけで既読化／オートセーブ上書きされるのを防ぐ）。ただしオートセーブが当 sec を指す＝
+    // 読みかけの再開なら記録を有効化する。内部移動（同一オリジンからの遷移）は従来どおり常に記録する。
+    const suppressAutoRecord = _isExternalEntry() && !_isResuming(ep, sec);
+    bookmark.setAutoRecordSuppressed(suppressAutoRecord);
+    if (!suppressAutoRecord) bookmark.recordReached(ep, sec);
     nav.init();
     menu.init(charactersData, volumesData);
 
@@ -226,6 +234,31 @@ function _scrollToScene(scene: number): void {
     const scenes = document.querySelectorAll<HTMLElement>('#scene-content .scene');
     const el = scenes[scene - 1];
     if (el) el.scrollIntoView({ inline: 'start', block: 'nearest' });
+}
+
+/**
+ * 遷移元が外部サイト（または直接アクセス・ブラウザブックマーク）かを判定する。
+ * document.referrer が自サイト（同一オリジン）でなければ外部流入とみなす。
+ * referrer が空（直接アクセス・ブックマーク・referrer 非送出）も外部扱いとする。
+ */
+function _isExternalEntry(): boolean {
+    const ref = document.referrer;
+    if (!ref) return true;
+    try {
+        return new URL(ref).origin !== location.origin;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * オートセーブが当ページ（ep/sec）を指しているか＝直前まで読んでいたセクションへ戻ってきたか。
+ * 外部/直接アクセス時に「読みかけの再開」と判定して記録を有効化するために使う（_restoreInitialScroll が
+ * 同じオートセーブでスクロール位置も復元するため、途中再開できる条件と記録を有効化する条件が一致する）。
+ */
+function _isResuming(ep: number, sec: number): boolean {
+    const auto = bookmark.getAutoSave();
+    return auto !== null && auto.ep === ep && auto.sec === sec;
 }
 
 /**
