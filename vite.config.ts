@@ -43,7 +43,10 @@ export default defineConfig({
   plugins: [devShellBundles()],
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
   // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
-  server: { host: true },
+  // port を固定し strictPort で空きポートへの自動ずらしを禁止する。
+  // lirmena/ と lirmena-draft/ で同じ番号にしてあり、dev の URL を常に一定にする
+  // （両者を同時起動した場合は後発が起動失敗する＝番号は常に固定）。
+  server: { host: true, port: 5173, strictPort: true },
   build: {
     rollupOptions: {
       input: {
