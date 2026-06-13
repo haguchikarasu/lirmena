@@ -15,13 +15,18 @@
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
   <link rel="stylesheet" href="/lirmena/assets/main.css" />
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY"></script>
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビューは送らない） -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-D750N4MKZY');
+    if (location.hostname === 'haguchikarasu.github.io') {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
+      document.head.appendChild(s);
+      gtag('js', new Date());
+      gtag('config', 'G-D750N4MKZY');
+    }
   </script>
 </head>
 <body data-ep="1" data-sec="3">
