@@ -21,6 +21,10 @@
  * 選択ツールへの切り替え（押しっぱなし・要件 06-1）:
  *   Shift の押下状態を <html>.is-selecting に反映するだけ（カーソルと user-select の切り替えは CSS）。
  *   Shift+ドラッグはネイティブのテキスト選択に委ねる（パンを開始しない）。
+ *
+ * 背景鑑賞モード（immersive.ts・要件 06-3）:
+ *   <html>.is-immersive の間はパンを開始しない。鑑賞モード中は CSS が #main-container を pointer-events:none に
+ *   するため本リスナーは元々発火しないが、明示ガードで二重に担保する（is-immersive クラスを読むだけ＝疎結合）。
  */
 
 // パン開始時に「読ませない／反応させない」インタラクティブ要素のセレクタ。
@@ -52,6 +56,8 @@ export function init(): void {
 // 押下を判定し、パン条件を満たすときだけドラッグ追従スクロールを開始する。
 // _onPointerDown(container: HTMLElement, e: PointerEvent): void
 function _onPointerDown(container: HTMLElement, e: PointerEvent): void {
+    // 背景鑑賞モード中はパンしない（CSS の pointer-events:none で通常届かないが明示的に弾く）。
+    if (document.documentElement.classList.contains('is-immersive')) return;
     if (!shouldPanFromInput(e)) return;
     // インタラクティブ要素（端ボタン・FAB・開幕アフォーダンス・読書点ノブ）の上ではパンしない。
     if (e.target instanceof Element && e.target.closest(INTERACTIVE_SELECTOR)) return;

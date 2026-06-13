@@ -23,6 +23,7 @@
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
+ *   immersive: init(): void（背景鑑賞モード。タップ/クリック・Esc で <html>.is-immersive をトグル）
  *   bookmark : init(): void / setAutoRecordSuppressed(suppressed: boolean): void / recordReached(ep, sec): void
  *              clearSlots(): void / clearRead(): void
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
@@ -60,6 +61,7 @@ import * as settings from './settings';
 import * as tutorial from './tutorial';
 import * as opening from './opening';
 import * as pan from './pan';
+import * as immersive from './immersive';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   2. loader.loadEpisodes() で episodes.json を取得し、自 sec が公開済みか検証
  *   3. state.init(data, { ep, sec }) で現在位置を確定
  *   4. characters.json / volumes.json と本文 txt を取得・パース
- *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）し、pan.init() で手のひらツールを有効化
+ *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）し、pan.init() で手のひらツール・immersive.init() で背景鑑賞モードを有効化
  *   6. settings / bookmark / nav / menu を初期化（bookmark.init で旧データ移行）。遷移元を判定し、外部サイト/
  *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
  *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
@@ -149,6 +151,8 @@ async function _init(): Promise<void> {
     }, { passive: false });
     // マウス手のひらツール（左ドラッグ横スクロール）。ホイール（微調整）と棲み分ける大量移動の手段。
     pan.init();
+    // 背景鑑賞モード（読書エリアのタップ/クリック・Esc で <html>.is-immersive をトグル）。本文・クロムを伏せて背景本来の色を見せる。
+    immersive.init();
 
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),
