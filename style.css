@@ -625,13 +625,14 @@ html.is-selecting #main-container {
   text-combine-upright: all;
 }
 
-/* 傍点（renderer.ts が <em> で出力）。縦書きでは字の右側に黒丸圏点を振る（over right＝縦書きで右側）。
-   マークは dot（小さい黒丸 •＝カクヨム相当のサイズ）。circle（大きい黒丸 ●）は字に対して大きすぎる。 */
-#scene-content em {
-  font-style: normal;
-  -webkit-text-emphasis-style: filled dot;
-  text-emphasis-style: filled dot;
-  text-emphasis-position: over right;
+/* 傍点：renderer.ts が <em class="bouten"> 内に1文字ずつ <ruby>字<rt>•</rt></ruby> を生成。
+   縦書きでルビと同じく字の右に小さい黒丸が付く。text-emphasis は傍点のある列だけ列幅を不自然に
+   広げ・マークサイズも制御できないため不使用。rt を小さくするほど字送りへの影響も小さくなる。 */
+#scene-content em.bouten {
+  font-style: normal; /* <em> 既定の斜体を打ち消す */
+}
+#scene-content em.bouten rt {
+  font-size: 0.4em; /* 傍点 • のサイズ＝字送りへの影響。要視確認の微調整点 */
 }
 
 /* ルビ */

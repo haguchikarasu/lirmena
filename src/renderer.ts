@@ -15,7 +15,8 @@
  *   - TextNode[] を <p> 要素に分割して変換する：
  *       { type: "text"     }  → テキストノード（空白・連続スペースを保持）
  *       { type: "ruby"     }  → <ruby>base<rt>rt</rt></ruby>
- *       { type: "emphasis" }  → <em>value</em>（text-emphasis で黒丸傍点。CSS は #scene-content em）
+ *       { type: "emphasis" }  → <em class="bouten"> 内に1文字ずつ <ruby>字<rt>•</rt></ruby>（• = U+2022）
+ *                               （字の右に小さい黒丸。text-emphasis は列幅を広げ・サイズ制御不可のため不使用）
  *       { type: "tcy"      }  → <span class="tcy">value</span>（text-combine-upright）
  *       { type: "br"       }  → <p> の境界（\n 1つ → </p><p>）
  *       { type: "blank"    }  → <p> の境界＋空行（\n\n → </p><br><p>）
@@ -71,8 +72,19 @@ function buildNodes(nodes: TextNode[]): Node[] {
                 break;
             }
             case 'emphasis': {
+                // 傍点：1文字ずつ <ruby>字<rt>•</rt></ruby> にして字の右へ小さい黒丸を載せる。
+                // 既存ルビと同じ字送りに揃い、text-emphasis のような列幅増加を避けられる。
+                // rt の • は装飾なので aria-hidden で読み上げから除外し、<em> で強調の意味だけ残す。
                 const em = document.createElement('em');
-                em.textContent = node.value;
+                em.className = 'bouten';
+                for (const ch of [...node.value]) {
+                    const ruby = document.createElement('ruby');
+                    const rt = document.createElement('rt');
+                    rt.textContent = '•'; // • U+2022 BULLET
+                    rt.setAttribute('aria-hidden', 'true');
+                    ruby.append(document.createTextNode(ch), rt);
+                    em.appendChild(ruby);
+                }
                 p.appendChild(em);
                 break;
             }
