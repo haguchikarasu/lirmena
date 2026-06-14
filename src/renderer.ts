@@ -13,11 +13,12 @@
  *   - writing-mode は #scene-content から継承（vertical-rl）。各シーン／各段落はブロックとして
  *     右→左へ連続配置され、スクロールで読み進める
  *   - TextNode[] を <p> 要素に分割して変換する：
- *       { type: "text"  }  → テキストノード（空白・連続スペースを保持）
- *       { type: "ruby"  }  → <ruby>base<rt>rt</rt></ruby>
- *       { type: "tcy"   }  → <span class="tcy">value</span>（text-combine-upright）
- *       { type: "br"    }  → <p> の境界（\n 1つ → </p><p>）
- *       { type: "blank" }  → <p> の境界＋空行（\n\n → </p><br><p>）
+ *       { type: "text"     }  → テキストノード（空白・連続スペースを保持）
+ *       { type: "ruby"     }  → <ruby>base<rt>rt</rt></ruby>
+ *       { type: "emphasis" }  → <em>value</em>（text-emphasis で黒丸傍点。CSS は #scene-content em）
+ *       { type: "tcy"      }  → <span class="tcy">value</span>（text-combine-upright）
+ *       { type: "br"       }  → <p> の境界（\n 1つ → </p><p>）
+ *       { type: "blank"    }  → <p> の境界＋空行（\n\n → </p><br><p>）
  *
  * タイトル画面の描画は担当しない（title.ts の責務）。初期スクロール位置の決定も担当しない（main.ts の責務）。
  */
@@ -67,6 +68,12 @@ function buildNodes(nodes: TextNode[]): Node[] {
                 rt.textContent = node.rt;
                 ruby.append(document.createTextNode(node.base), rt);
                 p.appendChild(ruby);
+                break;
+            }
+            case 'emphasis': {
+                const em = document.createElement('em');
+                em.textContent = node.value;
+                p.appendChild(em);
                 break;
             }
             case 'tcy': {

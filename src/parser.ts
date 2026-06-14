@@ -5,11 +5,12 @@
  * 依存: types.ts (import type のみ)
  *
  * TextNode の種別:
- *   { type: "text";  value: string }             平文
- *   { type: "ruby";  base: string; rt: string }  |漢字《かんじ》
- *   { type: "tcy";   value: string }             ^17^ （縦中横）
- *   { type: "br" }                               段落区切り（\n 1つ）
- *   { type: "blank" }                            段落間空行（\n\n）
+ *   { type: "text";     value: string }            平文
+ *   { type: "ruby";     base: string; rt: string } |漢字《かんじ》
+ *   { type: "emphasis"; value: string }            《《傍点対象》》（黒丸傍点・カクヨム互換）
+ *   { type: "tcy";      value: string }            ^17^ （縦中横）
+ *   { type: "br" }                                 段落区切り（\n 1つ）
+ *   { type: "blank" }                              段落間空行（\n\n）
  *
  * Scene.content は TextNode[] として確定する。
  * types.ts 側は unknown のまま。renderer.ts は TextNode[] にキャストして使う。
@@ -18,9 +19,10 @@
 import type { Scene } from "./types";
 
 export type TextNode =
-  | { type: "text";  value: string }
-  | { type: "ruby";  base: string; rt: string }
-  | { type: "tcy";   value: string }
+  | { type: "text";     value: string }
+  | { type: "ruby";     base: string; rt: string }
+  | { type: "emphasis"; value: string }
+  | { type: "tcy";      value: string }
   | { type: "br" }
   | { type: "blank" };
 
@@ -79,22 +81,27 @@ export function parse(text: string): Scene[] {
 }
 
 // raw テキストを TextNode[] に変換する
-// - |base《rt》 → ruby ノード
+// - |base《rt》 → ruby ノード（先頭の | で識別。単一ギュメ）
+// - 《《value》》 → emphasis ノード（傍点。二重ギュメ。| 不要）
 // - ^value^ → tcy ノード
 // - \n\n → blank ノード（段落間空行）
 // - \n → br ノード（段落区切り）
+// - 単独の 《 》 → text ノードへフォールバック（リテラル表示）
 // - それ以外 → text ノード（隣接するものはマージ）
 // tokenize(raw: string): TextNode[]
 function tokenize(raw: string): TextNode[] {
   const nodes: TextNode[] = [];
-  // 優先順: ruby → tcy → blank(\n\n) → br(\n) → 平文バッチ → 単独の | ^
-  const re = /\|([^《\n]+)《([^》\n]+)》|\^([^^]+)\^|\n\n|\n|[^|^\n]+|[|^]/g;
+  // 優先順: ruby → emphasis(《《》》) → tcy → blank(\n\n) → br(\n) → 平文バッチ → 単独の | ^ 《 》
+  // 平文バッチから 《 》 を除外し、二重ギュメの傍点を平文より優先してマッチする（ruby・傍点・リテラルの曖昧性解消）
+  const re = /\|([^《\n]+)《([^》\n]+)》|《《([^》\n]+)》》|\^([^^]+)\^|\n\n|\n|[^|^《》\n]+|[|^《》]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw)) !== null) {
     if (m[1] !== undefined) {
       nodes.push({ type: "ruby", base: m[1], rt: m[2] });
     } else if (m[3] !== undefined) {
-      nodes.push({ type: "tcy", value: m[3] });
+      nodes.push({ type: "emphasis", value: m[3] });
+    } else if (m[4] !== undefined) {
+      nodes.push({ type: "tcy", value: m[4] });
     } else if (m[0] === "\n\n") {
       nodes.push({ type: "blank" });
     } else if (m[0] === "\n") {

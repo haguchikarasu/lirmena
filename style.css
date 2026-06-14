@@ -625,6 +625,14 @@ html.is-selecting #main-container {
   text-combine-upright: all;
 }
 
+/* 傍点（renderer.ts が <em> で出力）。縦書きでは字の右側に黒丸圏点を振る（over right＝縦書きで右側） */
+#scene-content em {
+  font-style: normal;
+  -webkit-text-emphasis-style: filled circle;
+  text-emphasis-style: filled circle;
+  text-emphasis-position: over right;
+}
+
 /* ルビ */
 ruby rt {
   font-size: 0.4em;
