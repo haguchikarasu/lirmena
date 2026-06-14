@@ -6,6 +6,7 @@
  *
  * 機能:
  *   - episodes.json を fetch して ep・sec 一覧を動的生成（sec01 のリンク先はタイトルページ [ep]-00.html、sec02 以降は本文ページ）
+ *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts と同一ロジックの inline 複製。独立方針のため）
  *   - 到達セット・読了セット（sec 単位）からセクションの既読/読破を表示（判定ロジックは持たず引くだけ）
  *     既読（到達）＝アクセント色／読破（読了）＝チェック ✓。両セットは独立（読破のみも起こり得る）
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（最上段・ジャンプ＋削除）、スロット1〜3（空き含む常時表示・個別クリア・ジャンプ）
@@ -77,6 +78,27 @@ const CHANGELOG_INITIAL_COUNT = 3;
 // 数値を2桁ゼロ埋め文字列に変換する
 // pad(n: number): string
 const pad = (n: number) => String(n).padStart(2, '0');
+
+// |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
+// src/ruby.ts の applyRuby と同一ロジック。目次ページは src/ を import しない独立方針のため inline 複製する
+// （localStorage キーと同じく、変更時は両側を合わせること）。innerHTML 不使用で XSS 安全。
+// applyRuby(text: string, el: HTMLElement): void
+function applyRuby(text: string, el: HTMLElement): void {
+    const re = /\|([^《\n]+)《([^》\n]+)》/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const ruby = document.createElement('ruby');
+        ruby.appendChild(document.createTextNode(m[1]));
+        const rt = document.createElement('rt');
+        rt.textContent = m[2];
+        ruby.appendChild(rt);
+        el.appendChild(ruby);
+        last = m.index + m[0].length;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
 
 // ----- localStorage ヘルパー -----
 
@@ -241,7 +263,8 @@ function renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<str
 
         const titleEl = document.createElement('p');
         titleEl.className = 'idx-ep-title';
-        titleEl.textContent = `第${ep.id}話 ${ep.title}`;
+        // 接頭辞「第N話 」はルビ記法を含まず素のテキスト、ep.title 内の |漢字《かんじ》 のみ <ruby> 化される。
+        applyRuby(`第${ep.id}話 ${ep.title}`, titleEl);
         epEl.appendChild(titleEl);
 
         const secListEl = document.createElement('div');
@@ -315,7 +338,8 @@ function buildSlotCard(slotLabel: string, locText: string, dateText: string, act
 
     const locEl = document.createElement('p');
     locEl.className = 'idx-bm-loc';
-    locEl.textContent = locText;
+    // locText 内の ep タイトルの |漢字《かんじ》 を <ruby> 展開する（「第N話 」「 - SS」等の付加文字は素通り）。
+    applyRuby(locText, locEl);
     info.appendChild(locEl);
 
     if (dateText) {

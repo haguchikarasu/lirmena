@@ -4,7 +4,7 @@
  *       <body> の data-ep から自 ep を確定し、ep タイトル・背景画像・変更履歴を描画、
  *       3ボタン（本文を読む／戻る／目次に戻る）の遷移を結線する。
  * export: なし（エントリーポイント）
- * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）/ transition.ts（離脱・到着フェード）
+ * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）/ transition.ts（離脱・到着フェード）/ ruby.ts（ep タイトルのルビ展開）
  * 被依存: なし
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
@@ -26,6 +26,7 @@ import * as state from './state';
 import * as loader from './loader';
 import * as bookmark from './bookmark';
 import * as transition from './transition';
+import { applyRuby } from './ruby';
 import type { ChangelogEntry, EpisodesData } from './types';
 
 const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
@@ -76,7 +77,11 @@ function _readEp(): number | null {
 /** ep タイトルと背景画像を反映する */
 function _renderTitle(ep: number): void {
     const titleEl = document.querySelector<HTMLElement>('#title-screen-ep-title');
-    if (titleEl) titleEl.textContent = state.getEpTitle(ep) ?? '';
+    if (titleEl) {
+        // ep タイトルの |漢字《かんじ》 を <ruby> 展開する（素のテキストはそのまま）。
+        titleEl.replaceChildren();
+        applyRuby(state.getEpTitle(ep) ?? '', titleEl);
+    }
 
     const titleScreen = document.querySelector<HTMLElement>('#title-screen');
     if (titleScreen) {

@@ -2,7 +2,7 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
  * export: init(characters: CharactersData, volumes: VolumesData): void
- * 依存: state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts
+ * 依存: state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
@@ -47,6 +47,7 @@ import * as bookmark from './bookmark';
 import * as settings from './settings';
 import * as transition from './transition';
 import * as tutorial from './tutorial';
+import { applyRuby } from './ruby';
 import type { CharactersData, VolumesData } from './types';
 
 let _toggle: HTMLButtonElement;
@@ -281,25 +282,6 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
-// |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
-// _applyRuby(text: string, el: HTMLElement): void
-function _applyRuby(text: string, el: HTMLElement): void {
-    const re = /\|([^《\n]+)《([^》\n]+)》/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-        if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
-        const ruby = document.createElement('ruby');
-        ruby.appendChild(document.createTextNode(m[1]));
-        const rt = document.createElement('rt');
-        rt.textContent = m[2];
-        ruby.appendChild(rt);
-        el.appendChild(ruby);
-        last = m.index + m[0].length;
-    }
-    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
-}
-
 // 現在 ep が属する巻のキャラクターカードを生成し、ポップアップを表示する。
 // 巻が特定できない場合は巻1にフォールバックする。
 // _openCharactersPopup(): void
@@ -328,11 +310,11 @@ function _openCharactersPopup(): void {
 
         const name = document.createElement('p');
         name.className = 'character-name';
-        _applyRuby(chara.name, name);
+        applyRuby(chara.name, name);
 
         const desc = document.createElement('p');
         desc.className = 'character-description';
-        _applyRuby(chara.description, desc);
+        applyRuby(chara.description, desc);
 
         info.append(name, desc);
         card.appendChild(info);
