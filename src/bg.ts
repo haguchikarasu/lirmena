@@ -35,7 +35,7 @@
 import type { ScrollNotification, BgLayerSpec } from './types';
 
 // ── CONFIG（実機で調整する定数）─────────────────────────────────────
-const CROSSFADE_PX = 2*32*3;          // クロスフェード窓の幅(px)。境界 ±CROSSFADE_PX/2 だけで切替。約1〜2行分（既定フォントで1行≒32px）
+const CROSSFADE_PX = 32*3;          // クロスフェード窓の幅(px)。境界 ±CROSSFADE_PX/2 だけで切替。約1〜2行分（既定フォントで1行≒32px）
 // クロスフェード窓の境界基準。現在シーン導出（computeP→deriveCurrentScene）は本定数に依存せず常に中心ベース。
 //   'scene-edge'（新・既定）  : シーンコンテナの境界辺＝@@BG@@ 位置を境界とし、窓が BG タグ前後に広がる
 //   'center-midpoint'（旧）   : 隣接シーン中心の中点を境界とし、窓が BG タグ手前に寄る
