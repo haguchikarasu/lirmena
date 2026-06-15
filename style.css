@@ -632,12 +632,12 @@ html.is-selecting #main-container {
   font-style: normal; /* <em> 既定の斜体を打ち消す */
 }
 #scene-content em.bouten rt {
-  font-size: 0.4em; /* 傍点 • のサイズ＝字送りへの影響。要視確認の微調整点 */
+  font-size: 0.5em; /* 傍点 • のサイズ＝字送りへの影響。要視確認の微調整点 */
 }
 
 /* ルビ */
 ruby rt {
-  font-size: 0.4em;
+  font-size: 0.5em;
 }
 
 
