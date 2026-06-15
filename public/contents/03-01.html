@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<!-- class="at-opening"：開幕（本文先頭の黒い余白）を初期状態に。opening.ts が本文に入ると外す -->
+<html lang="ja" class="at-opening">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報（作品名で静的固定・両ページ共通。og:image は public/ogp.png、og:description は設定しない。
+       theme-color は CSS 変数 --theme-color と2箇所で管理） -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>輝くもの《リルメナ》</title>
+  <link rel="stylesheet" href="/lirmena/assets/main.css" />
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビューは送らない） -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    if (location.hostname === 'haguchikarasu.github.io') {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
+      document.head.appendChild(s);
+      gtag('js', new Date());
+      gtag('config', 'G-D750N4MKZY');
+    }
+  </script>
+</head>
+<body data-ep="3" data-sec="1">
+  <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
+  <p id="loading" role="status">読み込み中</p>
+
+  <!-- 背景レイヤースタック（bg.ts が .bg-layer を生成しクロスフェードする。presentational） -->
+  <div id="bg-stack" aria-hidden="true"></div>
+
+  <!-- メインコンテナ（本文ページの読書エリア A/C/D） -->
+  <main id="main-container">
+    <nav id="btn-container-start" class="btn-container">
+      <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
+    </nav>
+    <article id="scene-content" hidden></article>
+    <nav id="btn-container-end" class="btn-container">
+      <button id="btn-next" type="button" aria-label="次へ" tabindex="1">‹</button>
+    </nav>
+  </main>
+
+  <!-- 進捗バー（progress.ts が操作。presentational・Phase 2 で配線） -->
+  <div id="progress-bar" aria-hidden="true" hidden>
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- 開幕アフォーダンス（opening.ts が操作。<html>.at-opening のときだけ CSS で表示） -->
+  <aside id="opening-affordance">
+    <p id="opening-label"></p>
+    <button id="opening-start" type="button">‹ 読み進める</button>
+    <button id="opening-back" type="button">もどる ›</button>
+  </aside>
+
+  <!-- 右下ナビゲーションメニュー（menu.ts が操作） -->
+  <nav id="menu-container">
+    <button id="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
+    <div id="menu-panel" hidden></div>
+  </nav>
+
+  <!-- 設定ポップアップ（settings.ts が操作） -->
+  <section id="settings-popup" hidden role="dialog" aria-label="設定"></section>
+
+  <!-- 共有ポップアップ（menu.ts が操作） -->
+  <section id="share-popup" hidden role="dialog" aria-label="共有"></section>
+
+  <!-- 栞ポップアップ：スロット選択（menu.ts が操作） -->
+  <section id="bookmark-popup" hidden role="dialog" aria-label="栞に保存"></section>
+
+  <!-- 読み方（読書点）チュートリアル：初回ガイドの画像カルーセル（カードをクリックで次へ／最後でクリックすると閉じる。tutorial.ts が
+       step を切替）。各画像にキャラクターが描き込まれているため、説明文(.tutorial-text)はキャラに被らない縦中央バンドへ重ねる -->
+  <section id="tutorial-popup" hidden role="dialog" aria-label="読み方">
+    <figure class="tutorial-step">
+      <img class="tutorial-img" alt="" src="/lirmena/contents/img/tutorial_1.avif" />
+      <figcaption class="tutorial-text">読書点について</figcaption>
+    </figure>
+    <figure class="tutorial-step" hidden>
+      <img class="tutorial-img" alt="" src="/lirmena/contents/img/tutorial_2.avif" />
+      <figcaption class="tutorial-text">本文表示エリアの上下にある2つの三角形を、読書点と言います。</figcaption>
+    </figure>
+    <figure class="tutorial-step" hidden>
+      <img class="tutorial-img" alt="" src="/lirmena/contents/img/tutorial_2.avif" />
+      <figcaption class="tutorial-text">背景の変化は読書点を基準にして起こるので、なるべくこの位置で本文を読むようにしてください。</figcaption>
+    </figure>
+    <figure class="tutorial-step" hidden>
+      <img class="tutorial-img" alt="" src="/lirmena/contents/img/tutorial_2.avif" />
+      <figcaption class="tutorial-text">また読書点は、ドラッグアンドドロップで左右移動もできます。読み進める際はお好みの場所に動かしてみてください。</figcaption>
+    </figure>
+  </section>
+  <div id="reading-anchor" aria-hidden="true" hidden></div>
+
+  <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->
+  <div id="transition-overlay" class="fading" aria-hidden="true"></div>
+
+  <!-- キャラクター紹介ポップアップ（menu.ts が操作） -->
+  <section id="characters-overlay" hidden>
+    <article id="characters-popup">
+      <button id="characters-popup-close">閉じる</button>
+      <div id="characters-list"></div>
+    </article>
+  </section>
+
+  <!-- エラー表示（main.ts が操作） -->
+  <p id="error-message" hidden role="alert"></p>
+
+  <script type="module" src="/lirmena/assets/main.js"></script>
+</body>
+</html>

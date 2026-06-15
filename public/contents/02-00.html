@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報（作品名で静的固定・両ページ共通。og:image は public/ogp.png、og:description は設定しない。
+       theme-color は CSS 変数 --theme-color と2箇所で管理） -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>輝くもの《リルメナ》</title>
+  <link rel="stylesheet" href="/lirmena/assets/main.css" />
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビューは送らない） -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    if (location.hostname === 'haguchikarasu.github.io') {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
+      document.head.appendChild(s);
+      gtag('js', new Date());
+      gtag('config', 'G-D750N4MKZY');
+    }
+  </script>
+</head>
+<body data-ep="2" data-sec="0">
+  <!-- 背景レイヤー（CSS の黒背景フォールバック。title.ts が backgroundImage を設定） -->
+  <div id="bg-layer" aria-hidden="true"></div>
+
+  <!-- タイトル画面（title.ts が内容を生成し hidden を解除する）
+       タイトル・ボタン群（nav）・更新履歴は style.css で #title-screen 基準に絶対配置し、
+       縦位置を4つの CSS 変数で独立調整する（中央を背景の絵に空ける）。 -->
+  <section id="title-screen" hidden>
+    <p id="title-screen-ep-title"></p>
+    <nav id="title-screen-nav">
+      <button id="btn-title-enter" type="button">本文を読む</button>
+      <button id="btn-title-prev" type="button">前のエピソードへ</button>
+      <a id="btn-title-index" href="../index.html">目次へ戻る</a>
+    </nav>
+    <section id="title-screen-changelog"></section>
+  </section>
+
+  <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->
+  <div id="transition-overlay" class="fading" aria-hidden="true"></div>
+
+  <!-- エラー表示（title.ts が操作） -->
+  <p id="error-message" hidden role="alert"></p>
+
+  <script type="module" src="/lirmena/assets/title.js"></script>
+</body>
+</html>
