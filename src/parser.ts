@@ -32,7 +32,10 @@ export type TextNode =
 // - @@BG@@ は bgFile: null（直前シーンの画像を引き継ぐ指示）。横位置トークンがあっても無視
 // - タグより前のテキストは bgFile: null の先頭シーンとして格納
 // - lineCount は @@BG タグを除いた改行数
-// - タグ直後の改行1つは本文に含めない
+// - タグはそれ自身の行に書かれる前提。タグに隣接する改行（直前シーン末尾＝before・
+//   当シーン先頭＝after）から「タグの行」を表す1つ分を取り除き、残りを後続シーン先頭の
+//   改行としてまとめる。これによりタグを跨ぐ空行（\n\n）が blank ノードとして保持される
+//   （分断して単独 br にすると空行が消えるため）
 // parse(text: string): Scene[]
 export function parse(text: string): Scene[] {
   const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -66,10 +69,23 @@ export function parse(text: string): Scene[] {
     }
 
     for (let i = 0; i < tags.length; i++) {
-      let start = tags[i].end;
-      if (src[start] === "\n") start++;  // タグ直後の改行1つを除去
       const end = i + 1 < tags.length ? tags[i + 1].start : src.length;
-      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, raw: src.slice(start, end) });
+      let raw = src.slice(tags[i].end, end);
+
+      // タグ前後に隣接する改行をまとめ、「タグの行」を表す1つ分だけ取り除く。
+      // before（直前シーンの末尾改行）を直前シーンから剥がし、after（当シーン先頭改行）と
+      // 合算して max(before+after-1, 0) 個を当シーン先頭に置き直す。これでタグを跨ぐ空行が
+      // 同一シーン内の \n\n（blank）として残る。
+      const after = raw.match(/^\n+/)?.[0].length ?? 0;
+      const prev = segments[segments.length - 1];
+      let before = 0;
+      if (prev !== undefined) {
+        before = prev.raw.match(/\n+$/)?.[0].length ?? 0;
+        prev.raw = prev.raw.slice(0, prev.raw.length - before);
+      }
+      raw = "\n".repeat(Math.max(before + after - 1, 0)) + raw.slice(after);
+
+      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, raw });
     }
   }
 

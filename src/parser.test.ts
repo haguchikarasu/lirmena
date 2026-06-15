@@ -63,3 +63,44 @@ describe("parser 傍点（emphasis）", () => {
     expect(scenes[0].lineCount).toBe(1); // \n 1つ分のみ
   });
 });
+
+describe("parser @@BG@@ 境界の改行（タグを跨ぐ空行）", () => {
+  // 期待値の出典: parser.ts IF コメント「タグの行を表す1つ分を取り除き残りを後続シーン先頭にまとめる」。
+  //   タグは本文中どこにでも書け（改行非依存）、跨ぐ空行は blank として保持されねばならない。
+
+  it("タグ直後の空行1つは後続シーン先頭の blank として残る（バグ回帰）", () => {
+    const scenes = parse("本文1\n@@BG@@\n\n本文2");
+    expect(scenes).toHaveLength(2);
+    // 直前シーンは末尾の改行を持ち越さず本文のみ
+    expect(scenes[0].content as TextNode[]).toEqual([{ type: "text", value: "本文1" }]);
+    // before(1)+after(2)-1 = 2 本の改行 → blank（空行）として後続シーン先頭に残る
+    expect(scenes[1].content as TextNode[]).toEqual([
+      { type: "blank" },
+      { type: "text", value: "本文2" },
+    ]);
+  });
+
+  it("空行なし（タグの行のみ）は単独の br になり空行を作らない", () => {
+    const scenes = parse("本文1\n@@BG@@\n本文2");
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0].content as TextNode[]).toEqual([{ type: "text", value: "本文1" }]);
+    // before(1)+after(1)-1 = 1 本 → br（空行ではない）
+    expect(scenes[1].content as TextNode[]).toEqual([
+      { type: "br" },
+      { type: "text", value: "本文2" },
+    ]);
+  });
+
+  it("行中のタグ（前後に改行なし）は空行を生まずインライン分割する", () => {
+    const scenes = parse("本文1@@BG@@本文2");
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0].content as TextNode[]).toEqual([{ type: "text", value: "本文1" }]);
+    expect(scenes[1].content as TextNode[]).toEqual([{ type: "text", value: "本文2" }]);
+  });
+
+  it("跨ぎ空行があってもシーン全体の総改行数（lineCount 合計）は保存される", () => {
+    const withBlank = parse("本文1\n@@BG@@\n\n本文2");
+    const sum = withBlank.reduce((a, s) => a + s.lineCount, 0);
+    expect(sum).toBe(2); // blank = 2（= もとの n1 + n3 相当）
+  });
+});
