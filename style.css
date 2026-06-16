@@ -565,6 +565,15 @@ html.is-selecting #main-container {
   text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 14px rgba(0,0,0,0.5);
 }
 
+/* タイトルに半角スペースがあると title.ts が以降を <small>（副題）に入れる。
+   改行（block）＋小さめ表示にして、-前編- 等がスマホで不自然に折り返すのを防ぐ。 */
+#title-screen-ep-title small {
+  display: block;
+  margin-top: 0.5em;
+  font-size: 0.5em;
+  letter-spacing: 0.15em;
+}
+
 #btn-title-enter,
 #btn-title-prev,
 #btn-title-index {

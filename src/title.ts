@@ -9,7 +9,7 @@
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
  *   #title-screen            … 縦長フルスクリーンの器（初期 hidden、描画後に表示）
- *   #title-screen-ep-title   … ep タイトル
+ *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は style.css 側）
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../index.html">。JS では制御しない）
@@ -78,9 +78,8 @@ function _readEp(): number | null {
 function _renderTitle(ep: number): void {
     const titleEl = document.querySelector<HTMLElement>('#title-screen-ep-title');
     if (titleEl) {
-        // ep タイトルの |漢字《かんじ》 を <ruby> 展開する（素のテキストはそのまま）。
         titleEl.replaceChildren();
-        applyRuby(state.getEpTitle(ep) ?? '', titleEl);
+        _renderEpTitleText(state.getEpTitle(ep) ?? '', titleEl);
     }
 
     const titleScreen = document.querySelector<HTMLElement>('#title-screen');
@@ -95,6 +94,25 @@ function _renderTitle(ep: number): void {
             titleScreen.style.setProperty('--cover-position-x', episode.coverPositionX);
         }
     }
+}
+
+/**
+ * ep タイトル文字列を #title-screen-ep-title に描画する。
+ * 半角スペースを含む場合は最初のスペースで「主題」「副題」に分け、主題はそのまま、副題（-前編- 等）を
+ * <small> に入れる（改行＝block・縮小は style.css が担当）。スマホで副題が不自然な位置で折り返すのを防ぐ。
+ * スペースが無ければ全体をそのまま展開する。ルビ（|漢字《かんじ》）は主題・副題の双方で applyRuby により展開する。
+ * _renderEpTitleText(title: string, el: HTMLElement): void
+ */
+function _renderEpTitleText(title: string, el: HTMLElement): void {
+    const sp = title.indexOf(' ');
+    if (sp === -1) {
+        applyRuby(title, el);
+        return;
+    }
+    applyRuby(title.slice(0, sp), el);
+    const sub = document.createElement('small');
+    applyRuby(title.slice(sp + 1), sub);
+    el.appendChild(sub);
 }
 
 /** 3ボタンのうち JS 制御が必要な「本文を読む」「戻る」を結線する */
