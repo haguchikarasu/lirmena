@@ -25,10 +25,8 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 84rem;           /* メインコンテナの最大横幅 */
+  --scene-max-w: 84rem;          /* メインコンテナの横幅上限（PC で本文エリアが広がりすぎないようにする max-width） */
   --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
-  /* --scene-threshold: 900px — CSS変数はメディアクエリ条件式に使用不可のため参照値。
-     @media (min-width: 900px) のハードコード値と手動で合わせること */
 
   /* アニメーション（開発者が調整する定数） */
   --fade-out-duration-bg:   0.01s;    /* 背景　　　　　遷移前暗転時間 */
@@ -69,8 +67,6 @@ html, body {
   color: #e8e0d0;
   font-family: var(--font-family);
   font-size: 16px;
-  padding-left: 1em;
-  padding-right: 1em;
 }
 
 body {
@@ -338,6 +334,7 @@ html.at-opening #reading-anchor {
   z-index: 2;
   writing-mode: vertical-rl;
   width: 100%;
+  max-width: var(--scene-max-w);   /* PC では横幅を上限で頭打ち（body の justify-content:center で中央寄せ） */
   height: calc(100vh - 2 * var(--story-padding));
   overflow-x: auto;
   overflow-y: hidden;
@@ -387,12 +384,6 @@ html.is-selecting #main-container {
 }
 #main-container::-webkit-scrollbar-thumb:hover {
   background: rgba(255,255,255,0.5);
-}
-
-@media (min-width: 900px) {
-  #main-container {
-    width: var(--scene-max-w);
-  }
 }
 
 
