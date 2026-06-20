@@ -9,12 +9,20 @@
  *   遷移先ページは同じく class="fading" で読み込まれ、その init() が明けることで「黒を跨いだ」連続フェードになる。
  * 【IF】
  *   init(): void           main.ts / title.ts が _init の最初（await 前）に呼ぶ。到着フェードインを起動する。
+ *                          加えて pageshow(event.persisted) を購読し、bfcache 復元（戻る/進む）でも .fading を外す
+ *                          （復元時は DOMContentLoaded・init() が再実行されず黒幕が残るため。後述の設計メモ参照）。
  *   leave(url: string): void  nav.ts / title.ts / menu.ts が呼ぶ。フェードアウト後に location.href で遷移する。
  * 【依存】なし（DOM の #transition-overlay と CSS 変数 --fade-out-duration-bg を読むのみ）
  *
  * 【設計メモ】要件 06-1 は当初 --fade-scene-* / --fade-section-* の2系統を想定していたが、実装は単一
  *   オーバーレイ（.fading＋--fade-out/in-duration-bg）へ集約した。遷移の種類で出し分けはしない（正典更新済み）。
  *   「次 ep なし→目次」のフェードなし遷移は呼び出し元（nav.ts）が location.href を直接使う。
+ *
+ * 【設計メモ：bfcache 対応】leave() は .fading（不透明黒）を付けてから location.href するため、離脱元ページは
+ *   「真っ黒な DOM 状態」で去る。シェル→シェル後に戻る/進むでそのページが bfcache から復元されると、
+ *   DOMContentLoaded・init() が再実行されず .fading が外れたまま固定＝真っ暗になる。これを防ぐため init() で
+ *   pageshow(event.persisted) を購読し、bfcache 復元時にも .fading を外す（目次への遷移は .fading を使わない
+ *   ため対象外）。
  */
 
 let _overlay: HTMLElement | null = null;
@@ -27,6 +35,12 @@ export function init(): void {
     if (!_overlay) return;
     // 初回ペイント（不透明黒）を1フレーム見せてから明ける。確実に「黒→明け」のトランジションを発火させる。
     requestAnimationFrame(() => _overlay?.classList.remove('fading'));
+
+    // bfcache（戻る/進む）復元では DOMContentLoaded・init() が再実行されず、leave() が付けた
+    // .fading（不透明黒）のまま画面が固定されて真っ暗になる。pageshow(persisted) で明ける。
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) _overlay?.classList.remove('fading');
+    });
 }
 
 // フェードアウト（.fading 付与）後に location.href で遷移する。
