@@ -1,7 +1,9 @@
 /*
  * bookmark.ts
- * 責務: 栞・オートセーブ・既読（到達／読了）の localStorage 保存／復元／クリア／旧データ変換
- * 依存: なし（localStorage キー名・形式を index.ts / settings.ts と共有する）
+ * 責務: 栞・オートセーブ・既読（到達／読了）の localStorage 保存／復元／クリア／旧データ変換に加え、
+ *       履歴エントリ（history.state）への per-entry スクロール位置の保存／復元（ブラウザ戻る/進むの位置復元用）。
+ *       ＝ブラウザ永続化（localStorage ＋ 履歴エントリ state）を一手に担う。
+ * 依存: なし（localStorage キー名・形式を index.ts / settings.ts と共有する。history はグローバル API）
  *
  * ── localStorage スキーマ（マルチページ移行・Phase 0 で確定した契約）──────────────────────
  * 既読は scene 単位を廃止し、sec 単位の「到達」「読了」2セットで持つ（読了は到達を含意）。
@@ -20,6 +22,13 @@
  *   "pendingScrollEnd": SecAddress   戻る系の終端スクロール受け渡し { ep, sec }。書くのは title.ts（タイトル「戻る」＝前 ep 最終 sec）と
  *                                    nav.ts（本文の戻るボタン／開幕「もどる ›」＝前 sec）。遷移先がロード時に読んで本文末へスクロール・消去する（オートセーブより優先）
  *   "schemaVersion": string          スキーマ版数。旧データ移行を一度だけ走らせるための番兵
+ *
+ * ── 履歴エントリのスクロール位置（history.state。localStorage ではない）─────────────────
+ *   "lirmenaScrollLeft"（history.state 内のキー）  現在の履歴エントリに刻む scrollLeft。
+ *     autosave の単一スロットと違い履歴エントリごとに位置を保持できるため、戻る/進むで HTML 再読込
+ *     （bfcache 破棄）されても per-entry に復元できる。
+ *     記録: reader.ts がスクロール通知をスロットルして saveScrollToHistory() を呼ぶ（autosave と同じスロットルに相乗り）
+ *     消費: main.ts の初期スクロール復元が readScrollFromHistory() を読む（前進ナビでない時・autosave より優先）
  *
  * ── 旧データ移行（init() で schemaVersion を見て未変換時のみ1回実行）──────────────────────
  *   旧 "sceneRead"（"ep-sec-scene" 3 セグメント）からの変換:
@@ -69,6 +78,9 @@ const KEY_PENDING_JUMP = 'pendingJump';
 const KEY_PENDING_SCROLL_END = 'pendingScrollEnd';
 const KEY_SCHEMA_VERSION = 'schemaVersion';
 const KEY_LEGACY_SCENE_READ = 'sceneRead';
+
+// history.state 内のスクロール位置キー（localStorage ではない）。他要因の state と衝突しない名前空間付き。
+const HISTORY_SCROLL_KEY = 'lirmenaScrollLeft';
 
 let _reached: Set<SecKey> = new Set();
 let _read: Set<SecKey> = new Set();
@@ -201,6 +213,43 @@ export function getAutoSave(): AutoSaveEntry | null {
         if (raw) return JSON.parse(raw) as AutoSaveEntry;
     } catch { /* ignore */ }
     return null;
+}
+
+// ── 履歴エントリのスクロール位置（history.state）──────────────────────
+
+// 現在の履歴エントリに scrollLeft を刻む（戻る/進むで HTML 再読込された場合の per-entry 復元用）。
+// reader.ts が autosave と同じスロットルで呼ぶ。_autoRecordSuppressed の対象にしない：history.state は
+// localStorage を汚さず、外部流入ページでも戻り位置を残せた方がよい（既読化・プライバシーと無関係。
+// 復元側 main.ts が _isInAppNavigation でガードする）。
+// saveScrollToHistory(scrollLeft: number): void
+export function saveScrollToHistory(scrollLeft: number): void {
+    history.replaceState(nextHistoryState(history.state, scrollLeft), '');
+}
+
+// 現在の履歴エントリに刻まれた scrollLeft を読む。無ければ null。main.ts が初期スクロール復元で読む。
+// readScrollFromHistory(): number | null
+export function readScrollFromHistory(): number | null {
+    return readHistoryScrollLeft(history.state);
+}
+
+// 既存 history.state を温存しつつ scrollLeft を上書きした新しい state を返す（純関数）。
+// prev が非オブジェクト/null なら空オブジェクト扱い。history.state は他要因でも書かれうるため ...base で既存を保つ。
+// nextHistoryState(prev: unknown, scrollLeft: number): Record<string, unknown> & { lirmenaScrollLeft: number }
+export function nextHistoryState(
+    prev: unknown,
+    scrollLeft: number,
+): Record<string, unknown> & { lirmenaScrollLeft: number } {
+    const base = (typeof prev === 'object' && prev !== null) ? prev as Record<string, unknown> : {};
+    return { ...base, [HISTORY_SCROLL_KEY]: scrollLeft };
+}
+
+// history.state から scrollLeft を取り出す（純関数）。lirmenaScrollLeft が有限数なら返す（0 は有効値）。
+// それ以外（キー無し・非数・NaN・非オブジェクト・null）は null。
+// readHistoryScrollLeft(state: unknown): number | null
+export function readHistoryScrollLeft(state: unknown): number | null {
+    if (typeof state !== 'object' || state === null) return null;
+    const v = (state as Record<string, unknown>)[HISTORY_SCROLL_KEY];
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
 // ── pendingJump（栞ジャンプの受け渡し）─────────────────────────────

@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     init, getReached, getRead, getBookmarks,
     setAutoRecordSuppressed, recordReached, recordRead, saveAutoSave, getAutoSave, addBookmark,
+    nextHistoryState, readHistoryScrollLeft,
 } from './bookmark';
 import type { SceneAddress } from './types';
 
@@ -212,5 +213,59 @@ describe('固定スロットへの保存（addBookmark）', () => {
         addBookmark(addr(1, 2), 20, 2);
         addBookmark(addr(1, 3), 30, 3);
         expect(getBookmarks().map(b => b.slot).sort()).toEqual([1, 2, 3]);
+    });
+});
+
+describe('history.state の per-entry スクロール位置（純関数）', () => {
+    // 仕様: 履歴エントリごとに scrollLeft を lirmenaScrollLeft キーで持つ。autosave の単一スロットと違い
+    //   戻る/進むで前ページに移動して autosave が上書きされても、戻り先ページの位置を保てる。
+    //   nextHistoryState は既存 state を温存して上書き、readHistoryScrollLeft は有限数のみ受理（0/負値は有効）。
+    describe('nextHistoryState', () => {
+        it('prev=null なら lirmenaScrollLeft だけを持つ', () => {
+            expect(nextHistoryState(null, 120)).toEqual({ lirmenaScrollLeft: 120 });
+        });
+
+        it('既存オブジェクトのキーは温存して lirmenaScrollLeft を付与する', () => {
+            expect(nextHistoryState({ foo: 1 }, 50)).toEqual({ foo: 1, lirmenaScrollLeft: 50 });
+        });
+
+        it('既存の lirmenaScrollLeft は新しい値で上書きする', () => {
+            expect(nextHistoryState({ lirmenaScrollLeft: 10 }, 99)).toEqual({ lirmenaScrollLeft: 99 });
+        });
+
+        it('prev が非オブジェクト（文字列・数値）なら空オブジェクト扱い', () => {
+            expect(nextHistoryState('x', 30)).toEqual({ lirmenaScrollLeft: 30 });
+            expect(nextHistoryState(7, 30)).toEqual({ lirmenaScrollLeft: 30 });
+        });
+
+        it('scrollLeft=0 も有効値として記録する', () => {
+            expect(nextHistoryState(null, 0)).toEqual({ lirmenaScrollLeft: 0 });
+        });
+    });
+
+    describe('readHistoryScrollLeft', () => {
+        it('lirmenaScrollLeft が有限数なら返す', () => {
+            expect(readHistoryScrollLeft({ lirmenaScrollLeft: 250 })).toBe(250);
+        });
+
+        it('0 は有効値として返す（先頭・右端の位置を null と区別する）', () => {
+            expect(readHistoryScrollLeft({ lirmenaScrollLeft: 0 })).toBe(0);
+        });
+
+        it('負値（vertical-rl の負モデル）も返す', () => {
+            expect(readHistoryScrollLeft({ lirmenaScrollLeft: -250 })).toBe(-250);
+        });
+
+        it('キー無し・null・非オブジェクト・非数・NaN は null', () => {
+            expect(readHistoryScrollLeft({})).toBeNull();
+            expect(readHistoryScrollLeft(null)).toBeNull();
+            expect(readHistoryScrollLeft('250')).toBeNull();
+            expect(readHistoryScrollLeft({ lirmenaScrollLeft: '250' })).toBeNull();
+            expect(readHistoryScrollLeft({ lirmenaScrollLeft: NaN })).toBeNull();
+        });
+
+        it('nextHistoryState の出力を読み戻せる（往復）', () => {
+            expect(readHistoryScrollLeft(nextHistoryState(null, 333))).toBe(333);
+        });
     });
 });

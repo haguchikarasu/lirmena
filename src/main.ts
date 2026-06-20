@@ -42,7 +42,7 @@
  *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
  *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… 新栞=scrollLeft / 移行旧栞=該当シーン先頭 → 消費
  *           2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
- *           3. オートセーブ（自 ep/sec 一致）かつ サイト内の明示前進ナビでない（リロード・ブラウザ戻る・直接/外部アクセス）… scrollLeft 復元
+ *           3. サイト内の明示前進ナビでない（リロード・ブラウザ戻る/進む・直接/外部アクセス）… まず history.state の scrollLeft（per-entry）で復元、無ければオートセーブ（自 ep/sec 一致）の scrollLeft にフォールバック
  *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
  */
 
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
  *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
  *   8. bg.init() で #bg-stack のクロスフェードレイヤーを構築
- *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd → オートセーブ〔明示前進ナビ以外のみ〕→ sec 先頭）
+ *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd →〔明示前進ナビ以外〕history.state/オートセーブ → sec 先頭）
  *   10. tutorial.init()（読書点マーカー・初回ガイド）・opening.init()（開幕アフォーダンス）・nav.update() でボタン状態を確定
  *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、
  *       復元スクロール発火後に nav.arm()（読了検知を有効化＝復元での誤読了を防ぐ）し、ローディングを隠す
@@ -195,7 +195,7 @@ async function _init(): Promise<void> {
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
  * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → 新栞=scrollLeft / 移行旧栞(scrollLeft 0 & scene>0)=該当シーン先頭。消費する
  * 2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
- * 3. オートセーブが自 ep/sec と一致 かつ サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る・直接/外部アクセス）→ scrollLeft 復元
+ * 3. サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る/進む・直接/外部アクセス）→ まず history.state の scrollLeft（per-entry・autosave より優先）、無ければオートセーブ（自 ep/sec 一致）の scrollLeft にフォールバック
  * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（右端）
  * 縦書き vertical-rl のスクロール符号差は、保存した scrollLeft をそのまま書き戻すことで吸収する。
  */
@@ -218,13 +218,23 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
         return;
     }
 
-    // オートセーブ復元は「サイト内の明示前進ナビ（目次クリック・進む/戻る・タイトル本文を読む）」では行わない
-    // （前進ナビは先頭/末尾から開始する仕様）。それ以外＝リロード・ブラウザ戻る・直接/外部アクセスでのみ復元する。
+    // 復元は「サイト内の明示前進ナビ（目次クリック・進む/戻る・タイトル本文を読む）」では行わない
+    // （前進ナビは先頭/末尾から開始する仕様）。それ以外＝リロード・ブラウザ戻る/進む・直接/外部アクセスでのみ復元する。
     // 「続きから読む」もサイト内クリックだが、index.ts が pendingJump を書くため上の優先度1で先に復元される。
-    const auto = bookmark.getAutoSave();
-    if (auto && auto.ep === ep && auto.sec === sec && !_isInAppNavigation()) {
-        container.scrollLeft = auto.scrollLeft;
-        return;
+    if (!_isInAppNavigation()) {
+        // 履歴エントリに刻んだ scrollLeft を最優先。autosave の単一スロットと違い per-entry なので、
+        // 戻る/進むで前ページに移動して autosave が上書きされていても、戻り先ページの位置を保てる。
+        const histLeft = bookmark.readScrollFromHistory();
+        if (histLeft !== null) {
+            container.scrollLeft = histLeft;
+            return;
+        }
+        // history.state が無い（既存ユーザー・初回エントリ）場合は従来のオートセーブにフォールバックする。
+        const auto = bookmark.getAutoSave();
+        if (auto && auto.ep === ep && auto.sec === sec) {
+            container.scrollLeft = auto.scrollLeft;
+            return;
+        }
     }
 
     _scrollToHead(container);

@@ -12,6 +12,8 @@
  *   ① progress.update(progress) — bg.ts が本文領域基準で算出した連続進捗（0〜1）をそのまま渡す
  *   ② opening.update(scrollLeft) — スクロール右端（scrollLeft≈0）でのみ開幕アフォーダンスを表示
  *   ③ bookmark.saveAutoSave(ep, sec, scrollLeft) — オートセーブ上書き（過剰書込を避けスロットル）
+ *      加えて bookmark.saveScrollToHistory(scrollLeft) — 現在の履歴エントリへ scrollLeft を刻む
+ *      （戻る/進むで HTML 再読込された場合の per-entry スクロール復元用・同じスロットルに相乗り）
  *   ④ state.setCurrentScene(n.currentScene) — 現在シーンを反映し、栞保存の coarse アドレスに使う
  */
 
@@ -45,5 +47,6 @@ export function handleScroll(n: ScrollNotification): void {
     if (now - _lastAutoSaveAt >= AUTOSAVE_THROTTLE_MS) {
         _lastAutoSaveAt = now;
         bookmark.saveAutoSave(_address.ep, _address.sec, n.scrollLeft);
+        bookmark.saveScrollToHistory(n.scrollLeft);
     }
 }
