@@ -16,6 +16,8 @@
  *   - ヒーローカード右下に content version / site version バッジを表示
  *   - 右下 FAB メニュー（続きから読む・栞をすべてクリア・既読をクリア・読破状況をクリア・設定・共有）
  *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
+ *   - 内部遷移リンク（ep/sec 一覧・栞・続きから読む）は現在ページのクエリ（例 ?noga＝GA 無効化）を引き継ぐ（withQuery＝state.ts の _withQuery と同一ロジックの inline 複製。独立方針のため）
+ *   - 共有（コピー/X/LINE）の URL はクエリを落とす（location.origin+pathname。dev フラグを読者に渡さないため）
  *
  * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
  *   "reached"            : string[]         到達 sec の集合 "ep-sec"（2桁ゼロ埋め）。既読マーク（色）の源。「既読をクリア」対象
@@ -78,6 +80,9 @@ const CHANGELOG_INITIAL_COUNT = 3;
 // 数値を2桁ゼロ埋め文字列に変換する
 // pad(n: number): string
 const pad = (n: number) => String(n).padStart(2, '0');
+// state.ts の _withQuery と同等（目次は src/ を import しない独立方針のため複製）。
+// 現在ページのクエリ（例 "?noga"）を相対 URL に引き継ぎ、マルチページ間で GA 無効化フラグを維持する。
+const withQuery = (path: string): string => path + location.search;
 
 // |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
 // src/ruby.ts の applyRuby と同一ロジック。目次ページは src/ を import しない独立方針のため inline 複製する
@@ -228,7 +233,7 @@ function writeResumeJump(auto: { ep: number; sec: number; scrollLeft: number }):
 // resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void
 function resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void {
     writeResumeJump(auto);
-    location.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
+    location.href = withQuery(`contents/${pad(auto.ep)}-${pad(auto.sec)}.html`);
 }
 
 // ヒーロー下の「続きから読む」本体ボタンを初期化する。
@@ -281,8 +286,8 @@ function renderEpisodes(episodes: Episode[], reached: Set<string>, read: Set<str
             // sec01 は ep の入口なのでタイトルページ（扉）へ。sec02 以降は本文ページへ直接。
             // 復元対象の栞・続きから読むの本文リンク（後述）は扉を挟まずそのまま本文へ。
             link.href = sec.id === 1
-                ? `contents/${pad(ep.id)}-00.html`
-                : `contents/${pad(ep.id)}-${pad(sec.id)}.html`;
+                ? withQuery(`contents/${pad(ep.id)}-00.html`)
+                : withQuery(`contents/${pad(ep.id)}-${pad(sec.id)}.html`);
 
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
@@ -369,7 +374,7 @@ function renderBookmarks(): void {
         actions.className = 'idx-bm-btns';
         const resumeBtn = document.createElement('a');
         resumeBtn.className = 'idx-bm-go';
-        resumeBtn.href = `contents/${pad(auto.ep)}-${pad(auto.sec)}.html`;
+        resumeBtn.href = withQuery(`contents/${pad(auto.ep)}-${pad(auto.sec)}.html`);
         resumeBtn.textContent = '続きから読む';
         // 遷移前に pendingJump を書く（同期。着地先 main.ts が読んで scrollLeft を復元する）。
         // <a> のままにして中クリック等のネイティブ挙動を維持する（栞スロットのジャンプと同じ流儀）。
@@ -407,7 +412,7 @@ function renderBookmarks(): void {
 
         const jumpBtn = document.createElement('a');
         jumpBtn.className = 'idx-bm-go';
-        jumpBtn.href = `contents/${pad(ep)}-${pad(sec)}.html`;
+        jumpBtn.href = withQuery(`contents/${pad(ep)}-${pad(sec)}.html`);
         jumpBtn.textContent = 'ここから読む';
         // 遷移前に pendingJump を書く（同期。遷移先ページがロード時に読んで復元する）。
         jumpBtn.addEventListener('click', () => {
@@ -599,19 +604,21 @@ function buildSharePopup(sharePopup: HTMLElement): void {
         return btn;
     };
 
+    // 共有 URL は ?noga 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）
+    const shareUrl = location.origin + location.pathname;
     panel.append(
         makeAction('リンクをコピー', () => {
-            navigator.clipboard.writeText(location.href).catch(() => {});
+            navigator.clipboard.writeText(shareUrl).catch(() => {});
         }),
         makeAction('Xでシェア', () => {
             window.open(
-                `https://x.com/intent/tweet?url=${encodeURIComponent(location.href)}`,
+                `https://x.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`,
                 '_blank', 'noopener,noreferrer',
             );
         }),
         makeAction('LINEでシェア', () => {
             window.open(
-                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(location.href)}`,
+                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}`,
                 '_blank', 'noopener,noreferrer',
             );
         }),

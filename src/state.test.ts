@@ -1,13 +1,13 @@
 /*
  * state.test.ts
- * 対象: state.ts の戻る系ナビゲーション URL ヘルパー（getPrevUrl / getPrevAddress）
+ * 対象: state.ts の戻る系ナビゲーション URL ヘルパー（getPrevUrl / getPrevAddress）＋ URL へのクエリ引き継ぎ（indexUrl ほか）
  * 方針: 期待値は要件 06-1 / 06-6・IF コメントから導出する（仕様駆動。実装ミラー禁止）。
  *   - getPrevUrl: 前の公開 sec があればその本文ページ／先頭公開 sec なら当 ep タイトルページ
  *   - getPrevAddress: 戻る遷移先が前 sec 本文のときの { ep, sec }（本文末着地フラグ書込用）／先頭 sec（＝タイトル遷移）は null
- * 環境: jsdom 不要（純粋なデータ計算）。各テストは init() で _data/_current を再構築して隔離する。
+ * 環境: 戻る系は jsdom 不要（純粋なデータ計算）。クエリ引き継ぎテストは history.replaceState で location.search を設定し afterEach で空へ戻す。各テストは init() で _data/_current を再構築して隔離する。
  */
-import { beforeEach, describe, expect, it } from 'vitest';
-import { init, getPrevUrl, getPrevAddress } from './state';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { init, getPrevUrl, getPrevAddress, indexUrl } from './state';
 import type { EpisodesData } from './types';
 
 // ep1: sec1,2,3 公開／sec4 未公開（末尾）。ep2: sec1 公開
@@ -70,5 +70,37 @@ describe('getPrevAddress（前 sec 本文末へ着地させる pendingScrollEnd 
         init(DATA, { ep: 1, sec: 2 });
         expect(getPrevUrl()).toBe('01-01.html');
         expect(getPrevAddress()).toEqual({ ep: 1, sec: 1 });
+    });
+});
+
+// 仕様（計画 Context）：返す遷移先 URL は現在ページのクエリ文字列（例 ?noga＝GA 無効化フラグ）を
+// そのまま末尾に引き継ぐ。マルチページ間でクエリを維持し、遷移先で GA が復活しないようにするため。
+describe('クエリ引き継ぎ（_withQuery 経由・?noga 等を遷移先 URL に維持）', () => {
+    afterEach(() => {
+        // location.search を空へ戻し、他テスト（クエリ無し前提）へ波及させない
+        window.history.replaceState(null, '', '/');
+    });
+
+    it('?noga 付きなら本文ページ URL にクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?noga');
+        init(DATA, { ep: 1, sec: 3 });
+        expect(getPrevUrl()).toBe('01-02.html?noga');
+    });
+
+    it('?noga 付きならタイトルページ URL にもクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?noga');
+        init(DATA, { ep: 1, sec: 1 });
+        expect(getPrevUrl()).toBe('01-00.html?noga');
+    });
+
+    it('?noga 付きなら目次 URL にもクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?noga');
+        expect(indexUrl()).toBe('../index.html?noga');
+    });
+
+    it('クエリが無ければ URL は素のまま（従来挙動）', () => {
+        window.history.replaceState(null, '', '/');
+        init(DATA, { ep: 1, sec: 3 });
+        expect(getPrevUrl()).toBe('01-02.html');
     });
 });

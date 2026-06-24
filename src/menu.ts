@@ -153,19 +153,21 @@ function _buildSharePopup(): void {
         return b;
     };
 
+    // 共有 URL は ?noga 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）
+    const shareUrl = location.origin + location.pathname;
     panel.append(
         makeAction('リンクをコピー', () => {
-            navigator.clipboard.writeText(location.href).catch(() => {});
+            navigator.clipboard.writeText(shareUrl).catch(() => {});
         }),
         makeAction('X でシェア', () => {
             window.open(
-                `https://x.com/intent/tweet?url=${encodeURIComponent(location.href)}`,
+                `https://x.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`,
                 '_blank', 'noopener,noreferrer',
             );
         }),
         makeAction('LINE でシェア', () => {
             window.open(
-                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(location.href)}`,
+                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}`,
                 '_blank', 'noopener,noreferrer',
             );
         }),

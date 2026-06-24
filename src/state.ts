@@ -23,6 +23,8 @@
  * 【被依存】main / title / nav / menu
  * 【注意】返す URL は contents/ 配下のページ（contents/[ep]-[sec].html など）から参照できる相対パス。
  *         本文・タイトルページは同一ディレクトリのため兄弟ページは "[ep]-[sec].html"、目次は "../index.html"。
+ *         さらに、返す URL には現在ページのクエリ文字列（例 "?noga"）を引き継ぐ（_withQuery）。
+ *         マルチページ間で GA 無効化フラグ等のクエリを維持するため。location.search を読む（グローバル API）。
  */
 
 import type { EpisodesData, Episode, EpisodeSection, SecAddress, SceneAddress } from './types';
@@ -70,7 +72,7 @@ export function isPublished(ep: number, sec: number): boolean {
 
 /** 目次ページへの相対 URL（contents/ 配下のページから1階層上がる） */
 export function indexUrl(): string {
-    return '../index.html';
+    return _withQuery('../index.html');
 }
 
 /** 任意 ep/sec の本文ページ相対 URL。menu「続きから読む」がオートセーブの ep/sec から遷移先を得るのに使う */
@@ -140,14 +142,19 @@ function _pad(n: number): string {
     return String(n).padStart(2, '0');
 }
 
+/** 現在ページのクエリ文字列（例 "?noga"）を相対 URL に引き継ぐ。空なら "" で連結に影響しない。マルチページ間で ?noga を維持するため */
+function _withQuery(path: string): string {
+    return path + location.search;
+}
+
 /** 本文ページの相対 URL（同一ディレクトリ） */
 function _bodyPath(ep: number, sec: number): string {
-    return `${_pad(ep)}-${_pad(sec)}.html`;
+    return _withQuery(`${_pad(ep)}-${_pad(sec)}.html`);
 }
 
 /** タイトルページの相対 URL（同一ディレクトリ） */
 function _titlePath(ep: number): string {
-    return `${_pad(ep)}-00.html`;
+    return _withQuery(`${_pad(ep)}-00.html`);
 }
 
 /** 同一 ep 内で sec より後の最初の公開 sec id。無ければ null */

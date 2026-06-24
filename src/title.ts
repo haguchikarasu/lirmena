@@ -12,13 +12,13 @@
  *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は style.css 側）
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
- *   #btn-title-index         … 目次に戻る（<a href="../index.html">。JS では制御しない）
+ *   #btn-title-index         … 目次に戻る（<a href="../index.html">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴（パッチを除外しマイナー以上を表示。無ければ「更新履歴なし」）
  *
  * 背景画像: {BASE_URL}ep[XX]/{coverFile}（episodes.json の coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
  *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ style.css 側で background-position に反映する。
  *
- * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま。
+ * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま（href に現在ページのクエリを引き継ぐ）。
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
  */
 
@@ -115,7 +115,7 @@ function _renderEpTitleText(title: string, el: HTMLElement): void {
     el.appendChild(sub);
 }
 
-/** 3ボタンのうち JS 制御が必要な「本文を読む」「戻る」を結線する */
+/** 3ボタンを結線する。「本文を読む」「戻る」は遷移を、「目次に戻る」は href へのクエリ引き継ぎを設定する */
 function _wireButtons(): void {
     const enter = document.querySelector<HTMLButtonElement>('#btn-title-enter');
     if (enter) {
@@ -137,6 +137,11 @@ function _wireButtons(): void {
             });
         }
     }
+
+    // 目次に戻る（<a href>）。現在ページのクエリ（例 ?noga）を引き継ぐため href を JS で上書きする。
+    // HTML 側の href="../index.html" は JS 前/無効時のフォールバック。
+    const index = document.querySelector<HTMLAnchorElement>('#btn-title-index');
+    if (index) index.href = state.indexUrl();
 }
 
 /**
