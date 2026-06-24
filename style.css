@@ -363,6 +363,14 @@ html.is-selecting #main-container {
   cursor: text;
 }
 
+/* タッチ端末（マウス無し）：手のひらツール／Shift 選択は存在しないため、
+   本文はネイティブ挙動（スワイプ＝スクロール／長押し＝選択）に戻す。 */
+@media (hover: none) and (pointer: coarse) {
+  #main-container {
+    user-select: text;
+  }
+}
+
 /* 離脱フェードは #transition-overlay 単独方式へ集約したため、本ルールは現状未使用（無害な残置）。
    オーバーレイが全画面を覆うので本文を個別に暗転させる必要はない。 */
 #main-container.fading {
