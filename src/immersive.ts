@@ -20,7 +20,7 @@
  *
  * enter のガード（入れない条件）:
  *   - 開幕中（<html>.at-opening＝本文先頭の黒い余白）は背景がわざと黒で鑑賞対象がないため入らない。
- *   - 選択モード中（<html>.is-selecting＝Shift 押下）は発動しない（要件）。
+ *   - 選択モード中（<html>.is-selecting）は発動しない（要件）。
  *   - ポップアップ/メニューが開いている間は入らない（タップは対象セレクタで弾き、Esc は開閉状態で弾く）。
  */
 
@@ -77,8 +77,8 @@ function _onKeyDown(e: KeyboardEvent): void {
 function _onPointerDown(e: PointerEvent): void {
   _candidate = false;
   if (e.button !== 0) return;                                          // 主ボタン/タッチ/ペン接触のみ（右・中クリック除外）
-  if (e.shiftKey) return;                                              // Shift（選択モード起動中）は発動しない（要件）
-  if (document.documentElement.classList.contains('is-selecting')) return;
+  if (e.shiftKey) return;                                              // Shift 同伴のクリックはブラウザ既定の動作（Shift+クリック等）に譲る
+  if (document.documentElement.classList.contains('is-selecting')) return; // 選択モード中（is-selecting）は発動しない
   if (e.target instanceof Element && e.target.closest(IGNORE_TAP_SELECTOR)) return; // ボタン・FAB・ノブ・ポップアップ上は対象外
   _candidate = true;
   _downX = e.clientX;

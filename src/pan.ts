@@ -1,9 +1,10 @@
 /*
  * pan.ts
  * 責務: マウスの「手のひら（パン）ツール」。本文ページの横スクロールコンテナ（#main-container）を
- *       マウス左ドラッグで横スクロールする。デフォルトが手のひら（ドラッグ＝スクロール）で、Shift を
- *       押している間だけ選択ツール（テキスト選択）へ譲る。マウス限定（タッチ／ペンは既存のネイティブ
- *       横スクロールのまま）。微調整＝ホイール（main.ts）／大量移動＝ドラッグ、の棲み分けを担う。
+ *       マウス左ドラッグで横スクロールする。デフォルトが手のひら（ドラッグ＝スクロール）で、Shift キーの
+ *       「単独 tap（押して離す）」で選択モードをトグルし、ON の間は通常クリック／ドラッグでテキスト選択ができる。
+ *       マウス限定（タッチ／ペンは既存のネイティブ横スクロールのまま）。微調整＝ホイール（main.ts）／大量移動＝
+ *       ドラッグ、の棲み分けを担う。
  * export: init(): void ／ computePanScrollLeft(...): number ／ shouldPanFromInput(...): boolean
  *         ／ smoothVelocity(...): number ／ decayVelocity(...): number ／ shouldStartMomentum(...): boolean
  *         （init 以外はすべて DOM 非依存の純関数＝テスト用）。
@@ -27,9 +28,13 @@
  *   Shift/Ctrl/Cmd/Alt のいずれかが押されていればパンせずブラウザに委ねる（Mac の Ctrl+クリック＝
  *   右クリック等と喧嘩しない）。右／中ボタンも対象外（コンテキストメニュー・オートスクロールを温存）。
  *
- * 選択ツールへの切り替え（押しっぱなし・要件 06-1）:
- *   Shift の押下状態を <html>.is-selecting に反映するだけ（カーソルと user-select の切り替えは CSS）。
- *   Shift+ドラッグはネイティブのテキスト選択に委ねる（パンを開始しない）。
+ * 選択モードへの切り替え（Shift tap でトグル・要件 06-1 / 06-6）:
+ *   Shift キーの「単独 tap（修飾キー同伴なし・他キー混在なし）」を検出して <html>.is-selecting を
+ *   トグルする。判定アルゴリズム：keydown で Shift が単独で押されたら tap 候補 ON ／ その後 Shift 以外の
+ *   キーが押されたら候補 OFF（Ctrl+Shift+C など組合せを誤発火させない）／ Shift の keyup 時に候補が
+ *   ON のままならトグル。is-selecting ON 中は #main-container のパンを開始しない（通常クリック／ドラッグを
+ *   ブラウザのネイティブ選択に委ねる）。トグル状態はページ滞在中だけ維持（ナビゲーション後・初回ロード時は OFF）。
+ *   blur 解除はしない（フォーカスが外れても選択中の状態を維持したいユースケースのため）。
  *
  * 背景鑑賞モード（immersive.ts・要件 06-3）:
  *   <html>.is-immersive の間はパンを開始しない。鑑賞モード中は CSS が #main-container を pointer-events:none に
@@ -67,12 +72,12 @@ export function init(): void {
 
     container.addEventListener('pointerdown', (e) => _onPointerDown(container, e));
 
-    // Shift 押下中だけ選択ツール（カーソル＝Iビーム・user-select 有効）にする状態を <html> に反映する。
-    // 表示・選択可否の実体は CSS（html.is-selecting #main-container）。離した瞬間に手のひらへ戻る。
-    document.addEventListener('keydown', _syncSelecting);
-    document.addEventListener('keyup', _syncSelecting);
-    // フォーカスを失うと keyup を取りこぼし Iビームのまま固着しうるため、blur で確実に解除する。
-    window.addEventListener('blur', () => _setSelecting(false));
+    // Shift キーの単独 tap（修飾キー同伴・他キー混在なし）で選択モードをトグルする。
+    // 表示・選択可否の実体は CSS（html.is-selecting #main-container）。トグル状態はページ滞在中のみ維持。
+    document.addEventListener('keydown', _onKeyDownForToggle);
+    document.addEventListener('keyup', _onKeyUpForToggle);
+    // Shift 押下中に何らかの pointer 操作が入った場合（Shift+クリック等）は tap ではないので候補を倒す。
+    document.addEventListener('pointerdown', _cancelShiftTapCandidate);
 }
 
 // 押下を判定し、パン条件を満たすときだけドラッグ追従スクロールを開始する。
@@ -82,6 +87,8 @@ function _onPointerDown(container: HTMLElement, e: PointerEvent): void {
     _cancelMomentum();
     // 背景鑑賞モード中はパンしない（CSS の pointer-events:none で通常届かないが明示的に弾く）。
     if (document.documentElement.classList.contains('is-immersive')) return;
+    // 選択モード中はパンせず、ブラウザのネイティブテキスト選択に委ねる。
+    if (document.documentElement.classList.contains('is-selecting')) return;
     if (!shouldPanFromInput(e)) return;
     // インタラクティブ要素（端ボタン・FAB・開幕アフォーダンス・読書点ノブ）の上ではパンしない。
     if (e.target instanceof Element && e.target.closest(INTERACTIVE_SELECTOR)) return;
@@ -175,16 +182,40 @@ function _cancelMomentum(): void {
     _velocity = 0;
 }
 
-// Shift の押下状態を <html>.is-selecting へ反映する（keydown / keyup 共通ハンドラ）。
-// _syncSelecting(e: KeyboardEvent): void
-function _syncSelecting(e: KeyboardEvent): void {
-    _setSelecting(e.shiftKey);
+// Shift 単独 tap の検出状態：keydown で候補 ON → 他キー混在 or 修飾キー同伴で OFF → keyup で発火判定。
+let _shiftTapCandidate = false;
+
+// keydown ハンドラ：Shift 単独押下なら tap 候補を立て、それ以外の押下では候補を倒す。
+// Shift+他キー（Ctrl+Shift+C 等）・Shift と他キーの押し順を問わず誤発火を防ぐ。
+// _onKeyDownForToggle(e: KeyboardEvent): void
+function _onKeyDownForToggle(e: KeyboardEvent): void {
+    if (e.key === 'Shift') {
+        // 他の修飾キーが既に押されている／キーリピートでの再発火は tap として扱わない。
+        _shiftTapCandidate = !(e.ctrlKey || e.altKey || e.metaKey || e.repeat);
+        return;
+    }
+    // Shift 以外のキー押下が来た時点で tap ではなくなる（Shift+任意キーの組合せ）。
+    _shiftTapCandidate = false;
 }
 
-// <html>.is-selecting を付け外しする。CSS が #main-container のカーソル／user-select を切り替える。
-// _setSelecting(on: boolean): void
-function _setSelecting(on: boolean): void {
-    document.documentElement.classList.toggle('is-selecting', on);
+// keyup ハンドラ：Shift の解放時に候補が立っていれば選択モードをトグルする。
+// _onKeyUpForToggle(e: KeyboardEvent): void
+function _onKeyUpForToggle(e: KeyboardEvent): void {
+    if (e.key !== 'Shift') return;
+    if (_shiftTapCandidate) _toggleSelecting();
+    _shiftTapCandidate = false;
+}
+
+// pointer 操作（Shift+クリック等）が入ったら tap ではないので候補を倒す。
+// _cancelShiftTapCandidate(): void
+function _cancelShiftTapCandidate(): void {
+    _shiftTapCandidate = false;
+}
+
+// <html>.is-selecting をトグルする。CSS が #main-container のカーソル／user-select を切り替える。
+// _toggleSelecting(): void
+function _toggleSelecting(): void {
+    document.documentElement.classList.toggle('is-selecting');
 }
 
 // 起点スクロール量・起点 clientX・現在 clientX から、パン後の scrollLeft を返す。

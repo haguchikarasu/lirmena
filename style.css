@@ -357,10 +357,12 @@ html.at-opening #reading-anchor {
   cursor: grabbing;
 }
 
-/* Shift 押下中だけ選択ツール（pan.ts が <html>.is-selecting を付与）：テキスト選択を許可し Iビーム。 */
+/* Shift 押下中だけ選択ツール（pan.ts が <html>.is-selecting を付与）：テキスト選択を許可し
+   縦書き用テキストカーソル（vertical-text＝Iビームを 90° 回した形）にする。本文は vertical-rl なので
+   横書きの text（縦バー）は向きが合わず違和感が出る。 */
 html.is-selecting #main-container {
   user-select: text;
-  cursor: text;
+  cursor: vertical-text;
 }
 
 /* タッチ端末（マウス無し）：手のひらツール／Shift 選択は存在しないため、
