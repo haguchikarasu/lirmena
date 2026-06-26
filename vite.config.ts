@@ -44,9 +44,10 @@ export default defineConfig({
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
   // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
   // port を固定し strictPort で空きポートへの自動ずらしを禁止する。
-  // lirmena/ と lirmena-draft/ で同じ番号にしてあり、dev の URL を常に一定にする
-  // （両者を同時起動した場合は後発が起動失敗する＝番号は常に固定）。
-  server: { host: true, port: 5173, strictPort: true },
+  // lirmena/ は 5174、lirmena-draft/ は 5173 と分けてあり、両者を同時に立ち上げても競合しない。
+  // allowedHosts: '.local' は mDNS 経由（`http://<PC名>.local:5174/`）、
+  // '.devtunnels.ms' は VS Code のポート転送（Dev Tunnels）経由のアクセスを許可する。
+  server: { host: true, port: 5174, strictPort: true, allowedHosts: ['.local', '.devtunnels.ms'] },
   build: {
     rollupOptions: {
       input: {
