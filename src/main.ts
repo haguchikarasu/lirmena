@@ -46,9 +46,9 @@
  *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
  */
 
-// 本文ページの共有スタイル。main.ts を Vite エントリにしたことで、本 import が
-// 本文シェル用の固定名 CSS（assets/main.css）として出力される。本文・タイトル両シェルがこれを <link> 参照する。
-import '../style.css';
+// CSS は別エントリ（src/styles/index.ts → assets/styles.css）に分離した。
+// 本文・タイトル両シェルが <link href="/lirmena/assets/styles.css"> で参照する。
+// main.ts からは CSS を import しない（CSS バンドルの責務を styles エントリへ一本化）。
 
 import * as state from './state';
 import * as renderer from './renderer';

@@ -2,10 +2,12 @@ import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
 
 // マルチページ構成（1ページ＝1sec）のビルド設定。
-// - 入力は3エントリ: 目次ページ HTML（index.html）／タイトルページ JS（title.ts）／本文ページ共有 JS（main.ts）。
+// - 入力は4エントリ: 目次ページ HTML（index.html）／タイトルページ JS（title.ts）／本文ページ共有 JS（main.ts）／共有 CSS（src/styles/index.ts）。
 //   タイトル・本文シェル（public/contents/[ep]-[sec].html）は静的ファイルとして手書き（AI生成）し、
 //   Vite が public/ を dist/ へ無変換コピーする。Vite のページエントリには登録しない（変換・バンドルしない）。
 // - 出力はハッシュなし固定名。シェルが絶対パスで固定名 JS/CSS を参照できるようにする（base: '/lirmena/'）。
+// - CSS は src/styles/ 配下に責務別 9 ファイル ＋ 集約 index.css（@import）。styles エントリ経由で
+//   本番は assets/styles.css 1 枚にバンドル、dev は index.css を直接配信して @import 9 本にする。
 
 // dev サーバ限定の橋渡しプラグイン。
 // シェルは本番形（固定名バンドルを絶対パス参照）の単一ファイルで、これがそのまま本番になる。
@@ -17,7 +19,7 @@ function devShellBundles(): Plugin {
   const redirects: Record<string, string> = {
     '/assets/main.js': '/lirmena/src/main.ts',
     '/assets/title.js': '/lirmena/src/title.ts',
-    '/assets/main.css': '/lirmena/style.css',
+    '/assets/styles.css': '/lirmena/src/styles/index.css',
   }
   return {
     name: 'dev-shell-bundles',
@@ -54,6 +56,7 @@ export default defineConfig({
         index: resolve(__dirname, 'index.html'),
         title: resolve(__dirname, 'src/title.ts'),
         main: resolve(__dirname, 'src/main.ts'),
+        styles: resolve(__dirname, 'src/styles/index.ts'),
       },
       output: {
         entryFileNames: 'assets/[name].js',

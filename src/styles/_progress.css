@@ -1,0 +1,207 @@
+/* _progress.css — progress-bar / opening-affordance / reading-anchor */
+
+/* ===================================================
+   進捗バー（progress.ts が #progress-fill の width を操作する）
+=================================================== */
+#progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 10;
+}
+
+#progress-fill {
+  position: absolute;
+  right: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.55);
+  transition: width 0.15s linear;
+}
+
+
+/* ===================================================
+   開幕アフォーダンス（opening.ts が <html>.at-opening で表示制御）
+   本文先頭の黒い恒久余白（progress 0）でのみ表示し、本文に入るとフェードアウトする。
+   黒地に浮く素の戻るボタン・読書点マーカーは開幕中は隠し、ここ（「読み進める」＋薄い「もどる」）へ一本化する。
+=================================================== */
+#opening-affordance {
+  position: fixed;
+  inset: 0;
+  z-index: 16;                 /* 本文(2)・読書点マーカー(15)より上、メニュー(20)より下 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  writing-mode: horizontal-tb;
+  pointer-events: none;        /* 余白部分のスクロール／タップは透過。下のボタンだけ拾う */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s ease, visibility 0.45s;
+}
+
+html.at-opening #opening-affordance {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 現在地ラベル（"01-02"）。黒地に「読み進める」だけだと何の画面か分からないので位置を示す。
+   opening.ts が state.getCurrent() から ep-sec を埋める（テキストは JS、見た目は CSS）。 */
+#opening-label {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.3em;
+  color: rgba(224, 220, 212, 0.55);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+
+#opening-start,
+#opening-back {
+  pointer-events: auto;
+  border: none;
+  background: none;
+  color: #e0dcd4;
+  font-family: inherit;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+#opening-start {
+  font-size: 1.35rem;
+  padding: 0.4rem 1rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+  animation: opening-breathe 2.6s ease-in-out infinite;
+}
+
+#opening-back {
+  font-size: 0.85rem;
+  color: rgba(224, 220, 212, 0.5);
+  transition: color 0.2s;
+}
+#opening-back:hover {
+  color: rgba(224, 220, 212, 0.9);
+}
+
+#opening-start:focus-visible,
+#opening-back:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 4px;
+}
+
+/* 「読み進める」のゆっくりした明滅（誘目）。動きを抑えたい設定では止める。 */
+@keyframes opening-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #opening-start { animation: none; opacity: 0.92; }
+}
+
+/* 開幕中は余白に浮く素の戻るボタン・読書点マーカーを隠してアフォーダンスへ一本化する。 */
+html.at-opening #btn-prev {
+  opacity: 0;
+  pointer-events: none;
+}
+html.at-opening #reading-anchor {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* ===================================================
+   読書点マーカー（tutorial.ts が #main-container 基準の px で left/top/height を設定）
+   本文表示エリア上下端の三角形（▽/△・常時表示）＋それを結ぶ縦線（ドラッグ中のみ表示）。
+   縦線は pointer-events:none で本文スクロールを妨げない。掴み手は三角形のみ
+=================================================== */
+:root {
+  --reading-anchor-color: rgba(255, 255, 255, 0.5);  /* 三角形・縦線の色 */
+  --reading-anchor-cap-size: 0.5rem;                 /* 三角形の一辺（高さ／半幅） */
+}
+
+/* 配置コンテナ（ゼロ幅。子は left:0 を中心線として配置） */
+#reading-anchor {
+  position: fixed;
+  width: 0;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 1;
+  /* 開幕（html.at-opening で opacity:0）から本文へ出るとき、アフォーダンスのフェードに合わせて滑らかに現す */
+  transition: opacity 0.45s ease;
+}
+
+/* 連結の縦線：ドラッグ中のみ表示（#reading-anchor.dragging で opacity 切替） */
+.reading-anchor-line {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: var(--reading-anchor-color);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+#reading-anchor.dragging .reading-anchor-line {
+  opacity: 1;
+}
+/* ドラッグ中：掴んでいることを示す grabbing カーソル（手のひらツール） */
+#reading-anchor.dragging .reading-anchor-cap {
+  cursor: grabbing;
+}
+
+/* 三角形グリップ（掴み手）。box は透明な広め当たり判定、三角形本体は ::before の CSS ボーダー */
+.reading-anchor-cap {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 0.4rem;            /* 透明な当たり判定の余白(掴みやすさ) */
+  background: transparent;
+  border: 0;
+  cursor: grab;               /* 手のひらツール（pan.ts と統一）：掴んで左右へ動かす */
+  pointer-events: auto;
+  touch-action: none;         /* ドラッグ中のブラウザスクロール／ジェスチャを抑止 */
+  line-height: 0;
+}
+
+.reading-anchor-cap::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: var(--reading-anchor-cap-size) solid transparent;
+  border-right: var(--reading-anchor-cap-size) solid transparent;
+}
+
+/* 上端：下向き三角形 ▽（本文から 1em 外へ離す＝下部に余白を取り上端より上へ） */
+.reading-anchor-cap--top {
+  top: -1em;
+}
+.reading-anchor-cap--top::before {
+  border-top: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
+}
+
+/* 下端：上向き三角形 △（本文から 1em 外へ離す＝上部に余白を取り下端より下へ） */
+.reading-anchor-cap--bottom {
+  bottom: -1em;
+}
+.reading-anchor-cap--bottom::before {
+  border-bottom: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
+}
+
+.reading-anchor-cap:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+}
+
+/* タッチ端末：当たり判定と三角形を大きくして掴みやすく */
+@media (pointer: coarse) {
+  :root {
+    --reading-anchor-cap-size: 0.7rem;
+  }
+  .reading-anchor-cap {
+    padding: 0.7rem;
+  }
+}

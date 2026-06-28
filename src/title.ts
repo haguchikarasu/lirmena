@@ -9,14 +9,14 @@
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
  *   #title-screen            … 縦長フルスクリーンの器（初期 hidden、描画後に表示）
- *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は style.css 側）
+ *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は src/styles/_title.css 側）
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../index.html">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴（パッチを除外しマイナー以上を表示。無ければ「更新履歴なし」）
  *
  * 背景画像: {BASE_URL}ep[XX]/{coverFile}（episodes.json の coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
- *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ style.css 側で background-position に反映する。
+ *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ src/styles/_title.css 側で background-position に反映する。
  *
  * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま（href に現在ページのクエリを引き継ぐ）。
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
@@ -89,7 +89,7 @@ function _renderTitle(ep: number): void {
         const file = episode?.coverFile ?? 'title.avif';
         const path = `${import.meta.env.BASE_URL}ep${String(ep).padStart(2, '0')}/${file}`;
         titleScreen.style.backgroundImage = `url('${path}')`;
-        // 左右位置は CSS 変数に流すのみ。縦長画面での反映可否は style.css のメディアクエリが担う。
+        // 左右位置は CSS 変数に流すのみ。縦長画面での反映可否は src/styles/_title.css のメディアクエリが担う。
         if (episode?.coverPositionX) {
             titleScreen.style.setProperty('--cover-position-x', episode.coverPositionX);
         }
@@ -99,7 +99,7 @@ function _renderTitle(ep: number): void {
 /**
  * ep タイトル文字列を #title-screen-ep-title に描画する。
  * 半角スペースを含む場合は最初のスペースで「主題」「副題」に分け、主題はそのまま、副題（-前編- 等）を
- * <small> に入れる（改行＝block・縮小は style.css が担当）。スマホで副題が不自然な位置で折り返すのを防ぐ。
+ * <small> に入れる（改行＝block・縮小は src/styles/_title.css が担当）。スマホで副題が不自然な位置で折り返すのを防ぐ。
  * スペースが無ければ全体をそのまま展開する。ルビ（|漢字《かんじ》）は主題・副題の双方で applyRuby により展開する。
  * _renderEpTitleText(title: string, el: HTMLElement): void
  */

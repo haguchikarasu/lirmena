@@ -1,0 +1,115 @@
+/* _bg.css — bg-layer / bg-stack / 背景鑑賞モード / 暗転オーバーレイ */
+
+/* ===================================================
+   背景レイヤー（bg.ts が backgroundImage を動的に設定する）
+=================================================== */
+#bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: #000; /* 画像なし・読込失敗時のフォールバック */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* 背景画像がある場合の薄い暗幕オーバーレイ */
+#bg-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  pointer-events: none;
+}
+
+/* ===================================================
+   背景レイヤースタック（bg.ts が #bg-stack に N 枚の .bg-layer<img> を生成し
+   スクロール連動で各レイヤーの opacity を連続更新してクロスフェードする）
+=================================================== */
+#bg-stack {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: #000; /* 画像なし（@@BG@@）・読込失敗時のフォールバック */
+  pointer-events: none;
+}
+
+/* 各シーンの背景画像レイヤー。opacity は bg.ts が rAF ごとに設定する（CSS transition は付けない） */
+.bg-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 全レイヤーをまとめて薄く暗くする暗幕（本文の可読性確保。1枚に集約）。
+   背景鑑賞モード（html.is-immersive）では opacity を 0 にフェードし、背景本来の色を見せる。 */
+#bg-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  transition: opacity var(--immersive-fade) ease;
+  pointer-events: none;
+}
+
+
+/* ===================================================
+   背景鑑賞モード（immersive.ts が <html>.is-immersive をトグル）
+   本文・UIクロム（進捗バー・FAB・読書点マーカー）を伏せ、暗幕（#bg-stack::after）を外して
+   背景本来の色を見せる。スクロール・パン・ホイールは #main-container を pointer-events:none ＋
+   overflow:hidden にして一括無効化する（要件 06-3）。
+=================================================== */
+/* 暗幕（#bg-stack::after）を 0 にフェードして背景本来の色味を見せる。 */
+html.is-immersive #bg-stack::after {
+  opacity: 0;
+}
+
+html.is-immersive #main-container {
+  opacity: 0;
+  pointer-events: none;        /* パン（pan.ts）・タップ・ホイールの当たりを止める */
+  overflow: hidden;            /* ホイール／タッチの横スクロールを止める（pointer-events と二重に担保） */
+}
+
+/* 進捗バー・FAB はフェードして伏せる（読書点マーカー #reading-anchor は自前の opacity transition を流用）。 */
+#progress-bar,
+#menu-container {
+  transition: opacity var(--immersive-fade) ease;
+}
+html.is-immersive #progress-bar,
+html.is-immersive #menu-container,
+html.is-immersive #reading-anchor {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* ===================================================
+   暗転オーバーレイ（transition.ts が .fading クラスを切り替える＝単一オーバーレイ方式）
+   到着フェードイン: シェルは class="fading"（不透明黒）で初期描画し、init() が外して明ける。
+   離脱フェードアウト: leave() が .fading を付与して暗転後に location.href で遷移する。
+   z-index は全レイヤー（menu=20 等）より上に置き、1つのトグルで bg・本文・ボタン・menu を一律に覆う。
+=================================================== */
+#transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;                 /* menu(20)・opening(16) 等より上。全画面を覆うため最前面 */
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  /* .fading 除去時（明け）に適用される duration */
+  transition: opacity var(--fade-in-duration-bg) ease;
+}
+
+#transition-overlay.fading {
+  opacity: 1;
+  pointer-events: all;
+  /* .fading 付与時（暗転）に適用される duration */
+  transition: opacity var(--fade-out-duration-bg) ease;
+}

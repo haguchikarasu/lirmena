@@ -1,0 +1,203 @@
+/* _ui.css — menu(FAB) / settings-popup / share-popup / bookmark-popup / settings-panel */
+
+/* ===================================================
+   右下ナビゲーションメニュー（menu.ts が操作）
+=================================================== */
+#menu-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 20;
+}
+
+/* メニュートグルボタン */
+#menu-toggle {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d4cc;
+  font-size: 1.1rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+#menu-toggle:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#menu-toggle:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+/* メニューパネル（menu.ts が hidden を切り替える） */
+#menu-panel {
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  right: 0;
+  min-width: 12rem;
+  background: rgba(8, 8, 8, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* menu.ts が動的生成するメニューアイテムボタン */
+#menu-panel button {
+  display: block;
+  width: 100%;
+  padding: 0.8rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #dedad2;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  /* 縦書きコンテキストの外にあるが明示的にリセット */
+  writing-mode: horizontal-tb;
+  transition: background 0.15s;
+}
+
+#menu-panel button:last-child {
+  border-bottom: none;
+}
+
+#menu-panel button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+#menu-panel button:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+
+/* ===================================================
+   設定ポップアップ（settings.ts が操作）
+   共有ポップアップ・栞ポップアップ（menu.ts が操作）も同じオーバーレイ様式を共有する
+=================================================== */
+#settings-popup,
+#share-popup,
+#bookmark-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* settings.ts が生成するパネル */
+.settings-panel {
+  width: min(88vw, 21rem);
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  overflow: hidden;
+  writing-mode: horizontal-tb; /* 縦書きコンテキストから切り離す */
+}
+
+.settings-panel__title {
+  padding: 0.9rem 1.2rem;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  color: #aaa;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.2rem;
+}
+
+.settings-row__label {
+  font-size: 0.87rem;
+  color: #c0bcb4;
+}
+
+.settings-row__opts {
+  display: flex;
+  gap: 0.35rem;
+}
+
+/* 選択肢ボタン（フォントサイズ・フォント・段落間マージン用） */
+.settings-opt {
+  padding: 0.27rem 0.6rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 4px;
+  color: #b8b4ac;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-opt:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.settings-opt.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #eeece8;
+}
+
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 0.2rem 0;
+}
+
+/* 栞クリア・既読クリア・全設定初期化ボタン */
+.settings-action {
+  display: block;
+  width: calc(100% - 2.4rem);
+  margin: 0.35rem 1.2rem;
+  padding: 0.48rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: #888;
+  font-size: 0.82rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #bbb;
+}
+
+/* 閉じるボタン */
+.settings-close {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #777;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}

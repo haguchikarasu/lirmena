@@ -1,0 +1,82 @@
+/* _base.css — CSS 変数 / リセット / html・body / フォント継承 */
+
+/* ===================================================
+   CSS 変数
+   --font-size / --font-family / --paragraph-margin は
+   settings.ts が document.documentElement.style.setProperty() で切り替える
+=================================================== */
+:root {
+  /* フォントサイズ（settings.ts が --font-size を切り替える） */
+  --font-size-sm: 15px;
+  --font-size-md: 18px;
+  --font-size-lg: 21px;
+  --font-size: var(--font-size-md);
+
+  /* フォントファミリー（settings.ts が --font-family を切り替える） */
+  --font-family-serif: serif;
+  --font-family-sans:  sans-serif;
+  --font-family: var(--font-family-serif);
+
+  /* 段落間マージン（settings.ts が --paragraph-margin を切り替える） */
+  --paragraph-margin-on: 1em;
+  --paragraph-margin-off: 0em;
+  --paragraph-margin: var(--paragraph-margin-on);
+
+  /* レイアウト（開発者が調整する定数） */
+  --story-padding: 5vh;          /* 本文エリアの天地余白 */
+  --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
+  --scene-max-w: 84rem;          /* メインコンテナの横幅上限（PC で本文エリアが広がりすぎないようにする max-width） */
+  --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
+
+  /* アニメーション（開発者が調整する定数） */
+  --fade-out-duration-bg:   0.01s;    /* 背景　　　　　遷移前暗転時間 */
+  --fade-in-duration-bg:    0.8s;    /* 背景　　　　　遷移後明け時間 */
+  --fade-out-duration-main: 0.01s;   /* メインコンテナ 遷移前暗転時間 */
+  --fade-in-duration-main:  0.8s;   /* メインコンテナ 遷移後明け時間 */
+  --immersive-fade:         0.6s;   /* 背景鑑賞モード 暗幕・クロムのフェード時間（immersive.ts） */
+
+  /* キャラクター紹介（開発者が調整する定数） */
+  --chara-img-width: 100%;   /* カード内での画像幅 */
+
+  /* 読書点（基準点）。settings.ts が localStorage 値で上書きする単一の源。
+     bg.ts はこれを読んでクロスフェード中点に使い、tutorial.ts はマーカー位置に使う。
+     本文表示幅（#main-container 幅）基準の連続 %。中央(50%)よりやや読み終わり側 */
+  --reading-anchor: 45%;
+
+  /* テーマカラー（meta theme-color と合わせること） */
+  --theme-color: #080808;
+}
+
+
+/* ===================================================
+   リセット・ベース
+=================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html, body {
+  height: 100%;
+  background: #000;
+  color: #e8e0d0;
+  font-family: var(--font-family);
+  font-size: 16px;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ボタン要素のフォント継承（UA スタイルシートの上書き） */
+button {
+  font-family: inherit;
+  font-size: inherit;
+}

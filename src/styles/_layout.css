@@ -1,0 +1,199 @@
+/* _layout.css — main-container / scene-content / btn-container / btn-prev,next / 本文段落 / 縦中横 / ルビ / 傍点 */
+
+/* ===================================================
+   メインコンテナ
+=================================================== */
+#main-container {
+  position: relative;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  width: 100%;
+  max-width: var(--scene-max-w);   /* PC では横幅を上限で頭打ち（body の justify-content:center で中央寄せ） */
+  height: calc(100vh - 2 * var(--story-padding));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+  -ms-overflow-style: auto;
+  /* .fading 除去時（明け）に適用される duration */
+  transition: opacity var(--fade-in-duration-main) ease;
+  letter-spacing: 10%;
+  padding-top: 1em;
+  padding-bottom: 1em;
+  /* 既定＝手のひらツール（pan.ts）：ドラッグ＝スクロールなのでテキスト選択は無効・カーソルは grab。
+     子のボタン（cursor:pointer）・読書点ノブ（cursor:grab）は要素側がより具体的なので勝つ。 */
+  user-select: none;
+  cursor: grab;
+}
+
+/* パン中（pan.ts が .is-panning を付与）：掴んでいることを示す grabbing カーソル。 */
+#main-container.is-panning {
+  cursor: grabbing;
+}
+
+/* Shift 押下中だけ選択ツール（pan.ts が <html>.is-selecting を付与）：テキスト選択を許可し
+   縦書き用テキストカーソル（vertical-text＝Iビームを 90° 回した形）にする。本文は vertical-rl なので
+   横書きの text（縦バー）は向きが合わず違和感が出る。 */
+html.is-selecting #main-container {
+  user-select: text;
+  cursor: vertical-text;
+}
+
+/* タッチ端末（マウス無し）：手のひらツール／Shift 選択は存在しないため、
+   本文はネイティブ挙動（スワイプ＝スクロール／長押し＝選択）に戻す。 */
+@media (hover: none) and (pointer: coarse) {
+  #main-container {
+    user-select: text;
+  }
+}
+
+/* 離脱フェードは #transition-overlay 単独方式へ集約したため、本ルールは現状未使用（無害な残置）。
+   オーバーレイが全画面を覆うので本文を個別に暗転させる必要はない。 */
+#main-container.fading {
+  opacity: 0;
+  pointer-events: none;
+  /* .fading 付与時（暗転）に適用される duration */
+  transition: opacity var(--fade-out-duration-main) ease;
+}
+
+#main-container::-webkit-scrollbar {
+  height: 4px;
+}
+#main-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+#main-container::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+}
+#main-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.5);
+}
+
+
+/* ===================================================
+   ボタンコンテナ（#main-container の vertical-rl をリセットしてボタンを中央寄せする）
+   本文前後の恒久余白も兼ねる：幅をメインコンテナ幅ちょうど（=100%）まで広げて、読書点が
+   本文の両端まで届くようにする（中心ベースの固定アンカーで生じる左右のデッドゾーンを覆う）。
+   読書点の値に依存しない静的な余白（worst-case の片側1コンテナ幅を固定で確保）。
+=================================================== */
+.btn-container {
+  writing-mode: horizontal-tb;   /* 横書きにリセット済みなので width は物理水平＝スクロール軸に一致する */
+  width: 100%;                   /* = #main-container 幅。% は包含ブロックの物理幅基準で解決される */
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ===================================================
+   戻る・進行ボタン（nav.ts が querySelector で取得し、ラベル・イベントを設定）
+   縦書き：右端（reading-start）＝戻るボタン、左端（reading-end）＝進行ボタン
+=================================================== */
+#btn-prev,
+#btn-next {
+  z-index: 2;
+  width: var(--nav-btn-w);
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.42);
+  color: #ccc8c0;
+  font-size: 2.2rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* opacity は開幕（html.at-opening で 0）→本文のフェードイン用。アフォーダンスのフェードに合わせる */
+  transition: background 0.2s, color 0.2s, opacity 0.45s ease;
+}
+
+#btn-prev:disabled,
+#btn-next:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+#btn-prev:hover,
+#btn-next:hover {
+  background: rgba(0, 0, 0, 0.65);
+  color: #f0ece4;
+}
+
+#btn-prev:focus-visible,
+#btn-next:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: -2px;
+}
+
+/* 戻るボタン：右端（縦書き reading-start 側） */
+#btn-prev {
+  border-radius: 6px;
+}
+
+/* 進行ボタン：左端（縦書き reading-end 側） */
+#btn-next {
+  border-radius: 6px;
+}
+
+/* 「目次へ戻る」テキストラベル時：フォントサイズを縮小 */
+#btn-next.is-text-label {
+  font-size: 0.85rem;
+  writing-mode: vertical-rl;
+  height: 6rem;
+}
+
+/* タッチ端末：ボタン高さを広げてタップしやすく */
+@media (pointer: coarse) {
+  #btn-prev,
+  #btn-next {
+    height: 5.5rem;
+  }
+}
+
+
+/* ===================================================
+   本文表示エリア（renderer.ts が内容を生成し hidden を切り替える。scene ≥ 1 のみ表示）
+=================================================== */
+#scene-content {
+  writing-mode: vertical-rl;
+  height: 100%;
+  font-size: var(--font-size);
+  max-height: calc(var(--line-max-chars) * 1em);
+  min-width: 75%;
+  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
+}
+
+
+/* ===================================================
+   本文テキスト（renderer.ts が生成するクラス）
+=================================================== */
+#scene-content p {
+  line-height: 1.8;
+  margin-block-end: var(--paragraph-margin);
+  text-align: justify;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 14px rgba(0,0,0,0.5);
+}
+
+/* 縦中横（renderer.ts が .tcy を付与） */
+.tcy {
+  text-combine-upright: all;
+}
+
+/* 傍点：renderer.ts が <em class="bouten"> 内に1文字ずつ <ruby>字<rt>•</rt></ruby> を生成。
+   縦書きでルビと同じく字の右に小さい黒丸が付く。text-emphasis は傍点のある列だけ列幅を不自然に
+   広げ・マークサイズも制御できないため不使用。rt を小さくするほど字送りへの影響も小さくなる。 */
+#scene-content em.bouten {
+  font-style: normal; /* <em> 既定の斜体を打ち消す */
+}
+#scene-content em.bouten rt {
+  font-size: 0.5em; /* 傍点 • のサイズ＝字送りへの影響。要視確認の微調整点 */
+}
+
+/* ルビ */
+ruby rt {
+  font-size: 0.5em;
+}

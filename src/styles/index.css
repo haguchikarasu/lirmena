@@ -1,0 +1,16 @@
+/*
+ * index.css — 全 CSS の集約エントリ（cascade 順に @import）
+ * 本番：vite.config.ts の input.styles 経由でバンドルされ /lirmena/assets/styles.css として出力。
+ * dev：vite.config.ts の redirect で /assets/styles.css → /lirmena/src/styles/index.css に解決され、
+ *       ブラウザが @import を辿って 9 ファイルを直接ロードする（編集対象＝配信対象が一致）。
+ * cascade 順は責務の依存方向に合わせて固定：base → layout → bg → progress → title → ui → characters → tutorial → misc
+ */
+@import './_base.css';
+@import './_layout.css';
+@import './_bg.css';
+@import './_progress.css';
+@import './_title.css';
+@import './_ui.css';
+@import './_characters.css';
+@import './_tutorial.css';
+@import './_misc.css';

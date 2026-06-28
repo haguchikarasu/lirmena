@@ -1,0 +1,58 @@
+/* _tutorial.css — tutorial-popup / tutorial-step / tutorial-text */
+
+/* ===================================================
+   読み方（読書点）チュートリアルの初回ガイド（tutorial.ts が step を切替）
+   ステップ（画像＋説明文）は本文シェルに静的記述。クリックで次へ／最後で閉じる。
+   各画像にキャラクターが描かれるため、説明文はキャラに被らない縦中央バンドへ重ねる
+=================================================== */
+#tutorial-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  writing-mode: horizontal-tb;
+}
+
+/* ステップ＝画像カード。画像にシュリンクラップし（説明文の % 配置を画像基準に保つ）、クリックで次へ */
+.tutorial-step {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+  line-height: 0;             /* img 下の inline 余白を消す */
+  cursor: pointer;
+}
+.tutorial-step[hidden] {
+  display: none;              /* inline-block 指定が hidden を上書きしないよう明示 */
+}
+
+.tutorial-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 10px;
+}
+
+/* 説明文：縦中央バンド（キャラは右上・左下に描かれるため中央は安全地帯）。半透明の暗い下地で可読性を確保 */
+.tutorial-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 86%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.8em 0.95em;
+  background: rgba(0, 0, 0, 0.66);
+  border-radius: 8px;
+  color: #f0ece4;
+  font-size: clamp(0.8rem, 3.4vw, 1rem);
+  line-height: 1.9;
+  text-align: center;
+}
