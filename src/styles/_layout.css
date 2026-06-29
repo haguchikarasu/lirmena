@@ -206,10 +206,20 @@ ruby rt {
    ※ 読書点マーカー（#reading-anchor）の ▷◁ 化は JS 位置算出（tutorial.ts の axis 化）と対で行うため後続コミットに置く。
 =================================================== */
 
-/* スクロール軸を縦へ（横書きは上→下へ読み進める） */
+/* スクロール軸を縦へ（横書きは上→下へ読み進める）。
+   縦書きは天地余白（高さ calc(100vh - 2×--story-padding)=90vh ＋ body 中央寄せで上下に 5vh）を取るが、
+   横書きでは上下マージンは不要なので高さをビューポート全部にする。あわせて天地 padding も 0 にして、
+   開幕の余白帯（btn-container, height:100%）がちょうど1ビューポートになり本文書き出しの覗き込みも防ぐ。 */
 html[data-writing-mode="horizontal"] #main-container {
   overflow-x: hidden;
   overflow-y: auto;
+  height: 100vh;
+  padding-block: 0;
+  /* 縦書き用の広いコンテナ（max-width:84rem）だとスクロールバーが本文から遠い右端に出る。
+     本文行長＋わずかな余白までコンテナを絞り、スクロールバーを本文の脇に寄せる。
+     1em の基準を本文（#scene-content の --font-size）に揃えるため font-size を流用する。 */
+  font-size: var(--font-size);
+  max-width: calc(var(--line-max-chars) * 1em + 3em);
 }
 
 /* スクロールバーは縦に出る（縦書き時の横バー height:4px はオーバーフロー無しで無効化される） */
@@ -222,12 +232,15 @@ html[data-writing-mode="horizontal"].is-selecting #main-container {
   cursor: text;
 }
 
-/* 本文ブロック：行長の上限を横幅で頭打ちにし、高さは内容なり（＝コンテナが縦スクロールする） */
+/* 本文ブロック：行長の上限を横幅で頭打ちにし、高さは内容なり（＝コンテナが縦スクロールする）。
+   max-width で頭打ちした行ブロックを margin-inline:auto でコンテナ内の水平中央へ寄せる
+   （縦書きの body 中央寄せに相当する横書き版。左寄せだと背景に対して座りが悪い）。 */
 html[data-writing-mode="horizontal"] #scene-content {
   height: auto;
   max-height: none;
   min-width: 0;
   max-width: calc(var(--line-max-chars) * 1em);
+  margin-inline: auto;
 }
 
 /* 前後の恒久余白（開幕の黒帯・本文末の余白）は横帯になる。ボタン群は縦並びへ */
