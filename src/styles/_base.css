@@ -26,7 +26,11 @@
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
   --scene-max-w: 84rem;          /* メインコンテナの横幅上限（PC で本文エリアが広がりすぎないようにする max-width） */
-  --line-max-chars: 42;           /* 1列の最大文字数（em 換算。フォントサイズ変更に自動追従） */
+  --line-max-chars: 42;           /* 1行（縦書きでは1列）の最大文字数（em 換算。フォントサイズ変更に自動追従） */
+
+  /* 書字方向の補助変数。settings.ts が <html data-writing-mode> 属性を切替え、その属性でこの変数が解決される。
+     #main-container / #scene-content の writing-mode をこの1本で駆動する。属性自体は axis.ts も読む真実源。 */
+  --writing-mode: vertical-rl;
 
   /* アニメーション（開発者が調整する定数） */
   --fade-out-duration-bg:   0.01s;    /* 背景　　　　　遷移前暗転時間 */
@@ -45,6 +49,11 @@
 
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #080808;
+}
+
+/* 横書きモード：<html data-writing-mode="horizontal"> のとき進行軸を縦（forward=+y）へ切替える起点。 */
+html[data-writing-mode="horizontal"] {
+  --writing-mode: horizontal-tb;
 }
 
 

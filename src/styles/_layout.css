@@ -6,7 +6,7 @@
 #main-container {
   position: relative;
   z-index: 2;
-  writing-mode: vertical-rl;
+  writing-mode: var(--writing-mode);
   width: 100%;
   max-width: var(--scene-max-w);   /* PC では横幅を上限で頭打ち（body の justify-content:center で中央寄せ） */
   height: calc(100vh - 2 * var(--story-padding));
@@ -159,7 +159,7 @@ html.is-selecting #main-container {
    本文表示エリア（renderer.ts が内容を生成し hidden を切り替える。scene ≥ 1 のみ表示）
 =================================================== */
 #scene-content {
-  writing-mode: vertical-rl;
+  writing-mode: var(--writing-mode);
   height: 100%;
   font-size: var(--font-size);
   max-height: calc(var(--line-max-chars) * 1em);
@@ -196,4 +196,54 @@ html.is-selecting #main-container {
 /* ルビ */
 ruby rt {
   font-size: 0.5em;
+}
+
+
+/* ===================================================
+   横書きモード（<html data-writing-mode="horizontal">）：通常 Web 風の縦スクロール（forward=+y）。
+   writing-mode 自体は #main-container / #scene-content が var(--writing-mode) で追従する。
+   ここでは「縦書き前提で書かれた軸依存の値」だけを上書きする（スクロール軸・行長・カーソル・ボタン配置・縦中横）。
+   ※ 読書点マーカー（#reading-anchor）の ▷◁ 化は JS 位置算出（tutorial.ts の axis 化）と対で行うため後続コミットに置く。
+=================================================== */
+
+/* スクロール軸を縦へ（横書きは上→下へ読み進める） */
+html[data-writing-mode="horizontal"] #main-container {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* スクロールバーは縦に出る（縦書き時の横バー height:4px はオーバーフロー無しで無効化される） */
+html[data-writing-mode="horizontal"] #main-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* Shift 選択カーソルは横書き用の通常テキストカーソルへ（vertical-text は縦書き用） */
+html[data-writing-mode="horizontal"].is-selecting #main-container {
+  cursor: text;
+}
+
+/* 本文ブロック：行長の上限を横幅で頭打ちにし、高さは内容なり（＝コンテナが縦スクロールする） */
+html[data-writing-mode="horizontal"] #scene-content {
+  height: auto;
+  max-height: none;
+  min-width: 0;
+  max-width: calc(var(--line-max-chars) * 1em);
+}
+
+/* 前後の恒久余白（開幕の黒帯・本文末の余白）は横帯になる。ボタン群は縦並びへ */
+html[data-writing-mode="horizontal"] .btn-container {
+  flex-direction: column;
+}
+
+/* 「目次へ戻る」テキストラベルは横書きで普通に横へ組む（縦書き用の vertical-rl/6rem を打ち消す） */
+html[data-writing-mode="horizontal"] #btn-next.is-text-label {
+  writing-mode: horizontal-tb;
+  width: auto;
+  height: auto;
+  padding: 0.4rem 0.8rem;
+}
+
+/* 縦中横は横書きでは無効化（マークアップ .tcy は維持し CSS のみで切る） */
+html[data-writing-mode="horizontal"] .tcy {
+  text-combine-upright: none;
 }
