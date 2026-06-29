@@ -1,6 +1,6 @@
 /*
  * settings.ts
- * 責務: フォントサイズ・フォント・段落間マージン・読書点位置の localStorage 保存・CSS変数反映・ポップアップ開閉
+ * 責務: フォントサイズ・フォント・段落間マージン・書字方向・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
  * export: init(), open(), getReadingAnchor(), setReadingAnchor()
  * 依存: なし（栞・既読クリアのコールバックは main.ts から注入）
  *
@@ -8,34 +8,44 @@
  *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
  *   fontFamily:   "serif" | "sans"               デフォルト "serif"
  *   lineGap:      "on" | "off"                   デフォルト "on"
+ *   writingMode:  "vertical" | "horizontal"      デフォルト "vertical"（CSS変数でなく <html data-writing-mode> 属性へ反映）
  *   readingAnchor: 連続 %（本文表示幅基準）       デフォルト READING_ANCHOR_DEFAULT（中央〜やや読み終わり側）
  *
  * CSS変数:
  *   --font-size, --font-family, --paragraph-margin（値は CSS 変数定義ファイルで管理）
  *   --reading-anchor: 読書点（基準点）の連続 % 値。settings.ts が単一の源として所有・永続化する。
  *     tutorial.ts のドラッグが setReadingAnchor() を呼んで更新し、bg.ts は CSS 変数を読むのみ（要件 06-4 / 06-12）。
+ *
+ * 書字方向の契約: writingMode だけは CSS 変数でなく <html data-writing-mode> 属性へ反映する。
+ *   axis.ts がこの属性を唯一の真実源として読む。settings→axis の import は張らず、DOM 属性＋localStorage キーで疎結合に保つ
+ *   （依存マトリクスに settings→axis は無い）。
  */
 
 type FontSize = 'large' | 'medium' | 'small';
 type FontFamily = 'serif' | 'sans';
 type LineGap = 'on' | 'off';
+// axis.ts の WritingMode と同値。両者は import で結ばず <html data-writing-mode> 属性＝DOM 契約で疎結合に保つ。
+type WritingMode = 'vertical' | 'horizontal';
 
 interface Settings {
     fontSize: FontSize;
     fontFamily: FontFamily;
     lineGap: LineGap;
+    writingMode: WritingMode;
 }
 
 const DEFAULTS: Settings = {
     fontSize: 'medium',
     fontFamily: 'serif',
     lineGap: 'on',
+    writingMode: 'vertical',
 };
 
 const LS_KEYS: Record<keyof Settings, string> = {
     fontSize: 'lirmena.fontSize',
     fontFamily: 'lirmena.fontFamily',
     lineGap: 'lirmena.lineGap',
+    writingMode: 'lirmena.writingMode',
 };
 
 // 読書点（基準点）。本文表示幅基準の連続 % 値。中央（50）よりやや読み終わり側（縦書きでは左寄り）。
@@ -113,6 +123,7 @@ function _load(): Settings {
         fontSize: _readEnum(LS_KEYS.fontSize, ['large', 'medium', 'small'] as const, DEFAULTS.fontSize),
         fontFamily: _readEnum(LS_KEYS.fontFamily, ['serif', 'sans'] as const, DEFAULTS.fontFamily),
         lineGap: _readEnum(LS_KEYS.lineGap, ['on', 'off'] as const, DEFAULTS.lineGap),
+        writingMode: _readEnum(LS_KEYS.writingMode, ['vertical', 'horizontal'] as const, DEFAULTS.writingMode),
     };
 }
 
@@ -131,9 +142,11 @@ function _applyAll(): void {
     root.style.setProperty('--font-size', CSS_VARS.fontSize[_current.fontSize]);
     root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
     root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+    root.setAttribute('data-writing-mode', _current.writingMode);
 }
 
-// key に対応する CSS 変数のみを _current の値で反映する（ボタン操作時の単一項目更新用）。
+// key に対応する反映先のみを _current の値で更新する（ボタン操作時の単一項目更新用）。
+// 通常は CSS 変数だが、writingMode だけは <html data-writing-mode> 属性へ反映する。
 // _applySetting(key: keyof Settings): void
 function _applySetting(key: keyof Settings): void {
     const root = document.documentElement;
@@ -141,8 +154,11 @@ function _applySetting(key: keyof Settings): void {
         root.style.setProperty('--font-size', CSS_VARS.fontSize[_current.fontSize]);
     } else if (key === 'fontFamily') {
         root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
-    } else {
+    } else if (key === 'lineGap') {
         root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+    } else {
+        // writingMode: CSS 変数でなく属性へ。axis.ts がこの属性を読む。
+        root.setAttribute('data-writing-mode', _current.writingMode);
     }
 }
 
@@ -182,6 +198,10 @@ function _buildPopup(): void {
     panel.appendChild(_buildRow('段落間の空行', 'lineGap', [
         { value: 'on', label: 'あり' },
         { value: 'off', label: 'なし' },
+    ]));
+    panel.appendChild(_buildRow('書字方向', 'writingMode', [
+        { value: 'vertical', label: '縦書き' },
+        { value: 'horizontal', label: '横書き' },
     ]));
 
     const divider = document.createElement('div');
