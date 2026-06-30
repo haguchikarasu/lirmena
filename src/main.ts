@@ -79,9 +79,25 @@ const WHEEL_SCROLL_MULTIPLIER = 1;
 
 document.addEventListener('DOMContentLoaded', () => { void _init(); });
 
+// 【安全網／短期対策】_bootstrap の初期化シーケンス（state.init〜reader.init）は try/catch で囲っておらず、
+// 旧 localStorage / 古い history.state / デプロイ直後のアセット新旧不整合（ハッシュ無し固定名 main.js 由来の
+// ブラウザ・CDN キャッシュの伝播ずれ）で同期例外が出ると、#loading に hidden が付かず「読み込み中」で永久固着しうる。
+// 原因を問わず例外を捕まえてフォールバック表示し、固着だけは構造的に防ぐ。
+// ※中長期の恒久対策：本文シェルを public 手書きから Vite のエントリへ移し（MPA 化）、アセットをハッシュ名へ戻して
+//   新旧不整合の窓そのものを閉じる。それが入ればこの try/catch は本質的に不要になる（webサイト/todoリスト.md 参照）。
+async function _init(): Promise<void> {
+    try {
+        await _bootstrap();
+    } catch (err) {
+        // 想定外の同期例外。読み込み中固着を避けるためエラー表示へ倒す（原因の詳細はコンソールへ）。
+        console.error('[main] 初期化中に想定外の例外が発生しました。フォールバック表示します。', err);
+        _showError('ページの表示中に問題が発生しました。お手数ですが再読み込みしてください。');
+    }
+}
+
 /**
- * エントリーポイント。各モジュールを順次初期化する。
- * エラー発生時は _showError() を呼んで処理を中断する。
+ * 初期化シーケンス本体（エントリーポイント _init から try/catch 付きで呼ばれる）。各モジュールを順次初期化する。
+ * 想定済みエラー（URL 不正・データ取得失敗）は _showError() で中断する。想定外の同期例外は呼び出し元 _init が捕捉する。
  *
  * 初期化順序:
  *   0. transition.init()（到着フェードイン起動。await・エラー表示より前）
@@ -99,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
  *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、
  *       復元スクロール発火後に nav.arm()（読了検知を有効化＝復元での誤読了を防ぐ）し、ローディングを隠す
  */
-async function _init(): Promise<void> {
+async function _bootstrap(): Promise<void> {
     // 到着フェードイン（シェルは class="fading" で読み込まれる）。await やエラー表示より前に外して黒から明ける。
     transition.init();
 
