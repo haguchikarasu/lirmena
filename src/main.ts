@@ -30,8 +30,8 @@
  * 【被依存】なし
  * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
  *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
- * 【注意】wheel 補正（deltaY → scrollLeft 変換）は #main-container に1度だけ登録する。
- *         writing-mode: vertical-rl では deltaY（正＝下スクロール）を反転して横スクロールに変換する。
+ * 【注意】wheel 補正は #main-container に1度だけ登録する。縦書きでは deltaY を axis 経由で forward
+ *         （横スクロール）へ写し、横書きではブラウザ既定の縦スクロールに委ねる（リスナを抑制＝preventDefault しない）。
  *         加えて pan.init() でマウス手のひらツール（左ドラッグ横スクロール）を有効化する（微調整＝ホイール／
  *         大量移動＝ドラッグの棲み分け）。スクロールは scrollLeft 直接更新で既存 fan-out に自動追従する。
  * 【Phase 2】bookmark.init() で旧データ移行を起動。外部サイト/直接アクセス（オートセーブ未一致）でない限り
@@ -40,16 +40,19 @@
  *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
  *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
- *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… 新栞=scrollLeft / 移行旧栞=該当シーン先頭 → 消費
+ *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭 → 消費
  *           2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
- *           3. サイト内の明示前進ナビでない（リロード・ブラウザ戻る/進む・直接/外部アクセス）… まず history.state の scrollLeft（per-entry）で復元、無ければオートセーブ（自 ep/sec 一致）の scrollLeft にフォールバック
+ *           3. サイト内の明示前進ナビでない（リロード・ブラウザ戻る/進む・直接/外部アクセス）… まず history.state の ratio（per-entry）で復元、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
  *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
+ *         復元位置はすべてスクロール範囲比 ratio（0〜1・書字方向非依存）で持ち、ratio × 現在の可動域で forward 進行 px へ逆算する
+ *         （axis.setProgress が書字方向の符号を解決）。割合なので縦書き⇔横書きの切替を跨いでも近い本文位置を指す。
  */
 
 // CSS は別エントリ（src/styles/index.ts → assets/styles.css）に分離した。
 // 本文・タイトル両シェルが <link href="/lirmena/assets/styles.css"> で参照する。
 // main.ts からは CSS を import しない（CSS バンドルの責務を styles エントリへ一本化）。
 
+import * as axis from './axis';
 import * as state from './state';
 import * as renderer from './renderer';
 import * as bg from './bg';
@@ -145,9 +148,13 @@ async function _init(): Promise<void> {
     }
 
     const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
+    // 縦書き：deltaY を axis 経由で forward（横スクロール）へ写す。横書き：ブラウザ既定の縦スクロールに委ねる（抑制）。
+    // 入力軸の写像は axis.getProgressFromEvent に集約し、ここでは係数と smooth 化のみ担う。
     mainContainer.addEventListener('wheel', (e) => {
+        if (axis.getMode() === 'horizontal') return;
         e.preventDefault();
-        mainContainer.scrollBy({ left: -e.deltaY * WHEEL_SCROLL_MULTIPLIER, behavior: 'smooth' });
+        const forward = axis.getProgressFromEvent(e) * WHEEL_SCROLL_MULTIPLIER;
+        mainContainer.scrollBy({ left: -forward, behavior: 'smooth' });
     }, { passive: false });
     // マウス手のひらツール（左ドラッグ横スクロール）。ホイール（微調整）と棲み分ける大量移動の手段。
     pan.init();
@@ -157,6 +164,7 @@ async function _init(): Promise<void> {
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),
         onClearRead: () => bookmark.clearRead(),
+        onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });
     bookmark.init();
     // 外部サイト/直接アクセスで開いた本文ページは「到達・オートセーブ」を記録しない（SNS 共有リンク等を
@@ -193,11 +201,11 @@ async function _init(): Promise<void> {
 
 /**
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
- * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → 新栞=scrollLeft / 移行旧栞(scrollLeft 0 & scene>0)=該当シーン先頭。消費する
+ * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭。消費する
  * 2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
- * 3. サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る/進む・直接/外部アクセス）→ まず history.state の scrollLeft（per-entry・autosave より優先）、無ければオートセーブ（自 ep/sec 一致）の scrollLeft にフォールバック
- * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（右端）
- * 縦書き vertical-rl のスクロール符号差は、保存した scrollLeft をそのまま書き戻すことで吸収する。
+ * 3. サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る/進む・直接/外部アクセス）→ まず history.state の ratio（per-entry・autosave より優先）、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
+ * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（進行軸の開始端）
+ * 復元値（jump/history/autosave の ratio）はスクロール範囲比（0〜1・書字方向非依存）。_scrollToRatio が ratio × 現在の可動域で forward 進行 px へ逆算し、axis.setProgress が書字方向の符号を解決する。
  */
 function _restoreInitialScroll(container: HTMLElement, address: SecAddress): void {
     const { ep, sec } = address;
@@ -205,7 +213,7 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
     const jump = bookmark.readPendingJump();
     if (jump && jump.ep === ep && jump.sec === sec) {
         bookmark.clearPendingJump();
-        if (jump.scrollLeft) container.scrollLeft = jump.scrollLeft;
+        if (jump.ratio) _scrollToRatio(container, jump.ratio);
         else if (jump.scene > 0) _scrollToScene(jump.scene);
         else _scrollToHead(container);
         return;
@@ -222,17 +230,18 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
     // （前進ナビは先頭/末尾から開始する仕様）。それ以外＝リロード・ブラウザ戻る/進む・直接/外部アクセスでのみ復元する。
     // 「続きから読む」もサイト内クリックだが、index.ts が pendingJump を書くため上の優先度1で先に復元される。
     if (!_isInAppNavigation()) {
-        // 履歴エントリに刻んだ scrollLeft を最優先。autosave の単一スロットと違い per-entry なので、
+        // 履歴エントリに刻んだ ratio を最優先。autosave の単一スロットと違い per-entry なので、
         // 戻る/進むで前ページに移動して autosave が上書きされていても、戻り先ページの位置を保てる。
-        const histLeft = bookmark.readScrollFromHistory();
-        if (histLeft !== null) {
-            container.scrollLeft = histLeft;
+        // 割合なので書字方向を跨いでも近い位置を指す（旧 px キー lirmenaScrollLeft は readScrollFromHistory が無視する）。
+        const histRatio = bookmark.readScrollFromHistory();
+        if (histRatio !== null) {
+            _scrollToRatio(container, histRatio);
             return;
         }
         // history.state が無い（既存ユーザー・初回エントリ）場合は従来のオートセーブにフォールバックする。
         const auto = bookmark.getAutoSave();
         if (auto && auto.ep === ep && auto.sec === sec) {
-            container.scrollLeft = auto.scrollLeft;
+            _scrollToRatio(container, auto.ratio);
             return;
         }
     }
@@ -240,29 +249,50 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
     _scrollToHead(container);
 }
 
-/** sec 先頭（右端＝読書開始）へ。vertical-rl では scrollLeft 0 が先頭 */
+/** sec 先頭（進行軸の開始端＝読書開始）へ。axis.setProgress(container, 0) で縦書き=右端／横書き=上端 */
 function _scrollToHead(container: HTMLElement): void {
-    container.scrollLeft = 0;
+    axis.setProgress(container, 0);
+}
+
+/** スクロール範囲比 ratio（0〜1）を現在の可動域へ写して forward 進行 px で復元する（縦書き⇔横書き非依存）。 */
+function _scrollToRatio(container: HTMLElement, ratio: number): void {
+    const range = axis.getProgressRange(container);
+    axis.setProgress(container, Math.min(1, Math.max(0, ratio)) * range);
+}
+
+/**
+ * 書字方向のライブ切替（設定のトグル）後に settings から呼ばれる。属性切替では window resize が発火せず bg も
+ * 自動再計算しないため、ここで明示的に再同期する（A-4）：
+ *   1. 切替前の読書位置（reader.getLastRatio＝方向非依存のスクロール範囲比）を新方向のスクロール量へ復元する
+ *   2. 読書点マーカーを新レイアウトの #main-container 矩形へ再配置する
+ *   3. #main-container に scroll を発火し bg を再 emit（クロスフェード／進捗／開幕アフォーダンスを新方向で再計算）
+ * settings は axis/bookmark を import せず、この導線（コールバック）経由で復元をトリガーする（疎結合を保つ）。
+ */
+function _onWritingModeChange(container: HTMLElement): void {
+    _scrollToRatio(container, reader.getLastRatio());
+    tutorial.reposition();
+    container.dispatchEvent(new Event('scroll'));
 }
 
 /**
  * 本文末（＝末尾の恒久余白の手前）へ着地する。末尾には本文表示幅ぶんの空白余白（btn-container-end）が
- * あるため、絶対終端だと空白画面に着地してしまう。余白ぶん（=clientWidth）手前に寄せて本文末を見せる。
- * ブラウザ間のスクロール符号差は両方向トライで吸収する。
+ * あるため、絶対終端だと空白画面に着地してしまう。余白ぶん（=進行軸ビューポート長）手前に寄せて本文末を見せる。
+ * 進行軸とスクロール符号差は axis.setProgress が吸収する（縦書き=scrollLeft 負方向／横書き=scrollTop）。
  */
 function _scrollToEnd(container: HTMLElement): void {
-    const range = container.scrollWidth - container.clientWidth;
+    const range = axis.getProgressRange(container);
     if (range <= 0) return;
-    const target = Math.max(0, range - container.clientWidth);
-    container.scrollLeft = target;
-    if (Math.abs(container.scrollLeft) < target - 2) container.scrollLeft = -target;
+    const target = Math.max(0, range - axis.getClientSize(container));
+    axis.setProgress(container, target);
 }
 
 /** 移行旧栞の coarse 復元：指定シーン（1-indexed）の先頭へ。厳密でなくてよい（要件 06-5） */
 function _scrollToScene(scene: number): void {
     const scenes = document.querySelectorAll<HTMLElement>('#scene-content .scene');
     const el = scenes[scene - 1];
-    if (el) el.scrollIntoView({ inline: 'start', block: 'nearest' });
+    if (!el) return;
+    // 進行軸方向の開始端へ寄せる（縦書き=inline 軸の右端／横書き=block 軸の上端）。
+    el.scrollIntoView(axis.isReverse() ? { inline: 'start', block: 'nearest' } : { block: 'start', inline: 'nearest' });
 }
 
 /**

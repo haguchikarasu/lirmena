@@ -26,7 +26,12 @@
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
   --scene-max-w: 84rem;          /* メインコンテナの横幅上限（PC で本文エリアが広がりすぎないようにする max-width） */
-  --line-max-chars: 42;           /* 1行（縦書きでは1列）の最大文字数（em 換算。フォントサイズ変更に自動追従） */
+  --line-max-chars: 42;           /* 1行（縦書きでは1列）の最大文字数（基準文字サイズ換算） */
+  /* 本文の行長（縦書き=列の高さ／横書き=行の幅）。文字サイズ設定に連動させると本文の帯幅まで動いて見栄え・
+     調整項目の独立性を損なうため、基準文字サイズ（中サイズ相当）で固定する。読書フォントを変えても帯幅は不変
+     （文字サイズを上げると1行の文字数が減る）。 */
+  --text-ref-size: 18px;                                       /* 行長の基準文字サイズ（= --font-size-md。読書設定に非連動） */
+  --line-length: calc(var(--line-max-chars) * var(--text-ref-size));  /* 本文の行長（固定 px・文字サイズ非連動） */
 
   /* 書字方向の補助変数。settings.ts が <html data-writing-mode> 属性を切替え、その属性でこの変数が解決される。
      #main-container / #scene-content の writing-mode をこの1本で駆動する。属性自体は axis.ts も読む真実源。 */

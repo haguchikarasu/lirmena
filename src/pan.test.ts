@@ -2,17 +2,17 @@
  * pan.test.ts
  * 対象: pan.ts の DOM 非依存な純関数
  *   - shouldPanFromInput: 押下イベントがパン開始条件（マウス・左ボタン・修飾キー無し）を満たすか
- *   - computePanScrollLeft: content-follows-cursor のスクロール量（負モデル・1:1）
+ *   - computePanForward: content-follows-cursor の forward 位置（進行符号 sign で軸・向きを吸収・1:1）
  *   - smoothVelocity / decayVelocity / shouldStartMomentum: 慣性（momentum）の数式（離脱速度の平滑・摩擦減衰・開始判定）
  * 方針: 期待値は実装ではなく pan.ts の IF コメント／要件 06-6（左ボタン＋修飾キー無し＋マウス限定でのみパン、
- *   Shift で選択へ譲る、縦書き負モデル forward＝scrollLeft 負方向、離脱速度から摩擦で自然減速する慣性）から
- *   導出する（仕様駆動）。pointerdown 登録・setPointerCapture・rAF・closest 等の DOM/タイマ依存は jsdom 不安定の
- *   ため自動化しない（CLAUDE.md §7）。慣性も数式（純関数）のみテストし、rAF ループ自体は手動スモークで担保する。
+ *   Shift で選択へ譲る、forward＝読み進め方向の正値・進行軸ポインタ移動に対し forward は -sign 倍、離脱速度から
+ *   摩擦で自然減速する慣性）から導出する（仕様駆動）。pointerdown 登録・setPointerCapture・rAF・closest 等の
+ *   DOM/タイマ依存は jsdom 不安定のため自動化しない（CLAUDE.md §7）。慣性も数式（純関数）のみテストし、rAF ループ自体は手動スモークで担保する。
  */
 import { describe, expect, it } from 'vitest';
 import {
     shouldPanFromInput,
-    computePanScrollLeft,
+    computePanForward,
     smoothVelocity,
     decayVelocity,
     shouldStartMomentum,
@@ -52,26 +52,30 @@ describe('shouldPanFromInput（パン開始条件の判定）', () => {
     });
 });
 
-describe('computePanScrollLeft（content-follows-cursor のスクロール量）', () => {
-    it('マウスを右へ動かす（currentX 増）と scrollLeft は減る（負モデル forward）', () => {
-        // start=0, startX=100, currentX=160（右へ +60）→ 0 - 60 = -60
-        expect(computePanScrollLeft(0, 100, 160)).toBe(-60);
+describe('computePanForward（content-follows-cursor の forward 位置）', () => {
+    it('縦書き(sign=-1)：進行軸ポインタを正方向へ（右ドラッグ・+60）で forward は増える', () => {
+        // start=0, startP=100, curP=160 → 0 - (-1)*60 = +60
+        expect(computePanForward(0, 100, 160, -1)).toBe(60);
     });
 
-    it('マウスを左へ動かす（currentX 減）と scrollLeft は増える（backward）', () => {
-        // start=-200, startX=100, currentX=60（左へ -40）→ -200 - (-40) = -160
-        expect(computePanScrollLeft(-200, 100, 60)).toBe(-160);
+    it('縦書き(sign=-1)：進行軸ポインタを負方向へ（左ドラッグ・-40）で forward は減る（backward）', () => {
+        // start=200, startP=100, curP=60 → 200 - (-1)*(-40) = 160
+        expect(computePanForward(200, 100, 60, -1)).toBe(160);
     });
 
-    it('移動しなければ起点の scrollLeft のまま', () => {
-        expect(computePanScrollLeft(-123, 100, 100)).toBe(-123);
+    it('横書き(sign=+1)：進行軸ポインタを正方向へ（下ドラッグ・+60）で forward は減る（backward）', () => {
+        // start=300, startP=100, curP=160 → 300 - (1)*60 = 240
+        expect(computePanForward(300, 100, 160, 1)).toBe(240);
     });
 
-    it('移動量と scrollLeft の変化は 1:1（絶対値一致）', () => {
-        const start = -500;
-        const startX = 300;
-        const moved = computePanScrollLeft(start, startX, startX + 250);
-        expect(Math.abs(moved - start)).toBe(250);
+    it('移動しなければ起点の forward のまま（両モード）', () => {
+        expect(computePanForward(123, 100, 100, -1)).toBe(123);
+        expect(computePanForward(123, 100, 100, 1)).toBe(123);
+    });
+
+    it('移動量と forward の変化は 1:1（絶対値一致・符号は sign 依存）', () => {
+        expect(Math.abs(computePanForward(500, 300, 550, -1) - 500)).toBe(250);
+        expect(Math.abs(computePanForward(500, 300, 550, 1) - 500)).toBe(250);
     });
 });
 

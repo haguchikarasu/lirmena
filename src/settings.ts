@@ -2,7 +2,9 @@
  * settings.ts
  * 責務: フォントサイズ・フォント・段落間マージン・書字方向・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
  * export: init(), open(), getReadingAnchor(), setReadingAnchor()
- * 依存: なし（栞・既読クリアのコールバックは main.ts から注入）
+ * 依存: なし（栞・既読クリア・書字方向変更後の処理のコールバックは main.ts から注入）
+ *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
+ *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
  *
  * 設定項目とデフォルト値（定数で定義）:
  *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
@@ -60,17 +62,18 @@ const CSS_VARS = {
 } satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string> };
 
 let _current: Settings = { ...DEFAULTS };
-let _callbacks: { onClearBookmarks: () => void; onClearRead: () => void } = {
+let _callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void } = {
     onClearBookmarks: () => {},
     onClearRead: () => {},
+    onWritingModeChange: () => {},
 };
 let _popup: HTMLElement | null = null;
 const _optEntries = new Map<keyof Settings, Array<{ btn: HTMLButtonElement; value: string }>>();
 
 // 設定を localStorage から復元し CSS 変数に反映する。
-// callbacks.onClearBookmarks / onClearRead を設定画面のクリアボタンに割り当てる。
-// init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
-export function init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void {
+// callbacks.onClearBookmarks / onClearRead を設定画面のクリアボタンに、onWritingModeChange を書字方向変更後の復元に割り当てる。
+// init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
+export function init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void {
     _callbacks = callbacks;
     _current = _load();
     _readingAnchor = _loadReadingAnchor();
@@ -211,11 +214,14 @@ function _buildPopup(): void {
     panel.appendChild(_buildAction('栞をクリア', () => { _callbacks.onClearBookmarks(); }));
     panel.appendChild(_buildAction('既読をクリア', () => { _callbacks.onClearRead(); }));
     panel.appendChild(_buildAction('設定をリセット', () => {
+        const modeChanged = _current.writingMode !== DEFAULTS.writingMode;
         _current = { ...DEFAULTS };
         _saveAll();
         _applyAll();
         setReadingAnchor(READING_ANCHOR_DEFAULT);
         _refreshOpts();
+        // リセットで書字方向が変わったら（横書き→既定の縦書き）切替前位置を復元する（A-4）。
+        if (modeChanged) _callbacks.onWritingModeChange();
     }));
 
     const closeBtn = document.createElement('button');
@@ -263,10 +269,13 @@ function _buildRow(
         btn.textContent = opt.label;
         if ((_current[key] as string) === opt.value) btn.classList.add('active');
         btn.addEventListener('click', () => {
+            const changed = (_current[key] as string) !== opt.value;
             Object.assign(_current, { [key]: opt.value });
             localStorage.setItem(LS_KEYS[key], opt.value);
             _applySetting(key);
             _refreshRow(key);
+            // 書字方向を実際に切り替えたときだけ、main.ts に切替前位置の復元・マーカー再配置を依頼する（A-4）。
+            if (key === 'writingMode' && changed) _callbacks.onWritingModeChange();
         });
         optsEl.appendChild(btn);
         entries.push({ btn, value: opt.value });

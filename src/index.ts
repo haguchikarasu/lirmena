@@ -22,18 +22,21 @@
  * localStorage キー（bookmark.ts / settings.ts と共有。変更時は両側を合わせること）:
  *   "reached"            : string[]         到達 sec の集合 "ep-sec"（2桁ゼロ埋め）。既読マーク（色）の源。「既読をクリア」対象
  *   "read"              : string[]         読了 sec の集合 "ep-sec"。読破マーク（✓）の源。「読破状況をクリア」対象
- *   "autosave"           : { ep, sec, scrollLeft, savedAt }   最新の読書位置。スロット0／「続きから読む」の遷移先
- *   "bookmarks"          : BookmarkEntry[]  flat { slot, ep, sec, scene, scrollLeft, savedAt }（slot=1..3。旧 nested/旧 flat も後方互換で読む）
- *   "pendingJump"        : { ep, sec, scene, scrollLeft }   栞ジャンプ受け渡し（書くだけ・消費は遷移先ページ）
+ *   "autosave"           : { ep, sec, ratio, savedAt }   最新の読書位置（ratio はスクロール範囲比 0〜1・書字方向非依存）。スロット0／「続きから読む」の遷移先
+ *   "bookmarks"          : BookmarkEntry[]  flat { slot, ep, sec, scene, ratio, savedAt }（slot=1..3・単一スロット。旧単一/方向別キーは bookmark.ts の移行元）
+ *   "pendingJump"        : { ep, sec, scene, ratio }   栞ジャンプ受け渡し（ratio はスクロール範囲比 0〜1。書くだけ・消費は遷移先ページ）
  *   "sceneRead"          : string[]         旧 "ep-sec-scene" 形式。移行前に目次を先に開いた返読者向けフォールバック
- *   "lirmena.fontSize"   : 'large' | 'medium' | 'small'   デフォルト 'medium'
- *   "lirmena.fontFamily" : 'serif' | 'sans'               デフォルト 'serif'
- *   "lirmena.lineGap"    : 'on' | 'off'                   デフォルト 'on'
+ *   "lirmena.fontSize"    : 'large' | 'medium' | 'small'   デフォルト 'medium'
+ *   "lirmena.fontFamily"  : 'serif' | 'sans'               デフォルト 'serif'
+ *   "lirmena.lineGap"     : 'on' | 'off'                   デフォルト 'on'
+ *   "lirmena.writingMode" : 'vertical' | 'horizontal'      デフォルト 'vertical'（目次は保存のみ。反映は本文ページの axis）
  *
  * 既読マーク（色）は到達ベース（一般的な「開いたら既読」方式）。`reached` を引き、加えて移行前の返読者向けに
  * 旧 `sceneRead` の完了マーカー "ep-sec-00" もフォールバックで既読扱いする。読破マーク（✓）は読了ベースで `read`
  * を引き、同様に旧 "ep-sec-00" を読破扱いにする（bookmark.ts の移行と整合）。
  */
+
+import * as bookmark from './bookmark';
 
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
 // 栞は flat 形＋固定スロット（slot=1..3）。旧 nested 形（{ address }）・旧 flat（slot 無し）は
@@ -43,7 +46,7 @@ type BookmarkEntry = {
     ep: number;
     sec: number;
     scene: number;
-    scrollLeft: number;
+    ratio: number;
     savedAt: number;
 };
 type ContentChangelogEntry = {
@@ -69,8 +72,16 @@ const LS_SCENE_READ   = 'sceneRead';
 const LS_FONT_SIZE    = 'lirmena.fontSize';
 const LS_FONT_FAMILY  = 'lirmena.fontFamily';
 const LS_LINE_GAP     = 'lirmena.lineGap';
+const LS_WRITING_MODE = 'lirmena.writingMode';
 
-const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on' } as const;
+const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', writingMode: 'vertical' } as const;
+
+// 栞・オートセーブは読書位置をスクロール範囲比（割合・書字方向非依存）で持つため単一スロット（"bookmarks"/"autosave"）に
+// 保存される（bookmark.ts と同一規則。schemaVersion 5 で方向別スロットから統合）。目次はその単一キーを引く。
+// 「栞をクリア」は単一スロットを消す。
+function clearAllBookmarkSlots(): void {
+    localStorage.removeItem(LS_BOOKMARKS);
+}
 
 const GITHUB_REPO = 'haguchikarasu/lirmena';
 
@@ -160,12 +171,13 @@ function loadBookmarks(): BookmarkEntry[] {
             const addr = (o.address ?? o) as Record<string, unknown>;
             const slotRaw = Number(o.slot);
             const slot = (slotRaw === 1 || slotRaw === 2 || slotRaw === 3) ? slotRaw : 0;
+            const ratio = Number(o.ratio);
             return {
                 slot,
                 ep: Number(addr.ep),
                 sec: Number(addr.sec),
                 scene: Number(addr.scene) || 0,
-                scrollLeft: o.address ? 0 : (Number(o.scrollLeft) || 0),
+                ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0,
                 savedAt: Number(o.savedAt) || Date.now(),
             };
         }).filter((b) => Number.isFinite(b.ep) && Number.isFinite(b.sec));
@@ -205,33 +217,34 @@ function clearReadStatus(): void {
 }
 
 // オートセーブ（最新の読書位置）を読む。無ければ null。savedAt はスロット0の日時表示に使う。
-// scrollLeft は「続きから読む」が pendingJump に載せて復元させるために返す。
-// loadAutoSave(): { ep: number; sec: number; scrollLeft: number; savedAt: number } | null
-function loadAutoSave(): { ep: number; sec: number; scrollLeft: number; savedAt: number } | null {
+// ratio（スクロール範囲比 0〜1）は「続きから読む」が pendingJump に載せて復元させるために返す。
+// loadAutoSave(): { ep: number; sec: number; ratio: number; savedAt: number } | null
+function loadAutoSave(): { ep: number; sec: number; ratio: number; savedAt: number } | null {
     try {
         const raw = localStorage.getItem(LS_AUTOSAVE);
         if (!raw) return null;
-        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; scrollLeft?: unknown; savedAt?: unknown };
+        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; ratio?: unknown; savedAt?: unknown };
         const ep = Number(o.ep);
         const sec = Number(o.sec);
         if (Number.isFinite(ep) && Number.isFinite(sec)) {
-            return { ep, sec, scrollLeft: Number(o.scrollLeft) || 0, savedAt: Number(o.savedAt) || Date.now() };
+            const ratio = Number(o.ratio);
+            return { ep, sec, ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0, savedAt: Number(o.savedAt) || Date.now() };
         }
     } catch { /* ignore */ }
     return null;
 }
 
 // 「続きから読む」用に pendingJump を書く。続きから読むはサイト内クリック（明示前進ナビと同種）なので、
-// main.ts の「明示前進ナビでは復元しない」gate に弾かれる。pendingJump（最優先）で確実に scrollLeft を復元させる
+// main.ts の「明示前進ナビでは復元しない」gate に弾かれる。pendingJump（最優先）で確実に ratio を復元させる
 // （栞ジャンプと同じ仕組み。bookmark.ts と共有する localStorage キー）。
-// writeResumeJump(auto: { ep: number; sec: number; scrollLeft: number }): void
-function writeResumeJump(auto: { ep: number; sec: number; scrollLeft: number }): void {
-    localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep: auto.ep, sec: auto.sec, scene: 0, scrollLeft: auto.scrollLeft }));
+// writeResumeJump(auto: { ep: number; sec: number; ratio: number }): void
+function writeResumeJump(auto: { ep: number; sec: number; ratio: number }): void {
+    localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep: auto.ep, sec: auto.sec, scene: 0, ratio: auto.ratio }));
 }
 
-// オートセーブ位置の sec 本文ページへ遷移する。遷移前に pendingJump を書き、着地先 main.ts が scrollLeft を復元する。
-// resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void
-function resumeReading(auto: { ep: number; sec: number; scrollLeft: number }): void {
+// オートセーブ位置の sec 本文ページへ遷移する。遷移前に pendingJump を書き、着地先 main.ts が ratio を復元する。
+// resumeReading(auto: { ep: number; sec: number; ratio: number }): void
+function resumeReading(auto: { ep: number; sec: number; ratio: number }): void {
     writeResumeJump(auto);
     location.href = withQuery(`contents/${pad(auto.ep)}-${pad(auto.sec)}.html`);
 }
@@ -416,7 +429,7 @@ function renderBookmarks(): void {
         jumpBtn.textContent = 'ここから読む';
         // 遷移前に pendingJump を書く（同期。遷移先ページがロード時に読んで復元する）。
         jumpBtn.addEventListener('click', () => {
-            localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep, sec, scene, scrollLeft: entry.scrollLeft }));
+            localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep, sec, scene, ratio: entry.ratio }));
         });
         actions.appendChild(jumpBtn);
 
@@ -513,9 +526,10 @@ function buildSettingsPopup(episodes: Episode[]): void {
     // refreshRows(): void
     function refreshRows(): void {
         const defs: [string, string][] = [
-            [LS_FONT_SIZE,   DEFAULTS.fontSize],
-            [LS_FONT_FAMILY, DEFAULTS.fontFamily],
-            [LS_LINE_GAP,    DEFAULTS.lineGap],
+            [LS_FONT_SIZE,    DEFAULTS.fontSize],
+            [LS_FONT_FAMILY,  DEFAULTS.fontFamily],
+            [LS_LINE_GAP,     DEFAULTS.lineGap],
+            [LS_WRITING_MODE, DEFAULTS.writingMode],
         ];
         for (const [key, def] of defs) {
             const current = readSetting(key, def);
@@ -546,13 +560,18 @@ function buildSettingsPopup(episodes: Episode[]): void {
         { value: 'on',  label: 'あり' },
         { value: 'off', label: 'なし' },
     ]));
+    // 書字方向：目次は localStorage に保存するだけ（目次自体は横書き固定。次に本文ページを開いた時に axis が反映する）。
+    panel.appendChild(buildRow('書字方向', LS_WRITING_MODE, DEFAULTS.writingMode, [
+        { value: 'vertical',   label: '縦書き' },
+        { value: 'horizontal', label: '横書き' },
+    ]));
 
     const divider = document.createElement('div');
     divider.className = 'settings-divider';
     panel.appendChild(divider);
 
     panel.appendChild(buildAction('栞をクリア', () => {
-        localStorage.removeItem(LS_BOOKMARKS);
+        clearAllBookmarkSlots();
         renderBookmarks();
     }));
     panel.appendChild(buildAction('既読をクリア', () => {
@@ -563,6 +582,7 @@ function buildSettingsPopup(episodes: Episode[]): void {
         localStorage.removeItem(LS_FONT_SIZE);
         localStorage.removeItem(LS_FONT_FAMILY);
         localStorage.removeItem(LS_LINE_GAP);
+        localStorage.removeItem(LS_WRITING_MODE);
         refreshRows();
     }));
 
@@ -686,7 +706,7 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, episodes: Episode[
     const auto = loadAutoSave();
     if (auto) addItem('続きから読む', () => { resumeReading(auto); });
     addItem('栞をすべてクリア', () => {
-        localStorage.removeItem(LS_BOOKMARKS);
+        clearAllBookmarkSlots();
         renderBookmarks();
     });
     addItem('既読をクリア', () => {
@@ -836,6 +856,10 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
 
 // main(): Promise<void>
 async function main(): Promise<void> {
+    // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋スクロール範囲比への割合化）を確実に走らせる。
+    // 目次は bookmark の表示 API は使わず localStorage を直読みするが、移行は bookmark.ts が一元管理するため init を起動する。
+    bookmark.init();
+
     let episodes: Episode[] = [];
 
     try {

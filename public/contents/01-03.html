@@ -47,12 +47,10 @@
 
   <!-- メインコンテナ（本文ページの読書エリア A/C/D） -->
   <main id="main-container">
-    <nav id="btn-container-start" class="btn-container">
-      <button id="btn-prev" type="button" aria-label="前へ" tabindex="2">›</button>
-    </nav>
+    <nav id="btn-container-start" class="btn-container"></nav>
     <article id="scene-content" hidden></article>
     <nav id="btn-container-end" class="btn-container">
-      <button id="btn-next" type="button" aria-label="次へ" tabindex="1">‹</button>
+      <button id="btn-next" type="button" aria-label="次へ" tabindex="1">次へ</button>
     </nav>
   </main>
 
@@ -64,8 +62,8 @@
   <!-- 開幕アフォーダンス（opening.ts が操作。<html>.at-opening のときだけ CSS で表示） -->
   <aside id="opening-affordance">
     <p id="opening-label"></p>
-    <button id="opening-start" type="button">‹ 読み進める</button>
-    <button id="opening-back" type="button">もどる ›</button>
+    <button id="opening-back" type="button">もどる</button>
+    <button id="opening-start" type="button">読み進める</button>
   </aside>
 
   <!-- 右下ナビゲーションメニュー（menu.ts が操作） -->

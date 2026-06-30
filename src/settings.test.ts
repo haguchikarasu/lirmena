@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { init, getReadingAnchor, setReadingAnchor } from './settings';
 
-const NOOP = { onClearBookmarks: () => {}, onClearRead: () => {} };
+const NOOP = { onClearBookmarks: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
 
 beforeEach(() => {
@@ -109,6 +109,29 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
             findByText('.settings-action', '設定をリセット')?.click();
             expect(mode()).toBe('vertical');
             expect(localStorage.getItem('lirmena.writingMode')).toBe('vertical');
+        });
+
+        // 仕様（A-4）：書字方向が実際に変わったときだけ onWritingModeChange を呼ぶ（main.ts が切替前位置を新方向へ復元する）。
+        it('書字方向を実際に変えたときだけ onWritingModeChange を呼ぶ', () => {
+            let calls = 0;
+            init({ ...NOOP, onWritingModeChange: () => { calls++; } });
+            // 縦書き（既定）で「横書き」を選ぶ＝変化あり → 1回
+            findByText('.settings-opt', '横書き')?.click();
+            expect(calls).toBe(1);
+            // すでに横書きで「横書き」を再選択＝変化なし → 増えない
+            findByText('.settings-opt', '横書き')?.click();
+            expect(calls).toBe(1);
+            // 「縦書き」へ＝変化あり → 2回
+            findByText('.settings-opt', '縦書き')?.click();
+            expect(calls).toBe(2);
+        });
+
+        it('書字方向以外の設定変更では onWritingModeChange を呼ばない', () => {
+            let calls = 0;
+            init({ ...NOOP, onWritingModeChange: () => { calls++; } });
+            findByText('.settings-opt', 'ゴシック体')?.click(); // フォント変更
+            findByText('.settings-opt', '大')?.click();         // 文字サイズ変更
+            expect(calls).toBe(0);
         });
     });
 });

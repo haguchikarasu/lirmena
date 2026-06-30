@@ -2,7 +2,7 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
  * export: init(characters: CharactersData, volumes: VolumesData): void
- * 依存: state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
@@ -15,7 +15,7 @@
  * 栞ポップアップ（#bookmark-popup）：
  *   - _buildBookmarkPopup(): void — スロット1〜3のアクションボタン（各スロットの現在内容／空きを表示）＋閉じる を生成する
  *   - _openBookmarkPopup() / _closeBookmarkPopup(): void — 表示切替。開く直前にボタンラベルを最新内容で再生成する
- *   - スロット押下で bookmark.addBookmark(state.getCurrent(), #main-container.scrollLeft, slot) を呼んで上書き保存する
+ *   - スロット押下で bookmark.addBookmark(state.getCurrent(), ratio, slot)（ratio＝forward 進行 px ÷ 可動域＝スクロール範囲比 0〜1）を呼んで上書き保存する
  *   - 閉じる方法：背景クリック・Escape キー・閉じるボタン
  *
  * 開閉制御（メニュー）：
@@ -42,6 +42,7 @@
  *     settings.ts へのコールバック注入は main.ts が行う（menu.ts は関与しない）。
  */
 
+import * as axis from './axis';
 import * as state from './state';
 import * as bookmark from './bookmark';
 import * as settings from './settings';
@@ -228,7 +229,9 @@ function _buildBookmarkPopup(): void {
         btn.className = 'settings-action';
         btn.addEventListener('click', () => {
             const container = document.querySelector<HTMLElement>('#main-container')!;
-            bookmark.addBookmark(state.getCurrent(), container.scrollLeft, slot);
+            const range = axis.getProgressRange(container);
+            const ratio = range > 0 ? axis.getProgress(container) / range : 0;
+            bookmark.addBookmark(state.getCurrent(), ratio, slot);
             _closeBookmarkPopup();
         });
         _slotBtns[slot] = btn;

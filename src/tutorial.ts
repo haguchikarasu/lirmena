@@ -1,21 +1,22 @@
 /*
  * tutorial.ts
  * 責務: 読書点（基準点）チュートリアル。常時アンカーマーカーの表示とドラッグ移動、初回ガイドの画像カルーセル。
- * export: init(), open()
- * 依存: settings.ts（読書点の所有者。ドロップ時に setReadingAnchor() で永続化）
+ * export: init(), open(), reposition()
+ * 依存: axis.ts（進行軸・書字方向の解決）／ settings.ts（読書点の所有者。ドロップ時に setReadingAnchor() で永続化）
  *
  * 読書点の値の所在（要件 06-12 / 06-4）:
  *   基準点の位置は CSS 変数 --reading-anchor（本文表示幅＝#main-container 幅基準の連続 %）を単一の源とする。
  *   settings.ts が所有・永続化し、bg.ts は CSS 変数を読むのみ。tutorial.ts はドラッグで setter を呼ぶ。
  *
  * 常時アンカー（#reading-anchor）:
- *   - #main-container の box を基準に px で配置する（bg.ts の anchorX と同一基準を保つため CSS % 直指定はしない）。
- *     横位置(left)に加え、縦span(top/height)も #main-container の rect に合わせる（マーカー＝本文表示エリアの上下端）。
- *   - 見た目は「本文表示エリア上下端の三角形（▽/△、常時表示）＋それを結ぶ縦線」。縦線(.reading-anchor-line)は
- *     pointer-events: none（本文スクロールを妨げない）かつドラッグ中のみ表示（#reading-anchor.dragging で opacity 切替）。
- *   - ドラッグの掴み手は上下の三角形(.reading-anchor-cap、pointer-events を持つ <button>)。tutorial.ts が縦線・三角形を
+ *   - #main-container の box を基準に px で配置する（bg.ts の読書点と同一基準を保つため CSS % 直指定はしない）。
+ *     進行軸の位置（縦書き=left／横書き=top）に加え、直交軸の span（縦書き=top/height／横書き=left/width）も
+ *     #main-container の rect に合わせる（マーカー＝本文表示エリアの進行直交端いっぱい）。配置軸の解決は axis が担う。
+ *   - 見た目は「本文表示エリア両端の三角形（縦書き=上下▽/△／横書き=左右▷/◁、常時表示）＋それを結ぶ線（ドラッグ中のみ表示）」。
+ *     線(.reading-anchor-line)は pointer-events: none（本文スクロールを妨げない）。形状・向きの切替は CSS（html[data-writing-mode]）。
+ *   - ドラッグの掴み手は両端の三角形(.reading-anchor-cap、pointer-events を持つ <button>)。tutorial.ts が線・三角形を
  *     生成して #reading-anchor に追加する。どちらの三角形からでもドラッグ開始できる。
- *   - 左右（改行方向）にドラッグで自由移動。ドラッグ中は --reading-anchor をライブ更新し、#main-container に
+ *   - 進行軸方向（縦書き=左右／横書き=上下）にドラッグで自由移動。ドラッグ中は --reading-anchor をライブ更新し、#main-container に
  *     合成 scroll イベントを dispatch して bg.ts のクロスフェード中点を即追従させる（bg を import しない＝疎結合）。
  *   - ドロップ時に settings.setReadingAnchor() で連続値を永続化（スナップ・丸めなし）。
  *
@@ -25,6 +26,7 @@
  *   各画像にキャラクターが描き込まれているため、説明文(.tutorial-text)はキャラクターに被らない縦中央バンドへ重ねる（要件 06-12）。
  */
 
+import * as axis from './axis';
 import * as settings from './settings';
 
 const KEY_TUTORIAL_SEEN = 'lirmena.tutorialSeen';
@@ -79,15 +81,51 @@ export function open(): void {
     _popup.hidden = false;
 }
 
+// マーカーを現在の #main-container 矩形・読書点に合わせて配置し直す。書字方向のライブ切替でレイアウトが
+// 変わったとき main.ts が呼ぶ（resize と同じ再配置だが、属性切替では resize が発火しないため明示トリガーが要る）。
+// reposition(): void
+export function reposition(): void {
+    _positionMarker();
+}
+
 // 現在の読書点（settings 所有の %）に合わせてマーカーを #main-container 基準の px で配置する。
-// 横位置(left)に加え、縦span(top/height)も #main-container の rect に揃える（マーカー＝本文表示エリアの上下端）。
 // _positionMarker(): void
 function _positionMarker(): void {
     if (!_marker || !_container) return;
-    const rect = _container.getBoundingClientRect();
-    _marker.style.left = `${rect.left + (settings.getReadingAnchor() / 100) * rect.width}px`;
-    _marker.style.top = `${rect.top}px`;
-    _marker.style.height = `${rect.height}px`;
+    _layoutMarkerAt(_container.getBoundingClientRect(), settings.getReadingAnchor());
+}
+
+// 進行軸上の % からマーカーを #main-container 基準の px で配置する（settings を読まない＝ドラッグ中のライブ更新でも使う）。
+// 進行軸の位置（縦書き=left／横書き=top）＝読書点、直交軸の span（縦書き=top/height／横書き=left/width）＝本文表示エリア端いっぱい。
+// 形状（縦線/横線・三角の向き）は CSS（html[data-writing-mode]）が解決する。
+// _layoutMarkerAt(rect: DOMRect, pct: number): void
+function _layoutMarkerAt(rect: DOMRect, pct: number): void {
+    if (!_marker) return;
+    const anchor = axis.getAnchorPx(rect, pct / 100);
+    if (axis.isReverse()) {
+        _marker.style.left = `${anchor}px`;
+        _marker.style.top = `${rect.top}px`;
+        _marker.style.width = '';
+        _marker.style.height = `${rect.height}px`;
+    } else {
+        _marker.style.top = `${anchor}px`;
+        _marker.style.left = `${rect.left}px`;
+        _marker.style.height = '';
+        _marker.style.width = `${rect.width}px`;
+    }
+}
+
+// ポインタの進行軸座標を #main-container 基準の読書点 %（読み始め端基準）へ変換する。axis.getAnchorPx と表裏：
+// % が大きいほど読み始め端（縦書き=右／横書き=上）寄り。縦書きは左端から、横書きは下端からの割合で測る。
+// 0〜100 にクランプ。進行軸ビューポート長が 0（縮退）なら null。
+// _pointerToPct(e: PointerEvent, rect: DOMRect): number | null
+function _pointerToPct(e: PointerEvent, rect: DOMRect): number | null {
+    if (axis.isReverse()) {
+        if (rect.width <= 0) return null;
+        return Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    }
+    if (rect.height <= 0) return null;
+    return Math.min(100, Math.max(0, ((rect.bottom - e.clientY) / rect.height) * 100));
 }
 
 // ドラッグ開始。掴んだ三角形(e.currentTarget)にポインタをキャプチャして move/up を受け続ける。
@@ -105,15 +143,15 @@ function _onPointerDown(e: PointerEvent): void {
     e.preventDefault();
 }
 
-// ドラッグ中：ポインタ X から #main-container 基準の % を算出し、CSS 変数・マーカー位置をライブ更新する。
+// ドラッグ中：ポインタの進行軸座標から #main-container 基準の % を算出し、CSS 変数・マーカー位置をライブ更新する。
 // bg.ts を即追従させるため #main-container に合成 scroll を dispatch する。
 function _onPointerMove(e: PointerEvent): void {
     if (!_dragging || !_container || !_marker) return;
     const rect = _container.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const pct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const pct = _pointerToPct(e, rect);
+    if (pct === null) return;
     document.documentElement.style.setProperty('--reading-anchor', `${pct}%`);
-    _marker.style.left = `${rect.left + (pct / 100) * rect.width}px`;
+    _layoutMarkerAt(rect, pct);
     _container.dispatchEvent(new Event('scroll'));
 }
 
@@ -124,9 +162,7 @@ function _onPointerUp(e: PointerEvent): void {
     _dragging = false;
     _marker.classList.remove('dragging');
     const rect = _container.getBoundingClientRect();
-    const pct = rect.width > 0
-        ? Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100))
-        : settings.getReadingAnchor();
+    const pct = _pointerToPct(e, rect) ?? settings.getReadingAnchor();
     settings.setReadingAnchor(pct);
     _positionMarker();
     const grip = _activeGrip;

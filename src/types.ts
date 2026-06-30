@@ -28,24 +28,30 @@ export type SecAddress = { ep: number; sec: number };
 export type SecKey = string;
 
 /**
- * AutoSaveEntry: オートセーブ（現在 sec の最新スクロール位置）。常に最新1件を上書き保存する。
- * localStorage キー "autosave"。
+ * AutoSaveEntry: オートセーブ（現在 sec の最新読書位置）。常に最新1件を上書き保存する。
+ * ratio はスクロール範囲比（forward 進行 px ÷ 進行軸の可動域＝0〜1・書字方向非依存）。座標スケールの差を割合で吸収するため
+ * 縦書き⇔横書きで同一スロットを共有でき、復元時は ratio × 現在の可動域で forward 進行 px へ逆算する。
+ * localStorage キー "autosave"（schemaVersion 5 で単一スロット・割合化。旧 "autosave"/"autosave.vertical" は移行元）。
  */
-export type AutoSaveEntry = { ep: number; sec: number; scrollLeft: number; savedAt: number };
+export type AutoSaveEntry = { ep: number; sec: number; ratio: number; savedAt: number };
 
 /**
  * PendingJump: 栞ジャンプの受け渡し用。menu.ts / index.ts が書き、遷移先ページがロード時に読んで復元する。
- * localStorage キー "pendingJump"。新栞は scrollLeft、移行旧栞は scene 先頭へ復元する。
+ * ratio はスクロール範囲比（0〜1・書字方向非依存）。ratio>0 はその割合位置へ、ratio 0 かつ scene>0 は scene 先頭へ復元する。
+ * localStorage キー "pendingJump"。
  */
-export type PendingJump = { ep: number; sec: number; scene: number; scrollLeft: number };
+export type PendingJump = { ep: number; sec: number; scene: number; ratio: number };
 
 /**
  * ScrollNotification: bg.ts がスクロール購読（rAF スロットル）で算出し、reader.ts へ通知するペイロード。
- * #main-container のスクロール量に加え、現在シーン（連続値 P から round(P)+1 を [1,N] にクランプ・1-indexed）と
+ * scrollLeft は forward 進行 px（0 起点・正値・書字方向で正規化済み＝axis.getProgress 由来。フィールド名は後方互換で据置だが生 scrollLeft ではない）。
+ * ratio はスクロール範囲比（forward 進行 px ÷ 進行軸の可動域＝0〜1・書字方向非依存）。オートセーブ／履歴エントリの位置記録に使う
+ * （方向間で同一スロットを共有するための割合表現。可動域 0 のときは 0）。
+ * 加えて現在シーン（連続値 P から round(P)+1 を [1,N] にクランプ・1-indexed）と
  * 本文領域基準の連続進捗 progress（0〜1・読書点が先頭テキスト→末尾テキストを走る量。前後の空白余白では 0/1 に固定）を載せる。
  * reader.ts は currentScene を state.ts へ反映し、progress を progress.ts へそのまま渡す。
  */
-export type ScrollNotification = { scrollLeft: number; scrollWidth: number; clientWidth: number; currentScene: number; progress: number };
+export type ScrollNotification = { scrollLeft: number; ratio: number; scrollWidth: number; clientWidth: number; currentScene: number; progress: number };
 
 /**
  * BgLayerSpec: bg.ts が #bg-stack に1枚ずつ .bg-layer を構築するための背景指定。

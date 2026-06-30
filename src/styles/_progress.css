@@ -109,25 +109,37 @@ html.at-opening #opening-affordance {
   #opening-start { animation: none; opacity: 0.92; }
 }
 
-/* 開幕中は余白に浮く素の戻るボタン・読書点マーカーを隠してアフォーダンスへ一本化する。 */
-html.at-opening #btn-prev {
-  opacity: 0;
-  pointer-events: none;
-}
+/* 開幕アフォーダンスの並びは「現在地ラベル → もどる → 読み進める」（シェルの DOM 順で固定。縦横共通＝
+   進行＝下/戻る＝上の対応に合わせ読み進めるを末尾に置く）。CSS の order 分岐は持たない。 */
+
+/* 開幕中は余白に浮く読書点マーカーを隠してアフォーダンスへ一本化する（端の戻るボタンは廃止済み）。 */
 html.at-opening #reading-anchor {
   opacity: 0;
   pointer-events: none;
 }
 
+/* マーカーが隠れている間（開幕アフォーダンス中・背景鑑賞モード）は、掴み手の三角形も操作不可にする
+   （見えないものは触れない）。#reading-anchor 親に pointer-events:none を付けても掴み手（.reading-anchor-cap）が
+   pointer-events:auto で上書きしてドラッグできてしまうため、掴み手を明示で止める。 */
+html.at-opening .reading-anchor-cap,
+html.is-immersive .reading-anchor-cap {
+  pointer-events: none;
+}
+
 
 /* ===================================================
-   読書点マーカー（tutorial.ts が #main-container 基準の px で left/top/height を設定）
-   本文表示エリア上下端の三角形（▽/△・常時表示）＋それを結ぶ縦線（ドラッグ中のみ表示）。
-   縦線は pointer-events:none で本文スクロールを妨げない。掴み手は三角形のみ
+   読書点マーカー（tutorial.ts が #main-container 基準の px で進行軸位置＋直交 span を設定）
+   縦書き：本文表示エリア上下端の三角形（▽/△）＋それを結ぶ縦線。横書き：左右端の三角形（▷/◁）＋横線。
+   いずれも三角は常時表示・線はドラッグ中のみ表示。線は pointer-events:none で本文スクロールを妨げない。掴み手は三角形のみ。
+   横書きの形状・向きの分岐は本ファイル末尾の html[data-writing-mode="horizontal"] 群
 =================================================== */
 :root {
   --reading-anchor-color: rgba(255, 255, 255, 0.5);  /* 三角形・縦線の色 */
   --reading-anchor-cap-size: 0.5rem;                 /* 三角形の一辺（高さ／半幅） */
+  /* 読書点（線・三角）を進行直交端から内側へ寄せる量。本文の左右余白（①）とは独立した値（0.5文字分）。
+     横書きで線が画面左右端いっぱいに張り付くのを避ける。
+     1文字＝基準文字サイズ（--text-ref-size＝固定値）。右下メニューの文字サイズ設定（--font-size）には連動させない。 */
+  --reading-anchor-margin: calc(var(--text-ref-size) * 0.5);
 }
 
 /* 配置コンテナ（ゼロ幅。子は left:0 を中心線として配置） */
@@ -212,4 +224,57 @@ html.at-opening #reading-anchor {
   .reading-anchor-cap {
     padding: 0.7rem;
   }
+}
+
+/* ---------------------------------------------------
+   横書き（horizontal-tb）：読書点マーカーを 90° 回す。
+   進行軸＝垂直なので「横線＋左右端の三角（▷読み始め／◁読み終わり）」になる。
+   tutorial.ts は横書き時に top=anchor / left=rect.left / width=rect.width を inline 設定する（height は下記 CSS で 0）。
+--------------------------------------------------- */
+html[data-writing-mode="horizontal"] #reading-anchor {
+  height: 0;          /* 横書き：中心は横線。width は tutorial.ts が inline 設定 */
+}
+
+html[data-writing-mode="horizontal"] .reading-anchor-line {
+  inset-block: auto;
+  inset-inline: var(--reading-anchor-margin); /* 左右端から 0.5 文字分内側まで伸ばす（画面端に張り付かせない）。left:auto は置かない（幅が潰れる） */
+  top: 0;                 /* 親 box の上端（=読書点の横線位置）に重ねる */
+  width: auto;            /* 縦書きの width:2px を解除（幅は inset-inline が決める） */
+  height: 2px;
+  transform: translateY(-1px);
+}
+
+html[data-writing-mode="horizontal"] .reading-anchor-cap {
+  left: auto;
+  top: 0;
+  transform: translateY(-50%);
+}
+
+/* 三角形の向きを 90° 回す：上下 border を透明、左右 border に色を載せる */
+html[data-writing-mode="horizontal"] .reading-anchor-cap::before {
+  border-left: 0;
+  border-right: 0;
+  border-top: var(--reading-anchor-cap-size) solid transparent;
+  border-bottom: var(--reading-anchor-cap-size) solid transparent;
+}
+
+/* 左端（読み始め側）：右向き三角 ▶。上下 border は横書き基底（::before）で透明のまま、左 border だけ色を付ける
+   （--top の縦書き用 border-top 色指定は基底で border-top: 透明 に上書き済み。ここで border-top:0 に戻すと直角三角形になるため触らない）。
+   位置は進行直交端（=画面左端）寄せ。読書点マージン（--reading-anchor-margin）で内側に入る線と概ね揃い、画面端には張り付かない。 */
+html[data-writing-mode="horizontal"] .reading-anchor-cap--top {
+  top: auto;
+  left: 0;
+}
+html[data-writing-mode="horizontal"] .reading-anchor-cap--top::before {
+  border-left: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
+}
+
+/* 右端（読み終わり側）：左向き三角 ◀。上下 border は透明のまま、右 border だけ色を付ける。 */
+html[data-writing-mode="horizontal"] .reading-anchor-cap--bottom {
+  bottom: auto;
+  left: auto;
+  right: 0;
+}
+html[data-writing-mode="horizontal"] .reading-anchor-cap--bottom::before {
+  border-right: var(--reading-anchor-cap-size) solid var(--reading-anchor-color);
 }

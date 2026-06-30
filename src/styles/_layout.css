@@ -1,4 +1,4 @@
-/* _layout.css — main-container / scene-content / btn-container / btn-prev,next / 本文段落 / 縦中横 / ルビ / 傍点 */
+/* _layout.css — main-container / scene-content / btn-container / btn-next / 本文段落 / 縦中横 / ルビ / 傍点 */
 
 /* ===================================================
    メインコンテナ
@@ -89,10 +89,10 @@ html.is-selecting #main-container {
 
 
 /* ===================================================
-   戻る・進行ボタン（nav.ts が querySelector で取得し、ラベル・イベントを設定）
-   縦書き：右端（reading-start）＝戻るボタン、左端（reading-end）＝進行ボタン
+   進行（次へ）ボタン（nav.ts が querySelector で取得し、ラベル・イベントを設定）
+   読み終わり端（縦書き＝左端／横書き＝下端）に置く。戻るボタンは廃止し、戻る導線は開幕アフォーダンスの「もどる」に一本化。
+   ラベルは縦横とも日本語（「次へ」／次 ep なしは「目次へ戻る」）で常に .is-text-label が付く。
 =================================================== */
-#btn-prev,
 #btn-next {
   z-index: 2;
   width: var(--nav-btn-w);
@@ -101,9 +101,9 @@ html.is-selecting #main-container {
   align-items: center;
   justify-content: center;
   border: none;
+  border-radius: 6px;
   background: rgba(0, 0, 0, 0.42);
   color: #ccc8c0;
-  font-size: 2.2rem;
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -111,35 +111,17 @@ html.is-selecting #main-container {
   transition: background 0.2s, color 0.2s, opacity 0.45s ease;
 }
 
-#btn-prev:disabled,
-#btn-next:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-
-#btn-prev:hover,
 #btn-next:hover {
   background: rgba(0, 0, 0, 0.65);
   color: #f0ece4;
 }
 
-#btn-prev:focus-visible,
 #btn-next:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.55);
   outline-offset: -2px;
 }
 
-/* 戻るボタン：右端（縦書き reading-start 側） */
-#btn-prev {
-  border-radius: 6px;
-}
-
-/* 進行ボタン：左端（縦書き reading-end 側） */
-#btn-next {
-  border-radius: 6px;
-}
-
-/* 「目次へ戻る」テキストラベル時：フォントサイズを縮小 */
+/* 日本語テキストラベル（「次へ」「目次へ戻る」）：縦書きは縦組み・小さめフォント・縦長ボタン */
 #btn-next.is-text-label {
   font-size: 0.85rem;
   writing-mode: vertical-rl;
@@ -148,7 +130,6 @@ html.is-selecting #main-container {
 
 /* タッチ端末：ボタン高さを広げてタップしやすく */
 @media (pointer: coarse) {
-  #btn-prev,
   #btn-next {
     height: 5.5rem;
   }
@@ -162,7 +143,8 @@ html.is-selecting #main-container {
   writing-mode: var(--writing-mode);
   height: 100%;
   font-size: var(--font-size);
-  max-height: calc(var(--line-max-chars) * 1em);
+  /* 行長（縦書き=列の高さ）は文字サイズ非連動の固定値（--line-length）。文字サイズを変えても帯幅は変わらない */
+  max-height: var(--line-length);
   min-width: 75%;
   /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
 }
@@ -216,10 +198,8 @@ html[data-writing-mode="horizontal"] #main-container {
   height: 100vh;
   padding-block: 0;
   /* 縦書き用の広いコンテナ（max-width:84rem）だとスクロールバーが本文から遠い右端に出る。
-     本文行長＋わずかな余白までコンテナを絞り、スクロールバーを本文の脇に寄せる。
-     1em の基準を本文（#scene-content の --font-size）に揃えるため font-size を流用する。 */
-  font-size: var(--font-size);
-  max-width: calc(var(--line-max-chars) * 1em + 3em);
+     本文行長（--line-length・文字サイズ非連動の固定値）＋わずかな余白までコンテナを絞り、スクロールバーを本文の脇に寄せる。 */
+  max-width: calc(var(--line-length) + 3rem);
 }
 
 /* スクロールバーは縦に出る（縦書き時の横バー height:4px はオーバーフロー無しで無効化される） */
@@ -239,7 +219,12 @@ html[data-writing-mode="horizontal"] #scene-content {
   height: auto;
   max-height: none;
   min-width: 0;
-  max-width: calc(var(--line-max-chars) * 1em);
+  /* 行長（横書き=行の幅）も文字サイズ非連動の固定値（--line-length） */
+  max-width: var(--line-length);
+  /* 本文を画面左右端から約1.5文字分あける（モバイルで帯が画面幅いっぱいになるときの左右余白）。
+     幅広画面では max-width（--line-length）が勝つので見た目は変わらない。
+     1文字＝基準文字サイズ（--text-ref-size＝固定値）。右下メニューの文字サイズ設定（--font-size）には連動させない。 */
+  width: calc(100% - 3 * var(--text-ref-size));
   margin-inline: auto;
 }
 

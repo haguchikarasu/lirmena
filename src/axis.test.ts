@@ -7,7 +7,7 @@
  *       getProgress      vertical=|scrollLeft|            horizontal=scrollTop
  *       setProgress      vertical: scrollLeft=-v          horizontal: scrollTop=v
  *       getProgressRange vertical: scrollWidth-clientW    horizontal: scrollHeight-clientH
- *       getAnchorPx      vertical: right - ratio*width    horizontal: top + ratio*height
+ *       getAnchorPx      vertical: left + ratio*width      horizontal: top + (1-ratio)*height（両方向とも読み始め端基準で統一）
  * 環境: jsdom。書字方向は <html data-writing-mode> 属性で切替える（axis の唯一の真実源）。
  *   scroll 系プロパティはレイアウトしない jsdom で 0 固定のため、プレーンなスタブ要素を HTMLElement として渡す。
  */
@@ -136,16 +136,24 @@ describe('getProgressFromEvent（wheel → forward 増分・係数適用前）',
 });
 
 describe('getAnchorPx（--reading-anchor 比率 → 進行軸の絶対 px）', () => {
-    // rect: right=1000(width=800 → left=200), top=100(height=800 → bottom=900), ratio=0.45
-    const rect = { right: 1000, width: 800, top: 100, height: 800 } as DOMRect;
+    // rect: left=200(width=800 → right=1000), top=100(height=800 → bottom=900), ratio=0.45
+    // reading-anchor は両方向とも読み始め端基準（ratio 大=読み始め端）。縦書き読み始め=右／横書き読み始め=上。
+    const rect = { left: 200, right: 1000, width: 800, top: 100, height: 800, bottom: 900 } as DOMRect;
 
-    it('vertical: right - ratio*width = 1000 - 360 = 640（右端から内側へ）', () => {
+    it('vertical: left + ratio*width = 200 + 360 = 560（ratio=0.45 は右＝読み始めよりやや左＝読み終わり側）', () => {
         setMode('vertical');
-        expect(getAnchorPx(rect, 0.45)).toBeCloseTo(640);
+        expect(getAnchorPx(rect, 0.45)).toBeCloseTo(560);
     });
 
-    it('horizontal: top + ratio*height = 100 + 360 = 460（上端から下へ）', () => {
+    it('horizontal: top + (1-ratio)*height = 100 + 440 = 540（ratio=0.45 は上＝読み始めよりやや下＝読み終わり側）', () => {
         setMode('horizontal');
-        expect(getAnchorPx(rect, 0.45)).toBeCloseTo(460);
+        expect(getAnchorPx(rect, 0.45)).toBeCloseTo(540);
+    });
+
+    it('両方向で ratio が大きいほど読み始め端へ寄る（ratio=1 は読み始め端）', () => {
+        setMode('vertical');
+        expect(getAnchorPx(rect, 1)).toBeCloseTo(1000); // 右端＝読み始め
+        setMode('horizontal');
+        expect(getAnchorPx(rect, 1)).toBeCloseTo(100);  // 上端＝読み始め
     });
 });

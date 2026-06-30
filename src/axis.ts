@@ -81,12 +81,14 @@ export function getProgressFromEvent(ev: WheelEvent): number {
     return ev.deltaY;
 }
 
-// --reading-anchor の比率 ratio（0〜1）を、要素 rect 上の「進行軸の絶対 px 位置」へ写す。
-// vertical-rl: 読み始めは右端。右から ratio ぶん内側 = rect.right - ratio*width。
-// horizontal-tb: 読み始めは上端。上から ratio ぶん下 = rect.top + ratio*height。
+// --reading-anchor の比率 ratio（0〜1）を、要素 rect 上の進行軸の絶対 px 位置へ写す。
+// reading-anchor は両書字方向とも「読み始め端を基準にした読書上の位置」で一貫させる：ratio が大きいほど読み始め端へ、
+// 小さいほど読み終わり端へ寄る（縦書き読み始め=右／横書き読み始め=上）。これにより既定 45% は両方向とも中央よりやや読み終わり側に置かれ、
+// 方向を切り替えても読書点が体験上の同じ位置（読み進み方向にやや遅れた点）を指す。
+// vertical-rl: rect.left + ratio*width（ratio=1 で右＝読み始め）。horizontal-tb: rect.top + (1-ratio)*height（ratio=1 で上＝読み始め）。
 // getAnchorPx(rect: DOMRect, ratio: number): number
 export function getAnchorPx(rect: DOMRect, ratio: number): number {
     return isReverse()
-        ? rect.right - ratio * rect.width
-        : rect.top + ratio * rect.height;
+        ? rect.left + ratio * rect.width
+        : rect.top + (1 - ratio) * rect.height;
 }

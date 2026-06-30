@@ -5,22 +5,22 @@
  *       「単独 tap（押して離す）」で選択モードをトグルし、ON の間は通常クリック／ドラッグでテキスト選択ができる。
  *       マウス限定（タッチ／ペンは既存のネイティブ横スクロールのまま）。微調整＝ホイール（main.ts）／大量移動＝
  *       ドラッグ、の棲み分けを担う。
- * export: init(): void ／ computePanScrollLeft(...): number ／ shouldPanFromInput(...): boolean
+ * export: init(): void ／ computePanForward(...): number ／ shouldPanFromInput(...): boolean
  *         ／ smoothVelocity(...): number ／ decayVelocity(...): number ／ shouldStartMomentum(...): boolean
  *         （init 以外はすべて DOM 非依存の純関数＝テスト用）。
- * 依存: なし（#main-container の DOM と <html>.is-selecting クラスのみを操作する。他モジュール非依存）。
+ * 依存: axis.ts（進行軸・書字方向の解決）。ほかは #main-container の DOM と <html>.is-selecting クラスのみ操作する。
  *
  * 結線: main.ts がホイールリスナー登録の直後に init() を1度だけ呼ぶ。
- *   パンは container.scrollLeft を直接書き換えるだけで、スクロール由来の波及（背景クロスフェード・進捗・
+ *   パンは axis.setProgress で forward 位置を書き換えるだけで、スクロール由来の波及（背景クロスフェード・進捗・
  *   オートセーブ・開幕判定・読了検知）は既存の scroll イベント → bg.ts → reader.ts／nav.ts の購読が
- *   自動追従する（このモジュールからの新規配線は不要）。慣性スクロール（下記）も scrollLeft を動かすだけなので同様に追従する。
+ *   自動追従する（このモジュールからの新規配線は不要）。慣性スクロール（下記）も forward を動かすだけなので同様に追従する。
  *
  * 慣性（momentum・大量移動のフリック送り）:
- *   pointermove ごとに離脱速度（scrollLeft px/ms・符号は scrollLeft 方向）を指数平滑で追跡し、pointerup で
+ *   pointermove ごとに離脱速度（forward px/ms・正＝読み進め方向）を指数平滑で追跡し、pointerup で
  *   その速度が閾値（MIN_FLICK_VELOCITY）以上なら摩擦減衰の rAF スクロールを走らせる（フィーリングは「標準」＝
  *   OS のスクロールに近い自然な減速）。閾値未満の微調整ドラッグは慣性を出さずその場で正確に止まる。
  *   prefers-reduced-motion 時は慣性を無効化（即停止）。慣性走行中に新たな pointerdown が来たら停止（＝タップで停止）。
- *   端は負モデル [minLeft, 0]（minLeft = -(scrollWidth - clientWidth)）でクランプし、端に達したら停止（バウンスなし）。
+ *   端は forward 可動域 [0, range]（range = axis.getProgressRange）でクランプし、端に達したら停止（バウンスなし）。
  *
  * 暴発防止（要件 06-1）:
  *   パン開始は「左ボタン（button===0）＋モディファイヤ無し＋pointerType==='mouse'」かつ
@@ -41,6 +41,8 @@
  *   するため本リスナーは元々発火しないが、明示ガードで二重に担保する（is-immersive クラスを読むだけ＝疎結合）。
  */
 
+import * as axis from './axis';
+
 // パン開始時に「読ませない／反応させない」インタラクティブ要素のセレクタ。
 // これらの上で押下されたドラッグはパンにせず、各自のクリック／ドラッグ挙動を温存する。
 const INTERACTIVE_SELECTOR = 'button, a, .reading-anchor-cap';
@@ -52,14 +54,14 @@ const FRICTION = 0.88;                  // 基準1フレームあたりの速度
 const MIN_FLICK_VELOCITY = 0.3;        // 慣性を開始する離脱速度の下限（px/ms。大きいほど発火しにくい）。未満は微調整とみなし即停止。
 const MIN_MOMENTUM_VELOCITY = 0.02;    // 慣性ループを終了する速度の下限（px/ms）。
 
-// パン中フラグ・ドラッグ起点（clientX）・起点スクロール量・捕捉中の pointerId。
+// パン中フラグ・ドラッグ起点（進行軸ポインタ座標）・起点 forward 位置・捕捉中の pointerId。
 let _panning = false;
-let _startX = 0;
-let _startScrollLeft = 0;
+let _startPointer = 0;
+let _startForward = 0;
 let _pointerId = -1;
 
-// 慣性用：直近 pointermove の clientX／タイムスタンプ（速度算出）・平滑化した離脱速度・慣性 rAF ハンドル（0=停止）。
-let _lastX = 0;
+// 慣性用：直近 pointermove の進行軸ポインタ座標／タイムスタンプ（速度算出）・平滑化した離脱速度（forward px/ms）・慣性 rAF ハンドル（0=停止）。
+let _lastPointer = 0;
 let _lastT = 0;
 let _velocity = 0;
 let _momentumRAF = 0;
@@ -94,12 +96,12 @@ function _onPointerDown(container: HTMLElement, e: PointerEvent): void {
     if (e.target instanceof Element && e.target.closest(INTERACTIVE_SELECTOR)) return;
 
     _panning = true;
-    _startX = e.clientX;
-    _startScrollLeft = container.scrollLeft;
+    _startPointer = _pointerAlong(e);
+    _startForward = axis.getProgress(container);
     _pointerId = e.pointerId;
     // 離脱速度トラッキングの初期化（起点を現在位置・現在時刻に置く）。
     _velocity = 0;
-    _lastX = e.clientX;
+    _lastPointer = _pointerAlong(e);
     _lastT = performance.now();
 
     // ドラッグがコンテナ外（背景レイヤー上など）へ出ても追従できるよう捕捉する。
@@ -112,21 +114,22 @@ function _onPointerDown(container: HTMLElement, e: PointerEvent): void {
     container.addEventListener('pointercancel', _onPointerUp);
 }
 
-// パン中の移動。content-follows-cursor で scrollLeft を直接更新する（端はブラウザが自動クランプ）。
-// あわせて離脱速度（pointerup 後の慣性に使う）を指数平滑で追跡する。
+// パン中の移動。content-follows-cursor で forward 位置を axis.setProgress で更新する（端はブラウザが自動クランプ）。
+// あわせて離脱速度（forward px/ms・pointerup 後の慣性に使う）を指数平滑で追跡する。
 // _onPointerMove(e: PointerEvent): void
 function _onPointerMove(e: PointerEvent): void {
     if (!_panning) return;
     const container = e.currentTarget as HTMLElement;
-    container.scrollLeft = computePanScrollLeft(_startScrollLeft, _startX, e.clientX);
+    const pointer = _pointerAlong(e);
+    axis.setProgress(container, computePanForward(_startForward, _startPointer, pointer, axis.sign()));
 
-    // 瞬間速度（scrollLeft の変化は content-follows-cursor で -(dx)）を平滑化して _velocity に積む。
+    // 瞬間 forward 速度（content-follows-cursor で forward 変化＝-sign×dPointer）を平滑化して _velocity に積む。
     const now = performance.now();
     const dt = now - _lastT;
     if (dt > 0) {
-        const instantaneous = -(e.clientX - _lastX) / dt;
+        const instantaneous = -axis.sign() * (pointer - _lastPointer) / dt;
         _velocity = smoothVelocity(_velocity, instantaneous, VELOCITY_SMOOTHING);
-        _lastX = e.clientX;
+        _lastPointer = pointer;
         _lastT = now;
     }
 }
@@ -148,12 +151,12 @@ function _onPointerUp(e: PointerEvent): void {
     if (!reduce && shouldStartMomentum(_velocity, MIN_FLICK_VELOCITY)) _startMomentum(container);
 }
 
-// 離脱速度から摩擦で自然減速する慣性スクロールを rAF で回す。位置は float（pos）で持ち、負モデル
-// [minLeft, 0] で自前クランプする（端に達したら停止＝バウンスなし）。速度が下限を切ったら停止する。
+// 離脱速度から摩擦で自然減速する慣性スクロールを rAF で回す。位置は forward px（float）で持ち、
+// 可動域 [0, range] で自前クランプする（端に達したら停止＝バウンスなし）。速度が下限を切ったら停止する。
 // _startMomentum(container: HTMLElement): void
 function _startMomentum(container: HTMLElement): void {
-    let pos = container.scrollLeft;
-    const minLeft = -(container.scrollWidth - container.clientWidth); // 負モデルの終端側
+    let pos = axis.getProgress(container);
+    const range = axis.getProgressRange(container); // forward 可動域の終端
     let last = performance.now();
 
     const step = (now: number): void => {
@@ -163,8 +166,8 @@ function _startMomentum(container: HTMLElement): void {
         if (Math.abs(_velocity) < MIN_MOMENTUM_VELOCITY) { _momentumRAF = 0; return; }
 
         pos += _velocity * dt;
-        const clamped = Math.max(minLeft, Math.min(0, pos));
-        container.scrollLeft = clamped;
+        const clamped = Math.max(0, Math.min(range, pos));
+        axis.setProgress(container, clamped);
         if (clamped !== pos) { _momentumRAF = 0; return; } // 端に到達したら停止
 
         _momentumRAF = requestAnimationFrame(step);
@@ -218,12 +221,18 @@ function _toggleSelecting(): void {
     document.documentElement.classList.toggle('is-selecting');
 }
 
-// 起点スクロール量・起点 clientX・現在 clientX から、パン後の scrollLeft を返す。
-// content-follows-cursor：マウスを右へ動かす（currentX 増）と scrollLeft が減り、縦書き負モデルの
-// forward（scrollLeft が負方向）と一致する。移動量と scrollLeft の変化は 1:1。
-// computePanScrollLeft(startScrollLeft: number, startX: number, currentX: number): number
-export function computePanScrollLeft(startScrollLeft: number, startX: number, currentX: number): number {
-    return startScrollLeft - (currentX - startX);
+// ポインタイベントから進行軸方向の座標を取り出す（縦書き=水平 clientX／横書き=垂直 clientY）。
+// _pointerAlong(e: PointerEvent): number
+function _pointerAlong(e: PointerEvent): number {
+    return axis.isReverse() ? e.clientX : e.clientY;
+}
+
+// 起点 forward 位置・起点ポインタ座標・現在ポインタ座標・進行符号 sign から、パン後の forward 位置を返す。
+// content-follows-cursor：掴んだ内容がポインタに追従する。進行軸のポインタ移動 (current-start) に対し forward は
+// -sign 倍で動く（縦書き sign=-1：進行軸正方向＝右ドラッグで forward 増／横書き sign=+1：上ドラッグで forward 増）。変化は 1:1。
+// computePanForward(startForward: number, startPointer: number, currentPointer: number, sign: 1 | -1): number
+export function computePanForward(startForward: number, startPointer: number, currentPointer: number, sign: 1 | -1): number {
+    return startForward - sign * (currentPointer - startPointer);
 }
 
 // 押下イベントがパン開始の条件（マウス・左ボタン・モディファイヤ無し）を満たすか。

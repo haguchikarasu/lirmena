@@ -1,16 +1,16 @@
 /*
  * opening.ts
- * 責務: 開幕（本文先頭の黒い恒久余白＝スクロール右端）でのみ表示する「開始アフォーダンス」の制御。
- *       黒地に素の戻るボタンだけが浮く状態を避け、現在地ラベル（"01-02"）・「‹ 読み進める」・「もどる ›」を中央に提示する。
- *       スクロールが右端からはずれると（＝開幕の黒い余白を離れると）アフォーダンスをフェードアウトし、
- *       読書点マーカー（#reading-anchor）・素の戻るボタン（#btn-prev）を見せる（表示実体は CSS）。
- * export: init(): void / update(scrollLeft: number): void
- * 依存: state.ts（現在地ラベルの ep/sec 取得）／ nav.ts（「もどる」を端の戻るボタンと完全に同一挙動にするため goPrev() を共有）。
+ * 責務: 開幕（本文先頭の黒い恒久余白＝スクロール先頭）でのみ表示する「開始アフォーダンス」の制御。
+ *       現在地ラベル（"01-02"）・「もどる」・「読み進める」（縦横とも日本語のみ・並びはこの順）を中央に提示する。
+ *       戻る導線は端の戻るボタンを廃止しこのアフォーダンスに一本化した。スクロールが先頭からはずれると（＝開幕の黒い余白を離れると）
+ *       アフォーダンスをフェードアウトし、読書点マーカー（#reading-anchor）を見せる（表示実体は CSS）。
+ * export: init(): void / update(forward: number): void
+ * 依存: axis.ts（「読み進める」スクロールの進行軸解決）／ state.ts（現在地ラベルの ep/sec 取得）／ nav.ts（「もどる」の戻る遷移 goPrev() を共有）。
  *       読書点比率は CSS 変数 --reading-anchor を読むのみ（bg.ts と同じ源）
  *
- * 結線: main.ts が opening.init() を呼び、reader.ts が handleScroll で update(scrollLeft) を fan-out する。
+ * 結線: main.ts が opening.init() を呼び、reader.ts が handleScroll で update(forward) を fan-out する（forward 進行 px）。
  *   静的シェルは <html class="at-opening"> を初期値に持つ（初回ペイントから開幕状態＝素の戻るボタンの
- *   ちらつきを防ぐ）。update が scrollLeft に応じて .at-opening を付け外しする（右端=scrollLeft≈0 のときだけ開幕）。
+ *   ちらつきを防ぐ）。update が forward に応じて .at-opening を付け外しする（進行軸の先頭＝forward≈0 のときだけ開幕）。
  *   現在地ラベル（#opening-label）は静的シェルでは空で、init() が state.getCurrent() の ep/sec を "01-02" 形式で埋める
  *   （本文シェルは全 sec 共通の1テンプレを保つため、値はハードコードせず JS で反映する）。
  *
@@ -18,13 +18,14 @@
  *   文章の先頭辺が読書点マーカー位置（--reading-anchor 比率 × #main-container 幅）に来る量まで
  *   自前 rAF アニメで滑らかにスクロールしつつ、同時に .at-opening を外してアフォーダンスをフェードアウトする。
  *   スクロール時間をアフォーダンスの CSS フェード時間に合わせるため、スクロール完了とフェード完了がほぼ同時になる。
- *   スクロール符号は #main-container の wheel ハンドラと同じ負モデル（forward＝scrollLeft が負方向）を前提とする。
+ *   進行方向は axis が解決する：forward 量（0 起点・正値）で計算し axis.setProgress で書く（縦書き=scrollLeft 負方向／横書き=scrollTop 正方向）。
  *
- * 「もどる ›」の挙動（要件 06-6）:
- *   端の戻るボタン（#btn-prev）と完全に同一にするため nav.goPrev() に委譲する。前 sec 本文へ戻るときは
+ * 「もどる」の挙動（要件 06-6）:
+ *   戻る遷移は nav.goPrev() に委譲する（端の戻るボタンは廃止し戻る導線はここに一本化）。前 sec 本文へ戻るときは
  *   その sec の本文末（読み終わり側）へ着地し、当 ep 先頭 sec からは当 ep タイトルへ戻る（離脱フェード付き）。
  */
 
+import * as axis from './axis';
 import * as state from './state';
 import * as nav from './nav';
 
@@ -54,7 +55,7 @@ export function init(): void {
     // 「読み進める」：文章先頭辺を読書点マーカー位置へ合わせる量まで滑らかにスクロールし、同時にフェードアウトする。
     start?.addEventListener('click', _readOn);
 
-    // 「もどる」：端の戻るボタン（nav.ts #btn-prev）と完全に同一の挙動に委譲する（前 sec 本文末へ着地・離脱フェード）。
+    // 「もどる」：戻る遷移 nav.goPrev() に委譲する（前 sec 本文末へ着地・離脱フェード。端の戻るボタンは廃止しここに一本化）。
     back?.addEventListener('click', () => nav.goPrev());
 }
 
@@ -64,12 +65,13 @@ function _pad(n: number): string {
     return String(n).padStart(2, '0');
 }
 
-// スクロールが右端（scrollLeft≈0）にあるときだけ開幕状態にする。reader.ts がスクロール通知ごとに呼ぶ。
+// スクロールが進行軸の先頭（forward≈0）にあるときだけ開幕状態にする。reader.ts がスクロール通知ごとに forward 進行 px を渡す。
 // 「読み進める」スクロール中（_transitioning）は無視し、フェードアウトを click 起点に一本化する。
-// update(scrollLeft: number): void
-export function update(scrollLeft: number): void {
+// forward は 0 起点の正値（axis.getProgress 由来）のため絶対値化は不要。
+// update(forward: number): void
+export function update(forward: number): void {
     if (_transitioning) return;
-    document.documentElement.classList.toggle('at-opening', Math.abs(scrollLeft) <= AT_OPENING_PX);
+    document.documentElement.classList.toggle('at-opening', forward <= AT_OPENING_PX);
 }
 
 // 「読み進める」：開幕を解除（アフォーダンスをフェードアウト・マーカー/戻るボタンをフェードイン）しつつ、
@@ -82,11 +84,10 @@ function _readOn(): void {
     _transitioning = true;
     document.documentElement.classList.remove('at-opening');
 
-    // 文章先頭辺（先頭シーンの読み始め辺）がマーカー位置に重なるスクロール距離 = 比率 × 本文表示幅。
-    // 先頭の黒い恒久余白（btn-container-start）は幅＝clientWidth なので、この距離だけ進めると先頭辺がマーカーに乗る。
-    const targetMag = _readAnchorRatio() * container.clientWidth;
-    const minLeft = -(container.scrollWidth - container.clientWidth); // 負モデルの終端側
-    const target = Math.max(minLeft, Math.min(0, -targetMag));         // forward＝負方向（wheel ハンドラと同符号）
+    // 文章先頭辺（先頭シーンの読み始め辺）がマーカー位置に重なる forward 進行量 = 比率 × 進行軸ビューポート長。
+    // 先頭の黒い恒久余白（btn-container-start）は長さ＝進行軸ビューポート長なので、この距離だけ進めると先頭辺がマーカーに乗る。
+    const targetForward = _readAnchorRatio() * axis.getClientSize(container);
+    const target = Math.min(axis.getProgressRange(container), Math.max(0, targetForward)); // forward 可動域にクランプ
 
     _animateScrollTo(container, target, _affordanceFadeMs());
 }
@@ -110,16 +111,16 @@ function _affordanceFadeMs(): number {
     return Number.isFinite(sec) && sec > 0 ? sec * 1000 : FADE_FALLBACK_MS;
 }
 
-// container.scrollLeft を現在値から target まで duration(ms) で ease-out スクロールする（縦書きの符号は呼び出し側で解決済み）。
-// 完了で _transitioning を倒す。prefers-reduced-motion 時は即時移動する。
-// _animateScrollTo(container: HTMLElement, target: number, duration: number): void
-function _animateScrollTo(container: HTMLElement, target: number, duration: number): void {
-    const startLeft = container.scrollLeft;
-    const delta = target - startLeft;
+// 進行軸（forward px・0 起点・正値）を現在値から targetForward まで duration(ms) で ease-out スクロールする
+// （軸と符号は axis.setProgress が解決する）。完了で _transitioning を倒す。prefers-reduced-motion 時は即時移動する。
+// _animateScrollTo(container: HTMLElement, targetForward: number, duration: number): void
+function _animateScrollTo(container: HTMLElement, targetForward: number, duration: number): void {
+    const startForward = axis.getProgress(container);
+    const delta = targetForward - startForward;
 
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce || delta === 0 || duration <= 0) {
-        container.scrollLeft = target;
+        axis.setProgress(container, targetForward);
         _transitioning = false;
         return;
     }
@@ -128,7 +129,7 @@ function _animateScrollTo(container: HTMLElement, target: number, duration: numb
     const easeOut = (t: number) => 1 - Math.pow(1 - t, 3); // ease-out cubic
     const step = (now: number) => {
         const t = Math.min(1, (now - t0) / duration);
-        container.scrollLeft = startLeft + delta * easeOut(t);
+        axis.setProgress(container, startForward + delta * easeOut(t));
         if (t < 1) requestAnimationFrame(step);
         else _transitioning = false;
     };
