@@ -41,7 +41,7 @@
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
  *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
  *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭 → 消費
- *           2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン・自 ep/sec 一致）… 本文末へ（末尾余白の手前・オートセーブより優先）→ 消費
+ *           2. pendingScrollEnd（タイトル「戻る」／開幕の「もどる」・自 ep/sec 一致）… 前セクションの本文末尾が読書点マーカー位置に来る位置へ（オートセーブより優先）→ 消費
  *           3. サイト内の明示前進ナビでない（リロード・ブラウザ戻る/進む・直接/外部アクセス）… まず history.state の ratio（per-entry）で復元、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
  *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
  *         復元位置はすべてスクロール範囲比 ratio（0〜1・書字方向非依存）で持ち、ratio × 現在の可動域で forward 進行 px へ逆算する
@@ -218,7 +218,7 @@ async function _bootstrap(): Promise<void> {
 /**
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
  * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭。消費する
- * 2. pendingScrollEnd（タイトル「戻る」／本文の戻るボタン）が自 ep/sec と一致 → 本文末へ（末尾余白の手前・オートセーブより優先）。消費する
+ * 2. pendingScrollEnd（タイトル「戻る」／開幕の「もどる」）が自 ep/sec と一致 → 前セクションの本文末尾が読書点マーカー位置に来る位置へ（オートセーブより優先）。消費する
  * 3. サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る/進む・直接/外部アクセス）→ まず history.state の ratio（per-entry・autosave より優先）、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
  * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（進行軸の開始端）
  * 復元値（jump/history/autosave の ratio）はスクロール範囲比（0〜1・書字方向非依存）。_scrollToRatio が ratio × 現在の可動域で forward 進行 px へ逆算し、axis.setProgress が書字方向の符号を解決する。
@@ -291,15 +291,19 @@ function _onWritingModeChange(container: HTMLElement): void {
 }
 
 /**
- * 本文末（＝末尾の恒久余白の手前）へ着地する。末尾には本文表示幅ぶんの空白余白（btn-container-end）が
- * あるため、絶対終端だと空白画面に着地してしまう。余白ぶん（=進行軸ビューポート長）手前に寄せて本文末を見せる。
+ * 前セクションの本文末尾（最後の行）が読書点マーカー位置に来るところまで着地する。
+ * opening.ts の「読み進める」が sec 先頭を読書点に合わせるのと対になる着地位置：本文の最後の行が
+ * 読書点に来ることで、続きを読み進める自然な起点になる（末尾の恒久余白が丸ごと見える絶対終端は避ける）。
+ * 読書点比率 ratio（0〜1・読み始め端基準）に対し、進行軸位置 = range − clientSize×(1−ratio)
+ * （ratio=1＝読み始め端＝絶対終端、ratio=0＝読み終わり端＝clientSize 手前）。
  * 進行軸とスクロール符号差は axis.setProgress が吸収する（縦書き=scrollLeft 負方向／横書き=scrollTop）。
  */
 function _scrollToEnd(container: HTMLElement): void {
     const range = axis.getProgressRange(container);
     if (range <= 0) return;
-    const target = Math.max(0, range - axis.getClientSize(container));
-    axis.setProgress(container, target);
+    const ratio = settings.getReadingAnchor() / 100;
+    const target = range - axis.getClientSize(container) * (1 - ratio);
+    axis.setProgress(container, Math.max(0, target));
 }
 
 /** 移行旧栞の coarse 復元：指定シーン（1-indexed）の先頭へ。厳密でなくてよい（要件 06-5） */
