@@ -46,8 +46,8 @@
   --font-size-lg: var(--font-size-pc-lg);
   --font-size: var(--font-size-md);
 
-  --line-length: var(--line-length-pc-vertical);
-  --body-margin: var(--body-margin-pc-vertical);
+  --line-length: var(--line-length-pc-horizontal);
+  --body-margin: var(--body-margin-pc-horizontal);
 
   /* フォントファミリー（settings.ts が --font-family を切り替える） */
   --font-family-serif: serif;
@@ -65,8 +65,9 @@
   --scene-max-w: 84rem;          /* メインコンテナの物理横上限（背景に対する座り＝縦書きで有効）。横書きでは max-inline-size と min() 合成 */
 
   /* 書字方向の補助変数。settings.ts が <html data-writing-mode> 属性を切替え、その属性でこの変数が解決される。
-     #main-container / #scene-content の writing-mode をこの1本で駆動する。属性自体は axis.ts も読む真実源。 */
-  --writing-mode: vertical-rl;
+     #main-container / #scene-content の writing-mode をこの1本で駆動する。属性自体は axis.ts も読む真実源。
+     既定は横書き（horizontal-tb）。属性が無い/不正値のときはこの :root 値へ倒れる（下の vertical セレクタが縦書きを上書き）。 */
+  --writing-mode: horizontal-tb;
 
   /* アニメーション（開発者が調整する定数） */
   --fade-out-duration-bg:   0.01s;    /* 背景　　　　　遷移前暗転時間 */
@@ -122,9 +123,10 @@ html[data-device="sp"][data-writing-mode="horizontal"] {
   --body-margin: var(--body-margin-sp-horizontal);
 }
 
-/* 横書きモード：<html data-writing-mode="horizontal"> のとき進行軸を縦（forward=+y）へ切替える起点。 */
-html[data-writing-mode="horizontal"] {
-  --writing-mode: horizontal-tb;
+/* 縦書きモード：<html data-writing-mode="vertical"> のとき進行軸を横（forward=-x）へ戻す。
+   既定（:root）は横書き horizontal-tb なので、明示的に縦書きが選ばれたときだけここで上書きする。 */
+html[data-writing-mode="vertical"] {
+  --writing-mode: vertical-rl;
 }
 
 

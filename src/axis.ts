@@ -25,12 +25,12 @@
 
 export type WritingMode = 'vertical' | 'horizontal';
 
-// <html data-writing-mode="horizontal"> のときだけ横書き。属性が無い/不正値は既定の縦書きへ倒す（既存読者の体験維持）。
+// <html data-writing-mode="vertical"> のときだけ縦書き。属性が無い/不正値は既定の横書きへ倒す（既定＝横書き）。
 // getMode(): WritingMode
 export function getMode(): WritingMode {
-    return document.documentElement.getAttribute('data-writing-mode') === 'horizontal'
-        ? 'horizontal'
-        : 'vertical';
+    return document.documentElement.getAttribute('data-writing-mode') === 'vertical'
+        ? 'vertical'
+        : 'horizontal';
 }
 
 // vertical-rl では forward（読み進め）方向に scrollLeft が負へ伸びる。横書きは正方向なので false。

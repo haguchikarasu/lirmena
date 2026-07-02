@@ -18,12 +18,12 @@
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
   <!-- 書字方向・端末カテゴリの早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
-       - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー
+       - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
        - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新 -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
-      if (m === 'horizontal' || m === 'vertical') document.documentElement.setAttribute('data-writing-mode', m);
+      document.documentElement.setAttribute('data-writing-mode', m === 'vertical' ? 'vertical' : 'horizontal');
     } catch (e) {}
     try {
       var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';

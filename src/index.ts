@@ -29,7 +29,7 @@
  *   "lirmena.fontSize"    : 'large' | 'medium' | 'small'   デフォルト 'medium'
  *   "lirmena.fontFamily"  : 'serif' | 'sans'               デフォルト 'serif'
  *   "lirmena.lineGap"     : 'on' | 'off'                   デフォルト 'on'
- *   "lirmena.writingMode" : 'vertical' | 'horizontal'      デフォルト 'vertical'（目次は保存のみ。反映は本文ページの axis）
+ *   "lirmena.writingMode" : 'vertical' | 'horizontal'      デフォルト 'horizontal'（目次は保存のみ。反映は本文ページの axis）
  *
  * 既読マーク（色）は到達ベース（一般的な「開いたら既読」方式）。`reached` を引き、加えて移行前の返読者向けに
  * 旧 `sceneRead` の完了マーカー "ep-sec-00" もフォールバックで既読扱いする。読破マーク（✓）は読了ベースで `read`
@@ -74,7 +74,7 @@ const LS_FONT_FAMILY  = 'lirmena.fontFamily';
 const LS_LINE_GAP     = 'lirmena.lineGap';
 const LS_WRITING_MODE = 'lirmena.writingMode';
 
-const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', writingMode: 'vertical' } as const;
+const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', writingMode: 'horizontal' } as const;
 
 // 栞・オートセーブは読書位置をスクロール範囲比（割合・書字方向非依存）で持つため単一スロット（"bookmarks"/"autosave"）に
 // 保存される（bookmark.ts と同一規則。schemaVersion 5 で方向別スロットから統合）。目次はその単一キーを引く。

@@ -40,8 +40,15 @@ afterEach(() => {
 });
 
 describe('getMode / isReverse / sign（書字方向の判定）', () => {
-    it('属性なし → 既定の縦書き（reverse=true, sign=-1）', () => {
+    it('属性なし → 既定の横書き（reverse=false, sign=+1）', () => {
         setMode(null);
+        expect(getMode()).toBe('horizontal');
+        expect(isReverse()).toBe(false);
+        expect(sign()).toBe(1);
+    });
+
+    it('vertical → 縦書き（reverse=true, sign=-1）', () => {
+        setMode('vertical');
         expect(getMode()).toBe('vertical');
         expect(isReverse()).toBe(true);
         expect(sign()).toBe(-1);
@@ -54,10 +61,10 @@ describe('getMode / isReverse / sign（書字方向の判定）', () => {
         expect(sign()).toBe(1);
     });
 
-    it('不正値 → 既定の縦書きへ倒す', () => {
+    it('不正値 → 既定の横書きへ倒す', () => {
         document.documentElement.setAttribute('data-writing-mode', 'sideways');
-        expect(getMode()).toBe('vertical');
-        expect(isReverse()).toBe(true);
+        expect(getMode()).toBe('horizontal');
+        expect(isReverse()).toBe(false);
     });
 });
 

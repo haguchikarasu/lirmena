@@ -10,7 +10,7 @@
  *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
  *   fontFamily:   "serif" | "sans"               デフォルト "serif"
  *   lineGap:      "on" | "off"                   デフォルト "on"
- *   writingMode:  "vertical" | "horizontal"      デフォルト "vertical"（CSS変数でなく <html data-writing-mode> 属性へ反映）
+ *   writingMode:  "vertical" | "horizontal"      デフォルト "horizontal"（CSS変数でなく <html data-writing-mode> 属性へ反映）
  *   readingAnchor: 連続 %（本文表示幅基準）       デフォルト READING_ANCHOR_DEFAULT（中央〜やや読み終わり側）
  *
  * CSS変数:
@@ -40,7 +40,7 @@ const DEFAULTS: Settings = {
     fontSize: 'medium',
     fontFamily: 'serif',
     lineGap: 'on',
-    writingMode: 'vertical',
+    writingMode: 'horizontal',
 };
 
 const LS_KEYS: Record<keyof Settings, string> = {
@@ -220,7 +220,7 @@ function _buildPopup(): void {
         _applyAll();
         setReadingAnchor(READING_ANCHOR_DEFAULT);
         _refreshOpts();
-        // リセットで書字方向が変わったら（横書き→既定の縦書き）切替前位置を復元する（A-4）。
+        // リセットで書字方向が変わったら（縦書き→既定の横書き）切替前位置を復元する（A-4）。
         if (modeChanged) _callbacks.onWritingModeChange();
     }));
 

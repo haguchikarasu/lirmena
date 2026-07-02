@@ -59,26 +59,26 @@ describe('setReadingAnchor（永続化＋CSS 変数反映）', () => {
 });
 
 // 仕様（計画 A-3/A-9・要件 06-4）：writingMode は CSS 変数でなく <html data-writing-mode> 属性へ反映する。
-// 既定は縦書き（既存読者の体験維持）、不正値は縦書きへフォールバック、リセットで縦書きへ戻る。
+// 既定は横書き、不正値は横書きへフォールバック、リセットで横書きへ戻る。
 describe('書字方向（writingMode → <html data-writing-mode> 属性）', () => {
     const mode = () => document.documentElement.getAttribute('data-writing-mode');
 
     describe('読み込み・反映（init）', () => {
-        it('未設定なら既定の縦書きを属性へ反映する', () => {
-            init(NOOP);
-            expect(mode()).toBe('vertical');
-        });
-
-        it('保存済み horizontal を復元して属性へ反映する', () => {
-            localStorage.setItem('lirmena.writingMode', 'horizontal');
+        it('未設定なら既定の横書きを属性へ反映する', () => {
             init(NOOP);
             expect(mode()).toBe('horizontal');
         });
 
-        it('不正値は縦書きへフォールバックする', () => {
-            localStorage.setItem('lirmena.writingMode', 'sideways');
+        it('保存済み vertical を復元して属性へ反映する', () => {
+            localStorage.setItem('lirmena.writingMode', 'vertical');
             init(NOOP);
             expect(mode()).toBe('vertical');
+        });
+
+        it('不正値は横書きへフォールバックする', () => {
+            localStorage.setItem('lirmena.writingMode', 'sideways');
+            init(NOOP);
+            expect(mode()).toBe('horizontal');
         });
     });
 
@@ -102,27 +102,27 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
             expect(mode()).toBe('horizontal');
         });
 
-        it('設定リセットで縦書きへ戻る', () => {
-            localStorage.setItem('lirmena.writingMode', 'horizontal');
+        it('設定リセットで横書きへ戻る', () => {
+            localStorage.setItem('lirmena.writingMode', 'vertical');
             init(NOOP);
-            expect(mode()).toBe('horizontal');
-            findByText('.settings-action', '設定をリセット')?.click();
             expect(mode()).toBe('vertical');
-            expect(localStorage.getItem('lirmena.writingMode')).toBe('vertical');
+            findByText('.settings-action', '設定をリセット')?.click();
+            expect(mode()).toBe('horizontal');
+            expect(localStorage.getItem('lirmena.writingMode')).toBe('horizontal');
         });
 
         // 仕様（A-4）：書字方向が実際に変わったときだけ onWritingModeChange を呼ぶ（main.ts が切替前位置を新方向へ復元する）。
         it('書字方向を実際に変えたときだけ onWritingModeChange を呼ぶ', () => {
             let calls = 0;
             init({ ...NOOP, onWritingModeChange: () => { calls++; } });
-            // 縦書き（既定）で「横書き」を選ぶ＝変化あり → 1回
-            findByText('.settings-opt', '横書き')?.click();
-            expect(calls).toBe(1);
-            // すでに横書きで「横書き」を再選択＝変化なし → 増えない
-            findByText('.settings-opt', '横書き')?.click();
-            expect(calls).toBe(1);
-            // 「縦書き」へ＝変化あり → 2回
+            // 横書き（既定）で「縦書き」を選ぶ＝変化あり → 1回
             findByText('.settings-opt', '縦書き')?.click();
+            expect(calls).toBe(1);
+            // すでに縦書きで「縦書き」を再選択＝変化なし → 増えない
+            findByText('.settings-opt', '縦書き')?.click();
+            expect(calls).toBe(1);
+            // 「横書き」へ＝変化あり → 2回
+            findByText('.settings-opt', '横書き')?.click();
             expect(calls).toBe(2);
         });
 
