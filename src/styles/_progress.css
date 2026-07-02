@@ -136,10 +136,10 @@ html.is-immersive .reading-anchor-cap {
 :root {
   --reading-anchor-color: rgba(255, 255, 255, 0.5);  /* 三角形・縦線の色 */
   --reading-anchor-cap-size: 0.5rem;                 /* 三角形の一辺（高さ／半幅） */
-  /* 読書点（線・三角）を進行直交端から内側へ寄せる量。本文の左右余白（①）とは独立した値（0.5文字分）。
-     横書きで線が画面左右端いっぱいに張り付くのを避ける。
-     1文字＝基準文字サイズ（--text-ref-size＝固定値）。右下メニューの文字サイズ設定（--font-size）には連動させない。 */
-  --reading-anchor-margin: calc(var(--text-ref-size) * 0.5);
+  /* 読書点マーカー（線・三角）を進行直交端から内側へ寄せる量。本文帯マージン（--body-margin）とは独立した固定値。
+     横書きで線が画面左右端いっぱいに張り付くのを避けるための微オフセット（従前の 0.5 文字分＝9px 相当）。
+     右下メニューの文字サイズ設定（--font-size）にも本文帯幅（--line-length）にも連動しない。 */
+  --reading-anchor-margin: 9px;
 }
 
 /* 配置コンテナ（ゼロ幅。子は left:0 を中心線として配置） */

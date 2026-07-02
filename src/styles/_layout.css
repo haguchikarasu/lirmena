@@ -8,7 +8,11 @@
   z-index: 2;
   writing-mode: var(--writing-mode);
   width: 100%;
-  max-width: var(--scene-max-w);   /* PC では横幅を上限で頭打ち（body の justify-content:center で中央寄せ） */
+  max-width: var(--scene-max-w);   /* 物理横上限（背景に対する座り。縦書きで有効。横書きでは通常 max-inline-size が勝つ） */
+  /* 本文帯の inline 軸上限（本文max + 2×マージン）。縦書きなら縦方向、横書きなら横方向に効く。
+     ウィンドウがこれ未満なら inline-size:100% で全幅、これ以上なら本文が --line-length で頭打ちして
+     残りの inline 空間が margin-inline:auto 経由で両端マージンへ回る（要件：max到達時にマージン部分が拡張）。 */
+  max-inline-size: calc(var(--line-length) + 2 * var(--body-margin));
   height: calc(100vh - 2 * var(--story-padding));
   overflow-x: auto;
   overflow-y: hidden;
@@ -143,10 +147,15 @@ html.is-selecting #main-container {
   writing-mode: var(--writing-mode);
   height: 100%;
   font-size: var(--font-size);
-  /* 行長（縦書き=列の高さ）は文字サイズ非連動の固定値（--line-length）。文字サイズを変えても帯幅は変わらない */
-  max-height: var(--line-length);
+  /* 本文表示エリア（本文 + 行長方向マージン）は親 #main-container の max-inline-size（--line-length + 2×--body-margin）で頭打ち。
+     ここでは #scene-content 自体を親フル（inline-size:100%）に伸ばし、内側の padding-inline で**常時**マージンを確保する。
+     本文コンテンツは inline-size - 2×padding で解決＝ウィンドウが max 未満なら本文が縮み、マージンは常に見える（読書点アンカー余白として機能）。
+     文字サイズ変更（--font-size）は帯幅（--line-length）・マージン（--body-margin）と独立＝互いに影響しない。 */
+  inline-size: 100%;
+  padding-inline: var(--body-margin);
+  margin-inline: auto;
   min-width: 75%;
-  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする */
+  /* ボタン幅 + α の余白でボタンとテキストが重ならないようにする（縦書き基底。横書きでは下の分岐で 0 に） */
 }
 
 
@@ -197,9 +206,8 @@ html[data-writing-mode="horizontal"] #main-container {
   overflow-y: auto;
   height: 100vh;
   padding-block: 0;
-  /* 縦書き用の広いコンテナ（max-width:84rem）だとスクロールバーが本文から遠い右端に出る。
-     本文行長（--line-length・文字サイズ非連動の固定値）＋わずかな余白までコンテナを絞り、スクロールバーを本文の脇に寄せる。 */
-  max-width: calc(var(--line-length) + 3rem);
+  /* 横書きの物理横上限は基底 #main-container の max-inline-size（＝--line-length + 2×--body-margin）で頭打ち済み。
+     縦書き用の広い max-width:84rem（物理横）はこれより大きく実質死重＝基底のまま残置で無害。 */
 }
 
 /* スクロールバーは縦に出る（縦書き時の横バー height:4px はオーバーフロー無しで無効化される） */
@@ -212,20 +220,11 @@ html[data-writing-mode="horizontal"].is-selecting #main-container {
   cursor: text;
 }
 
-/* 本文ブロック：行長の上限を横幅で頭打ちにし、高さは内容なり（＝コンテナが縦スクロールする）。
-   max-width で頭打ちした行ブロックを margin-inline:auto でコンテナ内の水平中央へ寄せる
-   （縦書きの body 中央寄せに相当する横書き版。左寄せだと背景に対して座りが悪い）。 */
+/* 横書き固有の上書き：block 軸を内容なりに（コンテナが縦スクロール）、縦書き用 min-width:75% をリセット。
+   行長上限（inline-size）と左右中央寄せ（margin-inline:auto）は基底に持たせたので分岐不要。 */
 html[data-writing-mode="horizontal"] #scene-content {
   height: auto;
-  max-height: none;
   min-width: 0;
-  /* 行長（横書き=行の幅）も文字サイズ非連動の固定値（--line-length） */
-  max-width: var(--line-length);
-  /* 本文を画面左右端から約1.5文字分あける（モバイルで帯が画面幅いっぱいになるときの左右余白）。
-     幅広画面では max-width（--line-length）が勝つので見た目は変わらない。
-     1文字＝基準文字サイズ（--text-ref-size＝固定値）。右下メニューの文字サイズ設定（--font-size）には連動させない。 */
-  width: calc(100% - 3 * var(--text-ref-size));
-  margin-inline: auto;
 }
 
 /* 前後の恒久余白（開幕の黒帯・本文末の余白）は横帯になる。ボタン群は縦並びへ */

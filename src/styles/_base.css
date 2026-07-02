@@ -3,14 +3,51 @@
 /* ===================================================
    CSS 変数
    --font-size / --font-family / --paragraph-margin は
-   settings.ts が document.documentElement.style.setProperty() で切り替える
+   settings.ts が document.documentElement.style.setProperty() で切り替える。
+   --font-size-sm/md/lg・--line-length・--body-margin は「解決層」の変数。
+   PC/スマホ×書字方向の組合せに応じて下の 4 組セレクタが「プリセット層」の生値を流し込む。
+   端末カテゴリの真実源は <html data-device>（device.ts が反映）。書字方向は <html data-writing-mode>（settings.ts が反映）。
 =================================================== */
 :root {
-  /* フォントサイズ（settings.ts が --font-size を切り替える） */
-  --font-size-sm: 15px;
-  --font-size-md: 18px;
-  --font-size-lg: 21px;
+  /* === プリセット層（生値・後で数値を調整するときはここだけ触る） ===
+     文字サイズ 6 値（PC/スマホ × 大中小）／本文帯幅 max 4 値・帯マージン 4 値（PC/スマホ × 縦書き/横書き）。
+     縦書きの帯マージンは 0、横書きは 27px＝1.5文字相当。
+     PC の本文帯幅は「文字サイズ小のとき一行42文字」を基準に調整（テキスト実効長 698px＝42.3文字。
+     縦書きは max-inline-size から padding-top/bottom 1em×2＝32px と横スクロールバー 10px が引かれるため 740px、
+     横書きは縦スクロールバー 10px のみ引かれる（帯マージン 27px×2 と padding-inline が相殺）ため 708px）。
+     スマホの本文帯幅は端末の画面高/幅で実効長が頭打ちされるため 756px 据え置き（実機で 42 文字前後になる）。 */
+  --font-size-pc-sm: 15.4px;
+  --font-size-pc-md: 17.5px;
+  --font-size-pc-lg: 20.125px;
+  --font-size-sp-sm: 15.4px;
+  --font-size-sp-md: 17.5px;
+  --font-size-sp-lg: 20.125px;
+  /* スマホ横書き専用フォント（縦書きスマホより小さくして一行の文字数を増やす）。
+     中は「375px 幅端末の本文エリア 321px で一行25文字」基準（321 ÷ (25×1.1) ≒ 11.67px）。
+     小・大は中と同じ比率（0.667）で縮小し大小順序を維持。実機幅が異なれば文字数が前後するので要実機調整。 */
+  --font-size-sp-h-sm: 12.32px;
+  --font-size-sp-h-md: 14px;
+  --font-size-sp-h-lg: 16.1px;
+
+  --line-length-pc-vertical:   770px;
+  --line-length-pc-horizontal: 780px;
+  --line-length-sp-vertical:   770px;
+  --line-length-sp-horizontal: 780px;
+
+  --body-margin-pc-vertical:    0px;
+  --body-margin-pc-horizontal: 27px;
+  --body-margin-sp-vertical:    0px;
+  --body-margin-sp-horizontal: 27px;
+
+  /* === 解決層（既存名。settings.ts と各種 CSS が参照する。値は下の組合せセレクタで解決される） ===
+     :root にフォールバック値を必ず残す（data-device / data-writing-mode 未設定・初期化前でも undefined にならない）。 */
+  --font-size-sm: var(--font-size-pc-sm);
+  --font-size-md: var(--font-size-pc-md);
+  --font-size-lg: var(--font-size-pc-lg);
   --font-size: var(--font-size-md);
+
+  --line-length: var(--line-length-pc-vertical);
+  --body-margin: var(--body-margin-pc-vertical);
 
   /* フォントファミリー（settings.ts が --font-family を切り替える） */
   --font-family-serif: serif;
@@ -25,13 +62,7 @@
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 5vh;          /* 本文エリアの天地余白 */
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
-  --scene-max-w: 84rem;          /* メインコンテナの横幅上限（PC で本文エリアが広がりすぎないようにする max-width） */
-  --line-max-chars: 42;           /* 1行（縦書きでは1列）の最大文字数（基準文字サイズ換算） */
-  /* 本文の行長（縦書き=列の高さ／横書き=行の幅）。文字サイズ設定に連動させると本文の帯幅まで動いて見栄え・
-     調整項目の独立性を損なうため、基準文字サイズ（中サイズ相当）で固定する。読書フォントを変えても帯幅は不変
-     （文字サイズを上げると1行の文字数が減る）。 */
-  --text-ref-size: 18px;                                       /* 行長の基準文字サイズ（= --font-size-md。読書設定に非連動） */
-  --line-length: calc(var(--line-max-chars) * var(--text-ref-size));  /* 本文の行長（固定 px・文字サイズ非連動） */
+  --scene-max-w: 84rem;          /* メインコンテナの物理横上限（背景に対する座り＝縦書きで有効）。横書きでは max-inline-size と min() 合成 */
 
   /* 書字方向の補助変数。settings.ts が <html data-writing-mode> 属性を切替え、その属性でこの変数が解決される。
      #main-container / #scene-content の writing-mode をこの1本で駆動する。属性自体は axis.ts も読む真実源。 */
@@ -54,6 +85,41 @@
 
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #080808;
+}
+
+/* === 解決層：4 通りの組合せで --font-size-sm/md/lg, --line-length, --body-margin を上書き ===
+   セレクタ詳細度 (0,2,1) は :root の (0,1,0) より強い。片方の属性しか付いていない初期状態は :root の値でフォールバック。 */
+
+html[data-device="pc"][data-writing-mode="vertical"] {
+  --font-size-sm: var(--font-size-pc-sm);
+  --font-size-md: var(--font-size-pc-md);
+  --font-size-lg: var(--font-size-pc-lg);
+  --line-length: var(--line-length-pc-vertical);
+  --body-margin: var(--body-margin-pc-vertical);
+}
+
+html[data-device="pc"][data-writing-mode="horizontal"] {
+  --font-size-sm: var(--font-size-pc-sm);
+  --font-size-md: var(--font-size-pc-md);
+  --font-size-lg: var(--font-size-pc-lg);
+  --line-length: var(--line-length-pc-horizontal);
+  --body-margin: var(--body-margin-pc-horizontal);
+}
+
+html[data-device="sp"][data-writing-mode="vertical"] {
+  --font-size-sm: var(--font-size-sp-sm);
+  --font-size-md: var(--font-size-sp-md);
+  --font-size-lg: var(--font-size-sp-lg);
+  --line-length: var(--line-length-sp-vertical);
+  --body-margin: var(--body-margin-sp-vertical);
+}
+
+html[data-device="sp"][data-writing-mode="horizontal"] {
+  --font-size-sm: var(--font-size-sp-h-sm);
+  --font-size-md: var(--font-size-sp-h-md);
+  --font-size-lg: var(--font-size-sp-h-lg);
+  --line-length: var(--line-length-sp-horizontal);
+  --body-margin: var(--body-margin-sp-horizontal);
 }
 
 /* 横書きモード：<html data-writing-mode="horizontal"> のとき進行軸を縦（forward=+y）へ切替える起点。 */

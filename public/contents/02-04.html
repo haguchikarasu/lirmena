@@ -20,6 +20,10 @@
       var m = localStorage.getItem('lirmena.writingMode');
       if (m === 'horizontal' || m === 'vertical') document.documentElement.setAttribute('data-writing-mode', m);
     } catch (e) {}
+    try {
+      var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
+      document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
   </script>
   <link rel="stylesheet" href="/lirmena/assets/styles.css" />
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->

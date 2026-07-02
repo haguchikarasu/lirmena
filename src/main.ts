@@ -19,7 +19,8 @@
  *   nav      : init(): void / update(): void / arm(): void（初期スクロール復元後に読了検知を有効化）
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData, volumes: VolumesData): void
- *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void }): void
+ *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
+ *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void（端末カテゴリの真実源 <html data-device> を反映＋matchMedia 購読）
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
@@ -53,6 +54,7 @@
 // main.ts からは CSS を import しない（CSS バンドルの責務を styles エントリへ一本化）。
 
 import * as axis from './axis';
+import * as device from './device';
 import * as state from './state';
 import * as renderer from './renderer';
 import * as bg from './bg';
@@ -182,6 +184,10 @@ async function _bootstrap(): Promise<void> {
         onClearRead: () => bookmark.clearRead(),
         onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });
+    // 端末カテゴリ（PC/スマホ）の真実源 <html data-device> はシェル HTML のインラインスクリプトが FOUC 前に先付けする。
+    // device.init は同じ属性を JS 経由で再確認しつつ matchMedia('(pointer: coarse)') の change を購読し、
+    // ライブ切替（DevTools のデバイスモード等）で reader/tutorial を再配置する（書字方向切替と対称の結線）。
+    device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
     bookmark.init();
     // 外部サイト/直接アクセスで開いた本文ページは「到達・オートセーブ」を記録しない（SNS 共有リンク等を
     // ちょっと見ただけで既読化／オートセーブ上書きされるのを防ぐ）。ただしオートセーブが当 sec を指す＝
@@ -285,6 +291,21 @@ function _scrollToRatio(container: HTMLElement, ratio: number): void {
  * settings は axis/bookmark を import せず、この導線（コールバック）経由で復元をトリガーする（疎結合を保つ）。
  */
 function _onWritingModeChange(container: HTMLElement): void {
+    _scrollToRatio(container, reader.getLastRatio());
+    tutorial.reposition();
+    container.dispatchEvent(new Event('scroll'));
+}
+
+/**
+ * 端末カテゴリ（PC/スマホ）のライブ切替後に device から呼ばれる。CSS 側で文字サイズ・本文帯幅・帯マージンが
+ * 差し替わりスクロール範囲（axis.getProgressRange）が変わるため、書字方向切替と同じ手順で再同期する：
+ *   1. 切替前の読書位置（reader.getLastRatio＝方向非依存のスクロール範囲比）を新レイアウトのスクロール量へ復元
+ *   2. 読書点マーカーを新レイアウトの #main-container 矩形へ再配置
+ *   3. #main-container に scroll を発火し bg を再 emit（クロスフェード／進捗／開幕アフォーダンスを新レイアウトで再計算）
+ * 通常のユーザー操作で PC⇔SP がライブ切替することはまれだが、DevTools のデバイスモード切替や
+ * 外部モニタ抜き差しに耐える結線（書字方向切替コールバックと対称の疎結合）。
+ */
+function _onDeviceChange(container: HTMLElement): void {
     _scrollToRatio(container, reader.getLastRatio());
     tutorial.reposition();
     container.dispatchEvent(new Event('scroll'));
