@@ -7,7 +7,7 @@
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
  *   栞を追加          → _openBookmarkPopup()（スロット選択ポップアップを開き、選んだ slot へ保存）
- *   読書点について    → tutorial.open()（チュートリアル再表示）
+ *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
  *   キャラクター紹介  → _openCharactersPopup() を呼ぶ
  *   設定を開く        → settings.open() を呼ぶ
  *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
@@ -104,7 +104,7 @@ function _buildItems(): void {
         _openBookmarkPopup();
     });
 
-    const btnTutorial = makeBtn('読書点について', () => {
+    const btnTutorial = makeBtn('チュートリアル', () => {
         tutorial.open();
     });
 
