@@ -138,8 +138,14 @@ async function _bootstrap(): Promise<void> {
 
     const episode = data.find(e => e.id === ep);
     const section = episode?.sections.find(s => s.id === sec);
-    if (!section?.published) {
-        _showError('ページが見つかりません。URLをご確認ください。');
+    if (!section) {
+        // 到達条件はシェル HTML と episodes.json の不整合＝サイト側の問題。URL 入力ミスではないので
+        // 「URL をご確認ください」は書かない（存在しない URL は GitHub Pages が 404 で返す）。
+        _showError('ページが見つかりません。');
+        return;
+    }
+    if (!section.published) {
+        _showError('このページはまだ公開されていません。');
         return;
     }
 
@@ -396,6 +402,8 @@ function _readAddress(): { ep: number; sec: number } | null {
 
 /**
  * エラーメッセージを #error-message に表示し、#main-container を非表示にする。
+ * 開幕アフォーダンス（「もどる／読み進める」）は CSS が html.at-opening で表示するため、
+ * エラー時は at-opening を外して一緒に消す（本文が無い＝進行の起点も無いため導線を出さない）。
  */
 function _showError(message: string): void {
     const loadingEl = document.querySelector<HTMLElement>('#loading');
@@ -409,4 +417,5 @@ function _showError(message: string): void {
     if (containerEl) {
         containerEl.hidden = true;
     }
+    document.documentElement.classList.remove('at-opening');
 }
