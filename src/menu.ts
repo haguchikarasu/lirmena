@@ -255,7 +255,7 @@ function _refreshSlotLabels(): void {
     for (let slot = 1; slot <= 3; slot++) {
         const entry = bySlot.get(slot);
         const detail = entry
-            ? `第${entry.ep}話 ${_pad(entry.sec)}　${_formatSavedAt(entry.savedAt)}`
+            ? `第${entry.ep}話 #${entry.sec}　${_formatSavedAt(entry.savedAt)}`
             : '空き';
         _slotBtns[slot].textContent = `スロット${slot}：${detail}`;
     }

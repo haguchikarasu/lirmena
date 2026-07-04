@@ -336,11 +336,11 @@ function fmtDate(savedAt: number): string {
     return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ep・sec を「第N話 タイトル - SS」表記にする（タイトルが無ければ番号のみ）。
+// ep・sec を「第N話 タイトル #S」表記にする（タイトルが無ければ番号のみ）。sec はゼロ埋めしない。
 // locLabel(ep: number, sec: number): string
 function locLabel(ep: number, sec: number): string {
     const epTitle = _episodes.find(e => e.id === ep)?.title ?? '';
-    return epTitle ? `第${ep}話 ${epTitle} - ${pad(sec)}` : `第${ep}話 - ${pad(sec)}`;
+    return epTitle ? `第${ep}話 ${epTitle} #${sec}` : `第${ep}話 #${sec}`;
 }
 
 // 1枚の栞カード（スロットラベル＋場所・日時＋アクション）を生成する。
