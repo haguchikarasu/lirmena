@@ -1,10 +1,13 @@
 <!DOCTYPE html>
+<!-- 【自動生成テンプレ／編集はここ】本文ページ（sec≥1）の雛形。src/plugins/pages.ts が episodes.json を読み、
+     {{ep}} / {{sec}} を埋めて contents/[ep]-[sec].html を build/serve 両方で生成する。生成物は触らず、この雛形を直す。
+     CSS は main.ts が import './styles/index.css' でバンドルし、Vite が <link>（ハッシュ名）を自動注入する（手書き link は置かない）。 -->
 <!-- class="at-opening"：開幕（本文先頭の黒い余白）を初期状態に。opening.ts が本文に入ると外す -->
 <html lang="ja" class="at-opening">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- OGP・メタ情報（作品名で静的固定・両ページ共通。og:image は public/ogp.png、og:description は設定しない。
+  <!-- OGP・メタ情報（作品名で静的固定・全ページ共通。og:image は public/ogp.png、og:description は設定しない。
        theme-color は CSS 変数 --theme-color と2箇所で管理） -->
   <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
@@ -14,8 +17,14 @@
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
-  <link rel="icon" href="/lirmena/favicon.ico" />
-  <!-- 書字方向の早期反映（FOUC 回避）：CSS 適用前に保存値（無ければ既定＝横書き）を <html> 属性へ。axis.ts/settings.ts と同じ lirmena.writingMode キー -->
+  <link rel="icon" href="/favicon.ico" />
+  <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
+       body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
+       Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
+       極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
+  <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
+  <!-- 書字方向・端末カテゴリの早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+       保存値が無ければ既定＝横書き。axis.ts/settings.ts と同じ lirmena.writingMode キー -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -26,7 +35,6 @@
       document.documentElement.setAttribute('data-device', d);
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="/lirmena/assets/styles.css" />
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -43,7 +51,7 @@
     }
   </script>
 </head>
-<body data-ep="2" data-sec="2">
+<body data-ep="{{ep}}" data-sec="{{sec}}">
   <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
   <p id="loading" role="status">読み込み中</p>
 
@@ -105,6 +113,6 @@
   <!-- エラー表示（main.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>
 
-  <script type="module" src="/lirmena/assets/main.js"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

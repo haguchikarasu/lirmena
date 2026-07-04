@@ -2,3 +2,7 @@ node_modules/
 dist/
 .DS_Store
 .claude/
+
+# pages() プラグイン（vite.config.ts）が episodes.json から生成する本文/タイトルページ。
+# 雛形は templates/ に、生成物はここに出る。追跡しない（先頭スラッシュで root 直下のみ＝public/contents は対象外）。
+/contents/

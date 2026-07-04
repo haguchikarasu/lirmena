@@ -22,6 +22,9 @@
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
  */
 
+// CSS はこのエントリが import する（Vite が本ページ用に <link>（ハッシュ名）を自動注入する）。
+import './styles/index.css';
+
 import * as state from './state';
 import * as loader from './loader';
 import * as bookmark from './bookmark';

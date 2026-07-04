@@ -49,9 +49,9 @@
  *         （axis.setProgress が書字方向の符号を解決）。割合なので縦書き⇔横書きの切替を跨いでも近い本文位置を指す。
  */
 
-// CSS は別エントリ（src/styles/index.ts → assets/styles.css）に分離した。
-// 本文・タイトル両シェルが <link href="/lirmena/assets/styles.css"> で参照する。
-// main.ts からは CSS を import しない（CSS バンドルの責務を styles エントリへ一本化）。
+// CSS はこのエントリが import する（Vite が本ページ用に <link>（ハッシュ名）を自動注入する）。
+// 旧・独立 styles エントリ（src/styles/index.ts）とシェルの手書き <link> は廃止した。
+import './styles/index.css';
 
 import * as axis from './axis';
 import * as device from './device';

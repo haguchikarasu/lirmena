@@ -36,6 +36,9 @@
  * を引き、同様に旧 "ep-sec-00" を読破扱いにする（bookmark.ts の移行と整合）。
  */
 
+// 目次ページの CSS はこのエントリが import する（Vite が <link>（ハッシュ名）を自動注入）。
+// 旧・ルート直下 index.css ＋ index.html の手書き <link> は廃止し src/styles/toc.css へ移した。
+import './styles/toc.css';
 import * as bookmark from './bookmark';
 
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };

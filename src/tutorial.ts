@@ -35,8 +35,8 @@ import * as settings from './settings';
 
 const KEY_TUTORIAL_SEEN = 'lirmena.tutorialSeen';
 
-// 立ち絵（public/contents/img/）の参照ベース。menu.ts のキャラ画像と同じ import.meta.env.BASE_URL 流儀。
-const IMG_BASE = `${import.meta.env.BASE_URL}contents/img/`;
+// 立ち絵（public/img/tutorial/）の参照ベース。menu.ts のキャラ画像と同じ import.meta.env.BASE_URL 流儀。
+const IMG_BASE = `${import.meta.env.BASE_URL}img/tutorial/`;
 
 // オーバーレイの上下 padding（_tutorial.css の #tutorial-popup padding と一致）。カード高の頭打ち算出に使う。
 const OVERLAY_PAD = 24;
