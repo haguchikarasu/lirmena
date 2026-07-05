@@ -19,6 +19,7 @@
  *   nav      : init(): void / update(): void / arm(): void（初期スクロール復元後に読了検知を有効化）
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData, volumes: VolumesData): void
+ *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除。要件 06-13）
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
  *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void（端末カテゴリの真実源 <html data-device> を反映＋matchMedia 購読）
  *   tutorial : init(): void
@@ -70,6 +71,7 @@ import * as immersive from './immersive';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
+import * as feedback from './feedback';
 import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
 
 /**
@@ -203,6 +205,7 @@ async function _bootstrap(): Promise<void> {
     if (!suppressAutoRecord) bookmark.recordReached(ep, sec);
     nav.init();
     menu.init(charactersData, volumesData);
+    feedback.init();
 
     renderer.renderScenes(scenes);
     bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), ep);

@@ -12,6 +12,8 @@
  *   設定を開く        → settings.open() を呼ぶ
  *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
  *
+ * ※ マシュマロは本文末の #btn-share-marshmallow に集約（feedback.ts が管理）。メニューからの導線は持たない
+ *
  * 栞ポップアップ（#bookmark-popup）：
  *   - _buildBookmarkPopup(): void — スロット1〜3のアクションボタン（各スロットの現在内容／空きを表示）＋閉じる を生成する
  *   - _openBookmarkPopup() / _closeBookmarkPopup(): void — 表示切替。開く直前にボタンラベルを最新内容で再生成する
