@@ -780,8 +780,7 @@ function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    const filtered = entries.filter(entry => entry.version.split('.')[2] === '0');
-    filtered.forEach((entry, i) => {
+    entries.forEach((entry, i) => {
         const li = document.createElement('li');
         li.className = 'cl-entry';
 
@@ -823,7 +822,7 @@ function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
         listEl.appendChild(li);
     });
 
-    if (filtered.length > CHANGELOG_INITIAL_COUNT) _initChangelogToggle(listEl, toggleBtn);
+    if (entries.length > CHANGELOG_INITIAL_COUNT) _initChangelogToggle(listEl, toggleBtn);
 }
 
 // ヒーローカードのバージョンバッジを更新する

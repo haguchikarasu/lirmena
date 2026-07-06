@@ -13,7 +13,7 @@
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../index.html">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
- *   #title-screen-changelog  … 変更履歴（パッチを除外しマイナー以上を表示。無ければ「更新履歴なし」）
+ *   #title-screen-changelog  … 変更履歴（全エントリを表示。無ければ「更新履歴なし」）
  *
  * 背景画像: {BASE_URL}ep[XX]/{coverFile}（episodes.json の coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
  *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ src/styles/_title.css 側で background-position に反映する。
@@ -148,20 +148,19 @@ function _wireButtons(): void {
 }
 
 /**
- * 変更履歴を描画する。パッチ（バージョン第3位が 0 でない）を除外しマイナー以上のみ表示。
+ * 変更履歴を描画する。全エントリ（パッチ含む）を新しい順に表示。
  * エントリが無ければ「更新履歴なし」。バージョン番号を GitHub コミットへのリンクにする。
  */
 function _renderChangelog(changelog: ChangelogEntry[]): void {
     const area = document.querySelector<HTMLElement>('#title-screen-changelog');
     if (!area) return;
 
-    const filtered = changelog.filter(entry => entry.version.split('.')[2] === '0');
-    if (filtered.length === 0) {
+    if (changelog.length === 0) {
         area.replaceChildren(document.createTextNode('更新履歴なし'));
         return;
     }
 
-    const rows = filtered.map(entry => {
+    const rows = changelog.map(entry => {
         const row = document.createElement('p');
         row.className = 'changelog-entry';
 
