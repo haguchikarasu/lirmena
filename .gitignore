@@ -9,3 +9,8 @@ dist/
 
 # vitest coverage レポート（`npm run test:coverage` で生成される HTML 出力）。ローカル可視化用で追跡しない。
 coverage/
+
+# Playwright スモーク（`npm run test:e2e`）の出力。ローカル既定・追跡しない。
+playwright-report/
+test-results/
+.playwright/

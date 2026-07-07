@@ -12,10 +12,13 @@
     "test:coverage": "vitest run --coverage",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "depcruise:graph": "depcruise src --config .dependency-cruiser.cjs --output-type dot",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "pretest:e2e": "playwright install chromium",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.10",
     "dependency-cruiser": "^18.0.0",
