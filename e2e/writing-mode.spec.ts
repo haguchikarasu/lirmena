@@ -1,6 +1,6 @@
 /*
  * 骨格 E2E ②：reader で書字方向を縦横切替すると <html data-writing-mode> が反映される。
- * plan Phase 3 の導線 2 に対応。位置維持は割合ベース（module-responsibilities.md：settings.ts→
+ * plan Phase 3 の導線 2 に対応。位置維持は割合ベース（design/module-responsibilities.md：settings.ts→
  * main.ts の onWritingModeChange 導線）で自動保証されるため、ここでは属性反映を骨格として押さえる。
  * FOUC 対策で <head> のインラインスクリプトも属性を先付けするので、初回は既定値の horizontal で入る。
  */

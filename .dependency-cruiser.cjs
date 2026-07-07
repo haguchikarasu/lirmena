@@ -1,5 +1,5 @@
 // 依存グラフの許可リスト・循環禁止・orphan 検出。
-// 許可リストは module-matrix.md と同期する（matrix を更新したら本ファイルも同じ単位で更新）。
+// 許可リストは design/module-matrix.md と同期する（matrix を更新したら本ファイルも同じ単位で更新）。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
 const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes)';
@@ -30,7 +30,7 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark のみ・module-matrix.md L50）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark のみ・design/module-matrix.md L50）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
@@ -43,7 +43,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 12 モジュールは src/ 内の他モジュールを import しない（types のみ許可・module-matrix.md L44）',
+      comment: 'リーフ 12 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',

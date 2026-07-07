@@ -4,7 +4,7 @@
  *       隣接レイヤー間を連続クロスフェードする。あわせて現在シーンと本文領域基準の連続進捗を導出し、結果をコールバックで通知する。
  * export: init(), subscribe() ＋ テスト用純関数（computeP / layerOpacities / deriveCurrentScene / computeProgress）
  * 依存: axis.ts（書字方向の進行軸解決。bg は本来リーフだが、横書き対応で axis のみ例外的に依存する＝両者ともリーフ
- *       同士なので疎結合は維持。module-responsibilities.md の依存マトリクスに bg→axis を明示）。
+ *       同士なので疎結合は維持。design/module-responsibilities.md の依存マトリクスに bg→axis を明示）。
  *       他モジュールは import しない。読書点は CSS 変数 --reading-anchor を読むのみ。
  *       現在シーン・既読・進捗・オートセーブの利用は通知を受けた reader.ts 側で行う）
  *

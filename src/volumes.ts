@@ -34,7 +34,7 @@
  * 4vol＋読破の 5 段階固定：
  *   将来 vol5 以降が構想変更で追加された場合、当関数は volumes 昇順走査で自動対応する（コード変更不要）。
  *   ただし _base.css の --stage-6-color 追加、_progress.css の html[data-story-stage="6"] セレクタ追加、
- *   module-responsibilities.md / requirements/06-5-bookmark.html の追記が同時に必要。
+ *   design/module-responsibilities.md / design/requirements/06-5-bookmark.html の追記が同時に必要。
  */
 
 import type { VolumesData, EpisodesData } from './types';

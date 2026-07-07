@@ -6,7 +6,7 @@
  *               「end フィールドの存在そのものを失念する」ことを防ぐため required にしてある。
  *               物語進行段階（stage 1〜5）の移行判定に使う：ある vol の end sec を read（末尾までスクロール）
  *               すると次の stage に上がる（stage N は「vol (N-1) を完読した」状態）。
- *               詳細は requirements/06-5-bookmark.html の「進捗バーの色（物語進行段階：5段階）」節、
+ *               詳細は design/requirements/06-5-bookmark.html の「進捗バーの色（物語進行段階：5段階）」節、
  *               判定は volumes.ts の computeStoryStage。SNS 迷い込み等の意図せぬ移行は
  *               main.ts の外部流入抑止ロジック（recordRead が抑止される）が排除する（判定関数側では扱わない）。
  */

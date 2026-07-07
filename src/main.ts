@@ -93,8 +93,6 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
 // 旧 localStorage / 古い history.state / デプロイ直後のアセット新旧不整合（ハッシュ無し固定名 main.js 由来の
 // ブラウザ・CDN キャッシュの伝播ずれ）で同期例外が出ると、#loading に hidden が付かず「読み込み中」で永久固着しうる。
 // 原因を問わず例外を捕まえてフォールバック表示し、固着だけは構造的に防ぐ。
-// ※中長期の恒久対策：本文シェルを public 手書きから Vite のエントリへ移し（MPA 化）、アセットをハッシュ名へ戻して
-//   新旧不整合の窓そのものを閉じる。それが入ればこの try/catch は本質的に不要になる（webサイト/todoリスト.md 参照）。
 async function _init(): Promise<void> {
     try {
         await _bootstrap();

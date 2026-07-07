@@ -1,7 +1,7 @@
 /*
  * parser.test.ts
  * 対象: parser.ts の傍点（《《…》》）パースと、ルビ・傍点・リテラルの曖昧性解消。
- * 期待値の出典: requirements/05-5-bouten.html ／ module-responsibilities.md（parser.ts 責務）。
+ * 期待値の出典: design/requirements/05-5-bouten.html ／ design/module-responsibilities.md（parser.ts 責務）。
  *   - 《《対象》》 → emphasis（| 不要・二重ギュメ）
  *   - |親文字《ルビ》 → ruby（先頭 | 必須・単一ギュメ）
  *   - 単独の 《 》 → 本文中のリテラル文字（text へフォールバック）
