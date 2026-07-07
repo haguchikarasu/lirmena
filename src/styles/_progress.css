@@ -18,7 +18,7 @@
   right: 0;
   height: 100%;
   width: 0%;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--progress-fill-color);
   transition: width 0.15s linear;
 }
 
@@ -29,6 +29,17 @@ html[data-writing-mode="horizontal"] #progress-fill {
   right: auto;
   left: 0;
 }
+
+/* 物語進行段階（stage）別キーカラーの解決（main.ts が <html data-story-stage="N"> を付与する）。
+   未設定時は _base.css の :root デフォルト（stage1 色）にフォールバック。
+   stage1=vol1到達（初期・未到達読者）／2=vol2到達／3=vol3到達／4=vol4到達／5=vol4読破。
+   現行 volumes.json は 4vol＋読破の 5 段階固定。将来 vol5 以降が追加される場合は
+   ここに stage6 セレクタ、_base.css に --stage-6-color、volumes.ts の判定関数調整が同時に必要。 */
+html[data-story-stage="1"] { --progress-fill-color: var(--stage-1-color); }
+html[data-story-stage="2"] { --progress-fill-color: var(--stage-2-color); }
+html[data-story-stage="3"] { --progress-fill-color: var(--stage-3-color); }
+html[data-story-stage="4"] { --progress-fill-color: var(--stage-4-color); }
+html[data-story-stage="5"] { --progress-fill-color: var(--stage-5-color); }
 
 
 /* ===================================================

@@ -5,8 +5,8 @@
     "coverFile": "title01.avif",
     "coverPositionX": "20%",
     "sections": [
-      { "id": 1, "published": true },
-      { "id": 2, "published": true }
+      { "id": 1, "published": true, "end": false },
+      { "id": 2, "published": true, "end": false }
     ]
   },
   {
@@ -15,10 +15,10 @@
     "coverFile": "title02.avif",
     "coverPositionX": "20%",
     "sections": [
-      { "id": 1, "published": true },
-      { "id": 2, "published": true },
-      { "id": 3, "published": false },
-      { "id": 4, "published": false }
+      { "id": 1, "published": true, "end": false },
+      { "id": 2, "published": true, "end": false },
+      { "id": 3, "published": false, "end": false },
+      { "id": 4, "published": false, "end": false }
     ]
   },
   {
@@ -27,13 +27,13 @@
     "coverFile": "title03.avif",
     "coverPositionX": "50%",
     "sections": [
-      { "id": 1, "published": false },
-      { "id": 2, "published": false },
-      { "id": 3, "published": false },
-      { "id": 4, "published": false },
-      { "id": 5, "published": false },
-      { "id": 6, "published": false },
-      { "id": 7, "published": false }
+      { "id": 1, "published": false, "end": false },
+      { "id": 2, "published": false, "end": false },
+      { "id": 3, "published": false, "end": false },
+      { "id": 4, "published": false, "end": false },
+      { "id": 5, "published": false, "end": false },
+      { "id": 6, "published": false, "end": false },
+      { "id": 7, "published": false, "end": false }
     ]
   }
 ]

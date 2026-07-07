@@ -41,7 +41,7 @@
 import './styles/toc.css';
 import * as bookmark from './bookmark';
 
-type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
+type Episode = { id: number; title: string; sections: { id: number; published: boolean; end: boolean }[] };
 // 栞は flat 形＋固定スロット（slot=1..3）。旧 nested 形（{ address }）・旧 flat（slot 無し）は
 // loadBookmarks() で正規化して読む（slot 無しは表示用に savedAt 昇順で採番）。
 type BookmarkEntry = {

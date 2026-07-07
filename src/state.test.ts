@@ -16,16 +16,16 @@ const DATA: EpisodesData = [
         id: 1,
         title: '太陽の行く先',
         sections: [
-            { id: 1, published: true },
-            { id: 2, published: true },
-            { id: 3, published: true },
-            { id: 4, published: false },
+            { id: 1, published: true, end: false },
+            { id: 2, published: true, end: false },
+            { id: 3, published: true, end: false },
+            { id: 4, published: false, end: false },
         ],
     },
     {
         id: 2,
         title: '丘の上の影',
-        sections: [{ id: 1, published: true }],
+        sections: [{ id: 1, published: true, end: false }],
     },
 ];
 

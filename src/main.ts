@@ -27,8 +27,9 @@
  *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
  *   immersive: init(): void（背景鑑賞モード。タップ/クリック・Esc で <html>.is-immersive をトグル）
  *   bookmark : init(): void / setAutoRecordSuppressed(suppressed: boolean): void / recordReached(ep, sec): void
- *              clearSlots(): void / clearRead(): void
+ *              clearSlots(): void / clearRead(): void / getRead()
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
+ *   volumes  : computeStoryStage(read, volumes, episodes): StoryStage（A 案：各 vol の end sec を read で stage 1〜5 移行）
  * 【被依存】なし
  * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
  *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
@@ -36,8 +37,12 @@
  *         （横スクロール）へ写し、横書きではブラウザ既定の縦スクロールに委ねる（リスナを抑制＝preventDefault しない）。
  *         加えて pan.init() でマウス手のひらツール（左ドラッグ横スクロール）を有効化する（微調整＝ホイール／
  *         大量移動＝ドラッグの棲み分け）。スクロールは scrollLeft 直接更新で既存 fan-out に自動追従する。
- * 【Phase 2】bookmark.init() で旧データ移行を起動。外部サイト/直接アクセス（オートセーブ未一致）でない限り
- *         recordReached() で自 sec を到達記録する（外部流入時は setAutoRecordSuppressed(true) で到達・読了・オートセーブを抑止）。
+ * 【Phase 2】bookmark.init() で旧データ移行を起動。直後に computeStoryStage(read, volumes, episodes)
+ *         で物語進行段階（stage 1〜5）を算出し <html data-story-stage="N"> を付与する（進捗バーの色を CSS 変数
+ *         --progress-fill-color 経由で切替える受動的フック。A 案：各 vol の end sec を read で移行）。
+ *         SNS 迷い込みは次段の外部流入抑止ロジック（_isExternalEntry() && !_isResuming() で setAutoRecordSuppressed）
+ *         が recordRead を抑止することで排除される（責務分離）。次に外部サイト/直接アクセス（オートセーブ未一致）
+ *         でない限り recordReached() で自 sec を到達記録する（外部流入時は setAutoRecordSuppressed(true) で到達・読了・オートセーブを抑止）。
  *         render 後に reader.init() → bg.subscribe(reader.handleScroll) を結線し、スクロール由来の通知を
  *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
@@ -72,6 +77,7 @@ import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
 import * as feedback from './feedback';
+import { computeStoryStage } from './volumes';
 import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
 
 /**
@@ -197,6 +203,16 @@ async function _bootstrap(): Promise<void> {
     // ライブ切替（DevTools のデバイスモード等）で reader/tutorial を再配置する（書字方向切替と対称の結線）。
     device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
     bookmark.init();
+    // 読者の物語進行段階（stage 1〜5）を <html data-story-stage> に反映する。
+    // 進捗バー（#progress-fill）の色を CSS 変数（--progress-fill-color）経由で切替える受動的フック。
+    // A 案：各 vol の end sec を read（末尾までスクロール）で移行する判定なので、判定材料は bookmark.getRead() のみ。
+    // SNS リンクで end sec に迷い込んだ未読者を排除するのは、この直後の外部流入抑止ロジック
+    // （_isExternalEntry() && !_isResuming() → setAutoRecordSuppressed で recordRead 抑止）が担う。
+    // 判定関数（volumes.ts）側では抑止を再実装せず、この既存機構に委ねる（責務分離・要件 06-5）。
+    // ページ内で ep 固定なので付与は 1 回でよい。末尾到達で recordRead が走った直後の再評価は行わず、次ページ遷移で反映。
+    document.documentElement.dataset.storyStage = String(
+        computeStoryStage(bookmark.getRead(), volumesData, data)
+    );
     // 外部サイト/直接アクセスで開いた本文ページは「到達・オートセーブ」を記録しない（SNS 共有リンク等を
     // ちょっと見ただけで既読化／オートセーブ上書きされるのを防ぐ）。ただしオートセーブが当 sec を指す＝
     // 読みかけの再開なら記録を有効化する。内部移動（同一オリジンからの遷移）は従来どおり常に記録する。

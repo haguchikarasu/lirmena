@@ -86,6 +86,37 @@
 
   /* テーマカラー（meta theme-color と合わせること） */
   --theme-color: #080808;
+
+  /* 物語進行段階（stage）別キーカラー。stage1=vol1到達（初期・未到達読者）／2=vol2到達／3=vol3到達／
+     4=vol4到達／5=vol4読破（物語完結）。実際の色対応は将来コンテンツ公開に合わせて決定。
+     暫定は全 stage が緑系（stage1 相当）で視認差は出ない。
+
+     ● 微調整のしやすさのため HSL を 3 変数（hue／saturation／lightness）に分解している。
+       - 明度だけ調整したいときは --stage-lightness を触れば全 stage 一括で変わる
+       - 色相を変えたいとき（例：全体を青緑寄りに）は --stage-hue を動かす
+       - CSS には HSV は無い（standards 未対応）ので HSL で代用（Hue/Saturation は HSV と同じ概念）
+     ● 目次アクセント（--idx-accent: #2df590 ≒ HSL 146° 91% 57%）と同じ色相 146° を基点。
+       進捗バーは画面上端の細い線（3px 高）なので、明るすぎる色は視覚的に強すぎるため
+       明度を落として暗めの深緑に。目次チップとは別 UI なので別色でよい。
+     ● 将来 stage 別に色を変えたい場合は各 --stage-N-color を hsl(H S L) で個別上書きするか、
+       --stage-1-hue のように 1 段深く変数化する。
+
+     stage の算出は volumes.ts の computeStoryStage、DOM 属性の付与は main.ts、
+     解決変数 --progress-fill-color の切替は _progress.css の html[data-story-stage="N"] セレクタ。
+     現行 volumes.json は 4vol＋読破の 5 段階固定。将来 vol5 以降が追加される場合は
+     _base.css の変数追加・_progress.css のセレクタ追加・volumes.ts の判定関数調整が同時に必要。 */
+  --stage-hue: 146;         /* 色相：緑 */
+  --stage-saturation: 40%;  /* 彩度 */
+  --stage-lightness: 50%;   /* 明度：小さいほど暗い（0=黒／50=純色／100=白） */
+
+  --stage-1-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+  --stage-2-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+  --stage-3-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+  --stage-4-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+  --stage-5-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+
+  /* 進捗バー塗り色の解決変数。デフォルトは stage1。_progress.css の html[data-story-stage="N"] で切り替え。 */
+  --progress-fill-color: var(--stage-1-color);
 }
 
 /* === 解決層：4 通りの組合せで --font-size-sm/md/lg, --line-length, --body-margin を上書き ===
