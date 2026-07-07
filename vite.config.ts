@@ -109,6 +109,12 @@ function pages(root: string): Plugin {
 
 export default defineConfig({
   base: '/lirmena/',
+  // Vite の htmlInlineProxyPlugin は id と config.root を case-sensitive な String.replace で
+  // 突き合わせてキャッシュキーを組む（vitejs/vite#16324）。Windows で cwd と __dirname のドライブ文字
+  // casing が食い違う（`c:` vs `C:`）と templates の <style> ブロックの proxy キーがミスマッチし、
+  // build が「No matching HTML proxy module found」で落ちる。root を __dirname に明示して、
+  // pages() が rollupOptions.input に流し込むパスと config.root の casing を構造的に一致させる。
+  root: __dirname,
   plugins: [pages(__dirname)],
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
   // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
