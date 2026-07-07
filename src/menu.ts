@@ -18,6 +18,7 @@
  *   - _buildBookmarkPopup(): void — スロット1〜3のアクションボタン（各スロットの現在内容／空きを表示）＋閉じる を生成する
  *   - _openBookmarkPopup() / _closeBookmarkPopup(): void — 表示切替。開く直前にボタンラベルを最新内容で再生成する
  *   - スロット押下で bookmark.addBookmark(state.getCurrent(), ratio, slot)（ratio＝forward 進行 px ÷ 可動域＝スクロール範囲比 0〜1）を呼んで上書き保存する
+ *   - 保存済みスロットのラベルは「スロット○：第N話 #S（NN%）　MM/DD HH:MM」形式で、位置は ratio×100 を四捨五入した百分率を丸括弧で示す（空きは「空き」のみ・％表示なし）
  *   - 閉じる方法：背景クリック・Escape キー・閉じるボタン
  *
  * 開閉制御（メニュー）：
@@ -213,6 +214,12 @@ function _formatSavedAt(ms: number): string {
     return `${_pad(d.getMonth() + 1)}/${_pad(d.getDate())} ${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
 }
 
+// スクロール範囲比（0〜1）を "NN%" 表示にする（0/100 端は四捨五入で丸め・小数は出さない）。
+// _formatRatioPercent(ratio: number): string
+function _formatRatioPercent(ratio: number): string {
+    return `${Math.round(ratio * 100)}%`;
+}
+
 // #bookmark-popup に「栞に保存」パネル（スロット1〜3のアクションボタン＋閉じる）を生成する。
 // 各スロットボタンの現在内容ラベルは _openBookmarkPopup() が開く度に最新化する。
 // _buildBookmarkPopup(): void
@@ -257,7 +264,7 @@ function _refreshSlotLabels(): void {
     for (let slot = 1; slot <= 3; slot++) {
         const entry = bySlot.get(slot);
         const detail = entry
-            ? `第${entry.ep}話 #${entry.sec}　${_formatSavedAt(entry.savedAt)}`
+            ? `第${entry.ep}話 #${entry.sec}（${_formatRatioPercent(entry.ratio)}）　${_formatSavedAt(entry.savedAt)}`
             : '空き';
         _slotBtns[slot].textContent = `スロット${slot}：${detail}`;
     }

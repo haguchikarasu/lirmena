@@ -10,6 +10,7 @@
  *   - 到達セット・読了セット（sec 単位）からセクションの既読/読破を表示（判定ロジックは持たず引くだけ）
  *     既読（到達）＝アクセント色／読破（読了）＝チェック ✓。両セットは独立（読破のみも起こり得る）
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（最上段・ジャンプ＋削除）、スロット1〜3（空き含む常時表示・個別クリア・ジャンプ）
+ *     場所情報の末尾に「（NN%）」を付与して復元先のスクロール範囲比を示す（オートセーブと手動栞の scene>0 に付ける。scene===0＝タイトル画面の栞は「（タイトル画面）」を優先し％表示を出さない）
  *   - 続きから読む：オートセーブがあればヒーロー下のボタンと FAB 項目を出し、pendingJump を書いて対象 sec へ遷移（着地先で復元）
  *   - content-changelog.json を fetch してコンテンツ更新履歴を表示
  *   - site-changelog.json を fetch してサイトバージョンバッジを更新（詳細一覧は表示しない）
@@ -343,6 +344,12 @@ function locLabel(ep: number, sec: number): string {
     return epTitle ? `第${ep}話 ${epTitle} #${sec}` : `第${ep}話 #${sec}`;
 }
 
+// スクロール範囲比（0〜1）を "NN%" 表示にする（menu.ts の _formatRatioPercent と同一ロジック・独立方針で inline 複製）。
+// fmtRatioPercent(ratio: number): string
+function fmtRatioPercent(ratio: number): string {
+    return `${Math.round(ratio * 100)}%`;
+}
+
 // 1枚の栞カード（スロットラベル＋場所・日時＋アクション）を生成する。
 // buildSlotCard(slotLabel, locText, dateText, actions): HTMLElement
 function buildSlotCard(slotLabel: string, locText: string, dateText: string, actions: HTMLElement | null): HTMLElement {
@@ -408,7 +415,7 @@ function renderBookmarks(): void {
         });
         actions.appendChild(delBtn);
 
-        const card = buildSlotCard('スロット0：オートセーブ', locLabel(auto.ep, auto.sec), fmtDate(auto.savedAt), actions);
+        const card = buildSlotCard('スロット0：オートセーブ', `${locLabel(auto.ep, auto.sec)}（${fmtRatioPercent(auto.ratio)}）`, fmtDate(auto.savedAt), actions);
         card.classList.add('idx-bm-card--auto');
         container.appendChild(card);
     }
@@ -452,7 +459,7 @@ function renderBookmarks(): void {
         });
         actions.appendChild(clearBtn);
 
-        const locText = locLabel(ep, sec) + (scene === 0 ? '（タイトル画面）' : '');
+        const locText = locLabel(ep, sec) + (scene === 0 ? '（タイトル画面）' : `（${fmtRatioPercent(entry.ratio)}）`);
         container.appendChild(buildSlotCard(`スロット${slot}`, locText, fmtDate(entry.savedAt), actions));
     }
 }
