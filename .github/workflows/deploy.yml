@@ -18,12 +18,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ops/repo-size.md の size-pack 計測に history 全体が必要
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: dependency-cruiser（依存グラフ検証・ブロッキング）
+        run: npm run depcruise
+      - name: unit tests（vitest・ブロッキング）
+        run: npm test
+      - name: ESLint（非ブロッキング・赤アノテーションで気づけるが公開は止めない）
+        run: npm run lint
+        continue-on-error: true
       - run: npm run build
+      - name: repo size（.git の size-pack をジョブサマリに出力・ops/repo-size.md）
+        if: always()
+        run: |
+          echo "### Repository size (git count-objects -vH)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          git count-objects -vH >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "size-pack 閾値：500 MiB を超えたら対処検討（GitHub 推奨 1 GB の半分＝早期警戒ライン）" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
