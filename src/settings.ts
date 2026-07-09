@@ -2,9 +2,10 @@
  * settings.ts
  * 責務: フォントサイズ・フォント・段落間マージン・書字方向・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
  * export: init(), open(), getReadingAnchor(), setReadingAnchor()
- * 依存: なし（栞・既読クリア・書字方向変更後の処理のコールバックは main.ts から注入）
+ * 依存: なし（栞・既読・読破のクリア・書字方向変更後の処理のコールバックは main.ts から注入）
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
  *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
+ *   3つのクリアボタン（栞をクリア／既読をクリア／読破状況をクリア）は window.confirm() で承認を取ってから callback を呼ぶ。
  *
  * 設定項目とデフォルト値（定数で定義）:
  *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
@@ -62,8 +63,9 @@ const CSS_VARS = {
 } satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string> };
 
 let _current: Settings = { ...DEFAULTS };
-let _callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void } = {
+let _callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void } = {
     onClearBookmarks: () => {},
+    onClearReached: () => {},
     onClearRead: () => {},
     onWritingModeChange: () => {},
 };
@@ -71,9 +73,10 @@ let _popup: HTMLElement | null = null;
 const _optEntries = new Map<keyof Settings, Array<{ btn: HTMLButtonElement; value: string }>>();
 
 // 設定を localStorage から復元し CSS 変数に反映する。
-// callbacks.onClearBookmarks / onClearRead を設定画面のクリアボタンに、onWritingModeChange を書字方向変更後の復元に割り当てる。
-// init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
-export function init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void {
+// callbacks.onClearBookmarks / onClearReached / onClearRead を設定画面の3クリアボタン（栞・既読・読破状況）に、
+// onWritingModeChange を書字方向変更後の復元に割り当てる。
+// init(callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
+export function init(callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void {
     _callbacks = callbacks;
     _current = _load();
     _readingAnchor = _loadReadingAnchor();
@@ -211,8 +214,15 @@ function _buildPopup(): void {
     divider.className = 'settings-divider';
     panel.appendChild(divider);
 
-    panel.appendChild(_buildAction('栞をクリア', () => { _callbacks.onClearBookmarks(); }));
-    panel.appendChild(_buildAction('既読をクリア', () => { _callbacks.onClearRead(); }));
+    panel.appendChild(_buildAction('栞をクリア', () => {
+        _confirmAndRun('保存した栞をすべて削除しますか？', () => _callbacks.onClearBookmarks());
+    }));
+    panel.appendChild(_buildAction('既読をクリア', () => {
+        _confirmAndRun('既読の記録をすべて削除しますか？', () => _callbacks.onClearReached());
+    }));
+    panel.appendChild(_buildAction('読破状況をクリア', () => {
+        _confirmAndRun('読破の記録をすべて削除しますか？', () => _callbacks.onClearRead());
+    }));
     panel.appendChild(_buildAction('設定をリセット', () => {
         const modeChanged = _current.writingMode !== DEFAULTS.writingMode;
         _current = { ...DEFAULTS };
@@ -286,7 +296,7 @@ function _buildRow(
     return row;
 }
 
-// アクションボタン（栞クリア・既読クリア・リセット）を生成して返す。
+// アクションボタン（栞クリア・既読クリア・読破状況クリア・リセット）を生成して返す。
 // _buildAction(label: string, handler: () => void): HTMLButtonElement
 function _buildAction(label: string, handler: () => void): HTMLButtonElement {
     const btn = document.createElement('button');
@@ -295,6 +305,12 @@ function _buildAction(label: string, handler: () => void): HTMLButtonElement {
     btn.textContent = label;
     btn.addEventListener('click', handler);
     return btn;
+}
+
+// destructive アクション（栞・既読・読破の削除）用の confirm ラッパ。OK なら run() を呼ぶ、キャンセルなら何もしない。
+// _confirmAndRun(msg: string, run: () => void): void
+function _confirmAndRun(msg: string, run: () => void): void {
+    if (window.confirm(msg)) run();
 }
 
 // key の行にある選択ボタンの .active クラスを _current の値に合わせて更新する。

@@ -7,10 +7,10 @@
  * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup は無いので _buildPopup は早期 return する。
  *   各テストは localStorage.clear() ＋ init() で module 内 state（_readingAnchor）を再構築して隔離する。
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { init, getReadingAnchor, setReadingAnchor } from './settings';
 
-const NOOP = { onClearBookmarks: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
+const NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
 
 beforeEach(() => {
@@ -133,5 +133,63 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
             findByText('.settings-opt', '大')?.click();         // 文字サイズ変更
             expect(calls).toBe(0);
         });
+    });
+});
+
+// 仕様（要件 06-4）：3クリアボタン（栞・既読・読破状況）はそれぞれ独立の callback を呼ぶ＋実行前に window.confirm() で承認を取る。
+// キャンセル（confirm=false）なら callback を呼ばない＝localStorage も再描画も走らない。
+describe('クリアボタンの3系統 callback ルーティング＋confirm 承認', () => {
+    beforeEach(() => {
+        const popup = document.createElement('section');
+        popup.id = 'settings-popup';
+        document.body.appendChild(popup);
+    });
+    afterEach(() => {
+        document.getElementById('settings-popup')?.remove();
+        vi.restoreAllMocks();
+    });
+
+    const findByText = (selector: string, text: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>(selector)].find((b) => b.textContent === text);
+
+    const setupCallbacks = () => {
+        const calls = { bookmarks: 0, reached: 0, read: 0 };
+        init({
+            onClearBookmarks: () => { calls.bookmarks++; },
+            onClearReached: () => { calls.reached++; },
+            onClearRead: () => { calls.read++; },
+            onWritingModeChange: () => {},
+        });
+        return calls;
+    };
+
+    it('confirm=true のとき「栞をクリア」は onClearBookmarks のみを呼ぶ', () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const calls = setupCallbacks();
+        findByText('.settings-action', '栞をクリア')?.click();
+        expect(calls).toEqual({ bookmarks: 1, reached: 0, read: 0 });
+    });
+
+    it('confirm=true のとき「既読をクリア」は onClearReached のみを呼ぶ', () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const calls = setupCallbacks();
+        findByText('.settings-action', '既読をクリア')?.click();
+        expect(calls).toEqual({ bookmarks: 0, reached: 1, read: 0 });
+    });
+
+    it('confirm=true のとき「読破状況をクリア」は onClearRead のみを呼ぶ', () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const calls = setupCallbacks();
+        findByText('.settings-action', '読破状況をクリア')?.click();
+        expect(calls).toEqual({ bookmarks: 0, reached: 0, read: 1 });
+    });
+
+    it('confirm=false のとき 3ボタンのどれを押しても callback は呼ばれない', () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+        const calls = setupCallbacks();
+        findByText('.settings-action', '栞をクリア')?.click();
+        findByText('.settings-action', '既読をクリア')?.click();
+        findByText('.settings-action', '読破状況をクリア')?.click();
+        expect(calls).toEqual({ bookmarks: 0, reached: 0, read: 0 });
     });
 });

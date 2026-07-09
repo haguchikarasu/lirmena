@@ -348,7 +348,7 @@ function _closeCharactersPopup(): void {
 // _registerEvents(): void
 function _registerEvents(): void {
     _toggle.addEventListener('click', () => {
-        _panel.hidden ? _open() : _close();
+        if (_panel.hidden) _open(); else _close();
     });
 
     document.addEventListener('keydown', (e) => {

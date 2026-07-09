@@ -33,6 +33,9 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
+      // 日本語プロジェクトなので全角スペース（U+3000）は表示テキスト・コメントで意図的に使う。
+      // ソースコード本体で不意に紛れ込むのだけを検出したいので、strings/templates/comments はスキップする。
+      'no-irregular-whitespace': ['error', { skipStrings: true, skipTemplates: true, skipComments: true }],
     },
   },
 );

@@ -198,6 +198,7 @@ async function _bootstrap(): Promise<void> {
 
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),
+        onClearReached: () => bookmark.clearReached(),
         onClearRead: () => bookmark.clearRead(),
         onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });

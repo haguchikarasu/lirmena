@@ -8,10 +8,10 @@
  *
  * ── localStorage スキーマ（マルチページ移行・Phase 0 で確定した契約。schemaVersion 5 で位置を割合化）──────
  * 既読は scene 単位を廃止し、sec 単位の「到達」「読了」2セットで持つ（読了は到達を含意）。
- *   "reached"     : SecKey[]         到達 sec の集合（"EP-SEC" 2桁ゼロ埋め）。用途は目次のセクション既読マーク
- *                                    記録: main.ts が本文ページのロード時に recordReached() を呼ぶ
- *   "read"        : SecKey[]         読了 sec の集合（"EP-SEC"）。用途は将来の章・巻読了判定の基礎
- *                                    記録: nav.ts が sec 末尾到達（#btn-next 表示）で recordRead() を呼ぶ
+ *   "reached"     : SecKey[]         到達 sec の集合（"EP-SEC" 2桁ゼロ埋め）。用途は目次のセクション既読マーク（色）。
+ *                                    記録: main.ts が本文ページのロード時に recordReached() を呼ぶ。設定「既読をクリア」の対象
+ *   "read"        : SecKey[]         読了 sec の集合（"EP-SEC"）。用途は目次のセクション読破マーク（✓）＋ stage 判定の基礎。
+ *                                    記録: nav.ts が sec 末尾到達（#btn-next 表示）で recordRead() を呼ぶ。設定「読破状況をクリア」の対象
  *   "bookmarks"   : BookmarkEntry[]  固定3スロット・flat 形 { slot, ep, sec, scene, ratio, savedAt }（slot=1..3）。
  *                                    ratio はスクロール範囲比（0〜1・書字方向非依存）。方向で座標スケールが異なる差を割合で吸収するため
  *                                    縦書き⇔横書きで同一スロットを共有する（schemaVersion 5 で方向別スロットから単一スロットへ統合）。
@@ -44,7 +44,10 @@
  *     源。旧位置は保存時の可動域が不明で割合へ変換できないため、栞は ep/sec/scene のみ引き継ぎ ratio=0（scene>0 は復元時に
  *     シーン先頭へ粗着地）、オートセーブは ep/sec のみ引き継ぎ ratio=0（再開時に sec 先頭へ）とする。位置の厳密さは一度だけ失われる。
  *     方向別キー（v4）は孤児になるため掃除する。旧単一キーは冪等・復旧のため残す。
- *   ★ 旧 "sceneRead" キーは変換後も削除せず保持する（冪等・復旧可能・目次先開きでの参照余地を残す。ユーザー合意済み）
+ *   ★ 旧 "sceneRead" キーは変換後も削除せず保持する（冪等・復旧可能・目次先開きでの参照余地を残す。ユーザー合意済み）。
+ *     ただし例外：設定の「既読をクリア」（clearReached）／「読破状況をクリア」（clearRead）実行時は削除する。
+ *     残しておくと目次側 index.ts の loadReachedSections/loadReadSections が旧マーカー "ep-sec-00" から既読／読破を
+ *     復活させてしまうため（クリア＝ユーザーの明示意思を尊重＝既読／読破の復活を防ぐ）。
  *
  * セクション既読の判定ロジックは持たない。目次（index.ts）が "reached" を引くだけ。
  *
@@ -154,7 +157,7 @@ export function recordReached(ep: number, sec: number): void {
 export function recordRead(ep: number, sec: number): void {
     if (_reachedReadSuppressed) return;
     const key = secKey(ep, sec);
-    let changed = _addTo(_read, key);
+    const changed = _addTo(_read, key);
     if (changed) _persistSet(KEY_READ, _read);
     if (_addTo(_reached, key)) _persistSet(KEY_REACHED, _reached);
 }
@@ -191,13 +194,25 @@ export function getRead(): SecKey[] {
     return [..._read];
 }
 
-// 到達・読了の両セットを削除する（設定の「既読をクリア」）。
+// 既読（到達）セットを削除する（設定の「既読をクリア」）。読了（読破）は残す。
+// 旧 "sceneRead" フォールバック源も併せて削除する（残しておくと目次側 index.ts が旧マーカーから既読を復活させるため。
+// クリア＝ユーザーの明示意思なので冪等・復旧の原則より「既読の復活防止」を優先＝目次側 clearReached と同方針）。
+// clearReached(): void
+export function clearReached(): void {
+    _reached = new Set();
+    localStorage.removeItem(KEY_REACHED);
+    localStorage.removeItem(KEY_LEGACY_SCENE_READ);
+}
+
+// 読了（読破）セットを削除する（設定の「読破状況をクリア」）。既読（到達）は残す。
+// 旧 "sceneRead" フォールバック源も併せて削除する（残しておくと目次側 index.ts の loadReadSections が
+// 完了マーカー "ep-sec-00" から読破を復活させるため。clearReached と同方針＝既読／読破どちらの明示クリアも sceneRead を消す）。
+// data-story-stage は main.ts が起動時に1回書くだけなので即時反映されない＝次回ロード反映（既存の非対称に揃える）。
 // clearRead(): void
 export function clearRead(): void {
-    _reached = new Set();
     _read = new Set();
-    localStorage.removeItem(KEY_REACHED);
     localStorage.removeItem(KEY_READ);
+    localStorage.removeItem(KEY_LEGACY_SCENE_READ);
 }
 
 // ── 栞 ────────────────────────────────────────────────────────────

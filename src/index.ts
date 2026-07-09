@@ -16,7 +16,8 @@
  *   - site-changelog.json を fetch してサイトバージョンバッジを更新（詳細一覧は表示しない）
  *   - ヒーローカード右下に content version / site version バッジを表示
  *   - 右下 FAB メニュー（続きから読む・栞をすべてクリア・既読をクリア・読破状況をクリア・設定・共有）
- *   - 設定ポップアップ（localStorage の読み書きのみ。目次への反映なし）
+ *   - 設定ポップアップ（localStorage の読み書き＋3種のクリアボタン＝栞／既読／読破状況＋設定リセット）
+ *   - destructive アクション（栞・既読・読破の削除）は FAB / 設定ポップアップの両方から confirmAndRun() で承認確認する
  *   - 内部遷移リンク（ep/sec 一覧・栞・続きから読む）は現在ページのクエリ（例 ?noga＝GA 無効化）を引き継ぐ（withQuery＝state.ts の _withQuery と同一ロジックの inline 複製。独立方針のため）
  *   - 共有（コピー/X/LINE）の URL はクエリを落とす（location.origin+pathname。dev フラグを読者に渡さないため）
  *
@@ -214,10 +215,19 @@ function clearReached(): void {
     localStorage.removeItem(LS_SCENE_READ);
 }
 
-// 読破状況（読了）を消す。目次の読破マーク（✓）の源（read）を削除する。
+// 読破状況（読了）を消す。目次の読破マーク（✓）の源（read）と、そのフォールバック源 sceneRead を消す。
+// sceneRead を残すと loadReadSections が完了マーカー "ep-sec-00" から読破を復活させてしまう（clearReached と同方針）。
 // clearReadStatus(): void
 function clearReadStatus(): void {
     localStorage.removeItem(LS_READ);
+    localStorage.removeItem(LS_SCENE_READ);
+}
+
+// destructive アクション（栞・既読・読破の削除）用の confirm ラッパ。設定ポップアップと FAB の両方から呼ぶ。
+// OK なら run() を呼ぶ、キャンセルなら何もしない（localStorage も再描画も走らない）。
+// confirmAndRun(msg: string, run: () => void): void
+function confirmAndRun(msg: string, run: () => void): void {
+    if (window.confirm(msg)) run();
 }
 
 // オートセーブ（最新の読書位置）を読む。無ければ null。savedAt はスロット0の日時表示に使う。
@@ -581,12 +591,22 @@ function buildSettingsPopup(episodes: Episode[]): void {
     panel.appendChild(divider);
 
     panel.appendChild(buildAction('栞をクリア', () => {
-        clearAllBookmarkSlots();
-        renderBookmarks();
+        confirmAndRun('保存した栞をすべて削除しますか？', () => {
+            clearAllBookmarkSlots();
+            renderBookmarks();
+        });
     }));
     panel.appendChild(buildAction('既読をクリア', () => {
-        clearReached();
-        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        confirmAndRun('既読の記録をすべて削除しますか？', () => {
+            clearReached();
+            renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        });
+    }));
+    panel.appendChild(buildAction('読破状況をクリア', () => {
+        confirmAndRun('読破の記録をすべて削除しますか？', () => {
+            clearReadStatus();
+            renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        });
     }));
     panel.appendChild(buildAction('設定をリセット', () => {
         localStorage.removeItem(LS_FONT_SIZE);
@@ -716,22 +736,28 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, episodes: Episode[
     const auto = loadAutoSave();
     if (auto) addItem('続きから読む', () => { resumeReading(auto); });
     addItem('栞をすべてクリア', () => {
-        clearAllBookmarkSlots();
-        renderBookmarks();
+        confirmAndRun('保存した栞をすべて削除しますか？', () => {
+            clearAllBookmarkSlots();
+            renderBookmarks();
+        });
     });
     addItem('既読をクリア', () => {
-        clearReached();
-        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        confirmAndRun('既読の記録をすべて削除しますか？', () => {
+            clearReached();
+            renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        });
     });
     addItem('読破状況をクリア', () => {
-        clearReadStatus();
-        renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        confirmAndRun('読破の記録をすべて削除しますか？', () => {
+            clearReadStatus();
+            renderEpisodes(episodes, loadReachedSections(), loadReadSections());
+        });
     });
     addItem('設定', () => { popup.hidden = false; });
     addItem('共有', () => { sharePopup.hidden = false; });
 
     // トグルボタン
-    toggle.addEventListener('click', () => { isOpen() ? closeFab() : openFab(); });
+    toggle.addEventListener('click', () => { if (isOpen()) closeFab(); else openFab(); });
 
     // パネル外クリックで閉じる
     document.addEventListener('click', (e) => {
@@ -759,7 +785,7 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, episodes: Episode[
         if (e.key !== 'Escape') return;
         if (!sharePopup.hidden) { sharePopup.hidden = true; return; }
         if (!popup.hidden) { popup.hidden = true; return; }
-        isOpen() ? closeFab() : openFab();
+        if (isOpen()) closeFab(); else openFab();
     });
 }
 

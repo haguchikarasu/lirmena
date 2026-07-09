@@ -20,6 +20,7 @@ import {
     setAutoRecordSuppressed, recordReached, recordRead, saveAutoSave, getAutoSave, addBookmark,
     hasReached, hasRead, isAutoSaveAt,
     nextHistoryState, readHistoryRatio,
+    clearReached, clearRead, clearSlots,
 } from './bookmark';
 import type { SceneAddress } from './types';
 
@@ -442,5 +443,82 @@ describe('schemaVersion →5：単一スロット化＋割合化（旧位置は 
         seed('bookmarks.vertical', [{ slot: 1, ep: 9, sec: 9, scene: 0, scrollLeft: 50, savedAt: 1 }]);
         init();
         expect(getBookmarks()[0]).toMatchObject({ ep: 1, sec: 1 });
+    });
+});
+
+// 既読（clearReached）／読破（clearRead）は独立に消せる（設定の「既読をクリア」「読破状況をクリア」の
+// 3系統独立化＝要件 06-4）。clearReached は sceneRead も例外的に消す（残すと目次側 index.ts が旧マーカーから
+// 既読を復活させるため。要件 06-5 の note）。
+describe('clearReached / clearRead の独立クリア', () => {
+    it('clearReached() は reached と sceneRead を消し、read は残す', () => {
+        localStorage.setItem('schemaVersion', '5'); // 移行を走らせない
+        seed('reached', ['01-01', '02-02']);
+        seed('read', ['01-01']);
+        seed('sceneRead', ['01-01-00', '01-02-05']);
+        init();
+
+        clearReached();
+
+        expect(getReached()).toEqual([]);
+        expect(localStorage.getItem('reached')).toBeNull();
+        expect(localStorage.getItem('sceneRead')).toBeNull();
+        // read は温存
+        expect(getRead()).toEqual(['01-01']);
+        expect(localStorage.getItem('read')).not.toBeNull();
+    });
+
+    it('clearRead() は read と sceneRead を消し、reached は残す', () => {
+        localStorage.setItem('schemaVersion', '5');
+        seed('reached', ['01-01', '02-02']);
+        seed('read', ['01-01', '02-02']);
+        seed('sceneRead', ['01-01-00']);
+        init();
+
+        clearRead();
+
+        expect(getRead()).toEqual([]);
+        expect(localStorage.getItem('read')).toBeNull();
+        // sceneRead も削除（loadReadSections が完了マーカーから読破を復活させないため）
+        expect(localStorage.getItem('sceneRead')).toBeNull();
+        // reached は温存
+        expect(getReached().sort()).toEqual(['01-01', '02-02']);
+        expect(localStorage.getItem('reached')).not.toBeNull();
+    });
+
+    it('clearSlots() は bookmarks のみ消し、reached / read / sceneRead / autosave は残す（栞は既読・読破と独立）', () => {
+        localStorage.setItem('schemaVersion', '5');
+        seed('reached', ['01-01']);
+        seed('read', ['01-01']);
+        seed('sceneRead', ['01-01-00']);
+        seed('bookmarks', [{ slot: 1, ep: 1, sec: 1, scene: 0, ratio: 0.5, savedAt: 100 }]);
+        seed('autosave', { ep: 1, sec: 1, ratio: 0.3, savedAt: 200 });
+        init();
+
+        clearSlots();
+
+        expect(getBookmarks()).toEqual([]);
+        expect(localStorage.getItem('bookmarks')).toBeNull();
+        // 他は温存（autosave も残る＝「続きから読む」は栞クリアで消えない仕様）
+        expect(localStorage.getItem('reached')).not.toBeNull();
+        expect(localStorage.getItem('read')).not.toBeNull();
+        expect(localStorage.getItem('sceneRead')).not.toBeNull();
+        expect(localStorage.getItem('autosave')).not.toBeNull();
+    });
+
+    it('clearReached → clearRead を順に呼べば reached / read / sceneRead が空になる（独立呼び出しの結合）', () => {
+        localStorage.setItem('schemaVersion', '5');
+        seed('reached', ['01-01']);
+        seed('read', ['01-01']);
+        seed('sceneRead', ['01-01-00']);
+        init();
+
+        clearReached();
+        clearRead();
+
+        expect(getReached()).toEqual([]);
+        expect(getRead()).toEqual([]);
+        expect(localStorage.getItem('reached')).toBeNull();
+        expect(localStorage.getItem('read')).toBeNull();
+        expect(localStorage.getItem('sceneRead')).toBeNull();
     });
 });
