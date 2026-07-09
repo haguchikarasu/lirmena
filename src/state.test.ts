@@ -132,7 +132,7 @@ describe('クエリ引き継ぎ（_withQuery 経由・?noga 等を遷移先 URL 
 
     it('?noga 付きなら目次 URL にもクエリを引き継ぐ', () => {
         window.history.replaceState(null, '', '/?noga');
-        expect(indexUrl()).toBe('../index.html?noga');
+        expect(indexUrl()).toBe('../?noga');
     });
 
     it('クエリが無ければ URL は素のまま（従来挙動）', () => {

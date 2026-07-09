@@ -12,7 +12,7 @@
  *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は src/styles/_title.css 側）
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
- *   #btn-title-index         … 目次に戻る（<a href="../index.html">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
+ *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴（全エントリを表示。無ければ「更新履歴なし」）
  *
  * 背景画像: {BASE_URL}ep[XX]/{coverFile}（episodes.json の coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
@@ -142,7 +142,7 @@ function _wireButtons(): void {
     }
 
     // 目次に戻る（<a href>）。現在ページのクエリ（例 ?noga）を引き継ぐため href を JS で上書きする。
-    // HTML 側の href="../index.html" は JS 前/無効時のフォールバック。
+    // HTML 側の href="../" は JS 前/無効時のフォールバック。
     const index = document.querySelector<HTMLAnchorElement>('#btn-title-index');
     if (index) index.href = state.indexUrl();
 }
