@@ -12,6 +12,7 @@
  *   parser   : parse(text: string): Scene[]
  *   state    : init(data: EpisodesData, address: SecAddress): void
  *              isPublished(ep: number, sec: number): boolean
+ *              getPrevPublishedSec(): SecAddress | null（物語順で一つ前の公開 sec・ep 境界跨ぎ・無ければ null）
  *   renderer : renderScenes(scenes: Scene[]): void
  *   bg       : init(layers: BgLayerSpec[], ep: number): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
@@ -26,9 +27,11 @@
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
  *   immersive: init(): void（背景鑑賞モード。タップ/クリック・Esc で <html>.is-immersive をトグル）
- *   bookmark : init(): void / setAutoRecordSuppressed(suppressed: boolean): void / recordReached(ep, sec): void
+ *   bookmark : init(): void / setAutoRecordSuppressed(suppression: AutoRecordSuppression): void / recordReached(ep, sec): void
  *              clearSlots(): void / clearRead(): void / getRead()
+ *              hasReached(ep, sec): boolean / hasRead(ep, sec): boolean / isAutoSaveAt(ep, sec): boolean（外部流入抑止判定の材料）
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
+ *   suppression: shouldSuppressReachedRead(input): boolean / shouldSuppressAutoSave(input): boolean（純関数）
  *   volumes  : computeStoryStage(read, volumes, episodes): StoryStage（A 案：各 vol の end sec を read で stage 1〜5 移行）
  * 【被依存】なし
  * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
@@ -40,9 +43,10 @@
  * 【Phase 2】bookmark.init() で旧データ移行を起動。直後に computeStoryStage(read, volumes, episodes)
  *         で物語進行段階（stage 1〜5）を算出し <html data-story-stage="N"> を付与する（進捗バーの色を CSS 変数
  *         --progress-fill-color 経由で切替える受動的フック。A 案：各 vol の end sec を read で移行）。
- *         SNS 迷い込みは次段の外部流入抑止ロジック（_isExternalEntry() && !_isResuming() で setAutoRecordSuppressed）
- *         が recordRead を抑止することで排除される（責務分離）。次に外部サイト/直接アクセス（オートセーブ未一致）
- *         でない限り recordReached() で自 sec を到達記録する（外部流入時は setAutoRecordSuppressed(true) で到達・読了・オートセーブを抑止）。
+ *         SNS 迷い込みは次段の外部流入抑止ロジック（suppression.ts の 2 純関数を bookmark.setAutoRecordSuppressed へ）
+ *         が recordRead を抑止することで排除される（責務分離）。到達・読了は「外部流入 AND 前 sec 未読 AND 当 sec 痕跡なし（reached/read/autosave 一致 のいずれもなし）」時のみ抑止、
+ *         オートセーブは「外部流入 AND 前 sec 未読 AND autosave 不一致」時のみ抑止＝過去 reached だけの sec の再訪で
+ *         現在の読みかけ位置が奪われないよう到達・読了と独立に判定する。抑止解除中は recordReached() で自 sec を到達記録する。
  *         render 後に reader.init() → bg.subscribe(reader.handleScroll) を結線し、スクロール由来の通知を
  *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
  * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
@@ -78,6 +82,7 @@ import * as loader from './loader';
 import * as parser from './parser';
 import * as feedback from './feedback';
 import { computeStoryStage } from './volumes';
+import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
 import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
 
 /**
@@ -211,12 +216,20 @@ async function _bootstrap(): Promise<void> {
     document.documentElement.dataset.storyStage = String(
         computeStoryStage(bookmark.getRead(), volumesData, data)
     );
-    // 外部サイト/直接アクセスで開いた本文ページは「到達・オートセーブ」を記録しない（SNS 共有リンク等を
-    // ちょっと見ただけで既読化／オートセーブ上書きされるのを防ぐ）。ただしオートセーブが当 sec を指す＝
-    // 読みかけの再開なら記録を有効化する。内部移動（同一オリジンからの遷移）は従来どおり常に記録する。
-    const suppressAutoRecord = _isExternalEntry() && !_isResuming(ep, sec);
-    bookmark.setAutoRecordSuppressed(suppressAutoRecord);
-    if (!suppressAutoRecord) bookmark.recordReached(ep, sec);
+    // 外部流入時の抑止判定を到達・読了とオートセーブで独立に決める（判定は suppression.ts の純関数）。
+    // 記録する OR 条件：lirmena 内移動 / 前 sec 読了 / 当 sec 痕跡（到達・読了は reached/read/autosave 一致 のいずれか、
+    // オートセーブは autosave 一致 のみ）。到達・読了は加算的で害がないため広めに、オートセーブは単一スロット・
+    // 上書き型のため過去 reached だけの sec に流入して現在の読みかけ位置を奪わないよう狭めに有効化する。
+    const externalEntry = _isExternalEntry();
+    const prev = state.getPrevPublishedSec();
+    const prevSecRead = prev !== null && bookmark.hasRead(prev.ep, prev.sec);
+    const reachedHere = bookmark.hasReached(ep, sec);
+    const readHere = bookmark.hasRead(ep, sec);
+    const autoSaveHere = bookmark.isAutoSaveAt(ep, sec);
+    const reachedReadSuppressed = shouldSuppressReachedRead({ externalEntry, prevSecRead, reachedHere, readHere, autoSaveHere });
+    const autoSaveSuppressed = shouldSuppressAutoSave({ externalEntry, prevSecRead, autoSaveHere });
+    bookmark.setAutoRecordSuppressed({ reachedRead: reachedReadSuppressed, autoSave: autoSaveSuppressed });
+    if (!reachedReadSuppressed) bookmark.recordReached(ep, sec);
     nav.init();
     menu.init(charactersData, volumesData);
     feedback.init();
@@ -391,16 +404,6 @@ function _navigationType(): string {
  */
 function _isInAppNavigation(): boolean {
     return _navigationType() === 'navigate' && !_isExternalEntry();
-}
-
-/**
- * オートセーブが当ページ（ep/sec）を指しているか＝直前まで読んでいたセクションへ戻ってきたか。
- * 外部/直接アクセス時に「読みかけの再開」と判定して到達・オートセーブ記録を有効化するために使う
- * （スクロール復元の発火条件とは独立。復元は _restoreInitialScroll が pendingJump／ナビ種別で別途決める）。
- */
-function _isResuming(ep: number, sec: number): boolean {
-    const auto = bookmark.getAutoSave();
-    return auto !== null && auto.ep === ep && auto.sec === sec;
 }
 
 /**

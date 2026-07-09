@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     init, getReached, getRead, getBookmarks,
     setAutoRecordSuppressed, recordReached, recordRead, saveAutoSave, getAutoSave, addBookmark,
+    hasReached, hasRead, isAutoSaveAt,
     nextHistoryState, readHistoryRatio,
 } from './bookmark';
 import type { SceneAddress } from './types';
@@ -129,14 +130,17 @@ describe('移行は一度だけ（schemaVersion 番兵）', () => {
     });
 });
 
-describe('自動記録の抑止（外部サイト/直接アクセス）', () => {
-    // 仕様: setAutoRecordSuppressed(true) の間、到達・読了・オートセーブの自動記録は no-op になる。
-    //   栞追加（明示操作）は抑止対象外。init() は抑止を false に戻す。
+describe('自動記録の抑止（2 系統独立：到達・読了 と オートセーブ）', () => {
+    // 仕様: setAutoRecordSuppressed({ reachedRead, autoSave }) で 2 系統を独立に抑止する。
+    //   reachedRead=true の間 recordReached / recordRead が no-op、autoSave=true の間 saveAutoSave が no-op。
+    //   栞追加（明示操作）はいずれの対象外。init() は両フラグを false に戻す。
     const addr: SceneAddress = { ep: 1, sec: 2, scene: 3 };
+    const suppressAll = { reachedRead: true, autoSave: true } as const;
+    const allowAll = { reachedRead: false, autoSave: false } as const;
 
-    it('抑止中は recordReached / recordRead / saveAutoSave が何も記録しない', () => {
+    it('両方抑止中は recordReached / recordRead / saveAutoSave が何も記録しない', () => {
         init();
-        setAutoRecordSuppressed(true);
+        setAutoRecordSuppressed(suppressAll);
         recordReached(1, 1);
         recordRead(2, 1);
         saveAutoSave(3, 1, 0.5);
@@ -147,28 +151,92 @@ describe('自動記録の抑止（外部サイト/直接アクセス）', () => 
 
     it('抑止を解除すると通常どおり記録する', () => {
         init();
-        setAutoRecordSuppressed(true);
+        setAutoRecordSuppressed(suppressAll);
         recordReached(1, 1);
-        setAutoRecordSuppressed(false);
+        setAutoRecordSuppressed(allowAll);
         recordReached(1, 1);
         saveAutoSave(1, 1, 0.5);
         expect(getReached()).toContain('01-01');
         expect(getAutoSave()).toMatchObject({ ep: 1, sec: 1, ratio: 0.5 });
     });
 
+    it('reachedRead のみ抑止：到達・読了は止まるが saveAutoSave は動く', () => {
+        init();
+        setAutoRecordSuppressed({ reachedRead: true, autoSave: false });
+        recordReached(1, 1);
+        recordRead(2, 1);
+        saveAutoSave(3, 1, 0.5);
+        expect(getReached()).toEqual([]);
+        expect(getRead()).toEqual([]);
+        expect(getAutoSave()).toMatchObject({ ep: 3, sec: 1, ratio: 0.5 });
+    });
+
+    it('autoSave のみ抑止：オートセーブは止まるが到達・読了は動く（過去 reached の sec に外部再訪した際の想定）', () => {
+        init();
+        setAutoRecordSuppressed({ reachedRead: false, autoSave: true });
+        recordReached(1, 1);
+        recordRead(2, 1);
+        saveAutoSave(3, 1, 0.5);
+        expect(getReached().sort()).toEqual(['01-01', '02-01']);
+        expect(getRead()).toContain('02-01');
+        expect(getAutoSave()).toBeNull();
+    });
+
     it('抑止中でも栞追加（明示操作）は保存される', () => {
         init();
-        setAutoRecordSuppressed(true);
+        setAutoRecordSuppressed(suppressAll);
         addBookmark(addr, 0.4, 1);
         expect(getBookmarks()).toHaveLength(1);
         expect(getBookmarks()[0]).toMatchObject({ slot: 1, ep: 1, sec: 2, scene: 3, ratio: 0.4 });
     });
 
-    it('init() は抑止フラグを false に戻す（前ページの抑止を持ち越さない）', () => {
-        setAutoRecordSuppressed(true);
+    it('init() は両抑止フラグを false に戻す（前ページの抑止を持ち越さない）', () => {
+        setAutoRecordSuppressed(suppressAll);
         init(); // 新しいページのロード相当
         recordReached(5, 5);
+        saveAutoSave(5, 5, 0.3);
         expect(getReached()).toContain('05-05');
+        expect(getAutoSave()).toMatchObject({ ep: 5, sec: 5, ratio: 0.3 });
+    });
+});
+
+describe('外部流入抑止判定の状態問い合わせ API（hasReached / hasRead / isAutoSaveAt）', () => {
+    // 仕様: main.ts が外部流入抑止判定で「当 sec 痕跡」の有無を問い合わせるための小さな述語 API。
+    //   キーは "EP-SEC"（2桁ゼロ埋め）。isAutoSaveAt は autosave スロットが当 ep/sec を指すか。
+    it('hasReached：reached セットに ep/sec があれば true', () => {
+        init();
+        expect(hasReached(1, 1)).toBe(false);
+        recordReached(1, 1);
+        expect(hasReached(1, 1)).toBe(true);
+        expect(hasReached(1, 2)).toBe(false);
+    });
+
+    it('hasRead：read セットに ep/sec があれば true（recordRead で reached にも入るが hasRead は read セットのみを見る）', () => {
+        init();
+        expect(hasRead(2, 3)).toBe(false);
+        recordRead(2, 3);
+        expect(hasRead(2, 3)).toBe(true);
+        expect(hasReached(2, 3)).toBe(true); // 読了は到達を含意
+        expect(hasRead(2, 4)).toBe(false);
+    });
+
+    it('isAutoSaveAt：autosave が当 ep/sec を指せば true。指さなければ false。autosave 未設定は false', () => {
+        init();
+        expect(isAutoSaveAt(1, 1)).toBe(false);
+        saveAutoSave(1, 1, 0.3);
+        expect(isAutoSaveAt(1, 1)).toBe(true);
+        expect(isAutoSaveAt(1, 2)).toBe(false);
+        expect(isAutoSaveAt(2, 1)).toBe(false);
+        // 別 sec のオートセーブを上書きしたら追随する（単一スロット）
+        saveAutoSave(2, 5, 0.7);
+        expect(isAutoSaveAt(1, 1)).toBe(false);
+        expect(isAutoSaveAt(2, 5)).toBe(true);
+    });
+
+    it('2桁ゼロ埋めキー整合：hasReached(1,1) と 1-1 の直接シード（"01-01"）で見つかる', () => {
+        seed('reached', ['01-01']);
+        init();
+        expect(hasReached(1, 1)).toBe(true);
     });
 });
 

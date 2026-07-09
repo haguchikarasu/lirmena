@@ -7,7 +7,7 @@
  * 環境: 戻る系は jsdom 不要（純粋なデータ計算）。クエリ引き継ぎテストは history.replaceState で location.search を設定し afterEach で空へ戻す。各テストは init() で _data/_current を再構築して隔離する。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { init, getPrevUrl, getPrevAddress, indexUrl } from './state';
+import { init, getPrevUrl, getPrevAddress, getPrevPublishedSec, indexUrl } from './state';
 import type { EpisodesData } from './types';
 
 // ep1: sec1,2,3 公開／sec4 未公開（末尾）。ep2: sec1 公開
@@ -47,6 +47,43 @@ describe('getPrevUrl（戻るボタンの遷移先 URL）', () => {
     it('別 ep の先頭 sec → 当 ep のタイトルページ（前 ep には戻らない）', () => {
         init(DATA, { ep: 2, sec: 1 });
         expect(getPrevUrl()).toBe('02-00.html');
+    });
+});
+
+// 仕様（計画・要件 06-5）：物語順で一つ前の公開 sec を返す。ep 境界を跨ぐ（先頭 sec は前 ep の最終公開 sec）。
+// 未公開 sec はスキップ。外部流入抑止判定で「前 sec を読了しているか」の材料になる。
+// 戻るナビ用の getPrevAddress とは責務が違う（getPrevAddress は ep 境界を跨がない）。
+describe('getPrevPublishedSec（物語順の前 sec・ep 境界跨ぎ）', () => {
+    it('同 ep 内に前公開 sec があればそれを返す', () => {
+        init(DATA, { ep: 1, sec: 3 });
+        expect(getPrevPublishedSec()).toEqual({ ep: 1, sec: 2 });
+    });
+
+    it('当 ep 先頭 sec なら前 ep の最終公開 sec を返す（ep 境界を跨ぐ）', () => {
+        // ep2 の先頭 sec (sec1) の前は ep1 の最終公開 sec (sec3、sec4 は未公開でスキップ)
+        init(DATA, { ep: 2, sec: 1 });
+        expect(getPrevPublishedSec()).toEqual({ ep: 1, sec: 3 });
+    });
+
+    it('ep1 の先頭 sec は前が無いので null', () => {
+        init(DATA, { ep: 1, sec: 1 });
+        expect(getPrevPublishedSec()).toBeNull();
+    });
+
+    it('前 ep に公開 sec が無ければスキップして更に前を探す', () => {
+        const data: EpisodesData = [
+            { id: 1, title: 'a', sections: [{ id: 1, published: true, end: false }] },
+            { id: 2, title: 'b', sections: [{ id: 1, published: false, end: false }] },
+            { id: 3, title: 'c', sections: [{ id: 1, published: true, end: false }] },
+        ];
+        init(data, { ep: 3, sec: 1 });
+        expect(getPrevPublishedSec()).toEqual({ ep: 1, sec: 1 });
+    });
+
+    it('getPrevAddress が null（当 ep 先頭 sec）でも getPrevPublishedSec は ep を跨いで返す', () => {
+        init(DATA, { ep: 2, sec: 1 });
+        expect(getPrevAddress()).toBeNull(); // 戻るナビは前 ep へまたがない
+        expect(getPrevPublishedSec()).toEqual({ ep: 1, sec: 3 }); // 物語順は跨ぐ
     });
 });
 

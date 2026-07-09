@@ -49,11 +49,12 @@
  * セクション既読の判定ロジックは持たない。目次（index.ts）が "reached" を引くだけ。
  *
  * ── 外部サイト/直接アクセスでの自動記録抑止 ──────────────────────────────────────
- * recordReached / recordRead / saveAutoSave は _autoRecordSuppressed が true の間 no-op になる。
- * main.ts が起動時に遷移元を判定し setAutoRecordSuppressed() で設定する：外部サイト・直接アクセス
- * （referrer が同一オリジンでない）で開いた本文ページは、SNS 共有リンク等を「ちょっと見ただけ」で既読化／
- * オートセーブ上書きされるのを防ぐため記録しない。ただしオートセーブが当 sec を指す＝読みかけの再開なら
- * 記録を有効化する（判定は main.ts 側）。栞追加（addBookmark）など明示操作は抑止対象外。
+ * recordReached / recordRead は _reachedReadSuppressed の間 no-op、saveAutoSave は _autoSaveSuppressed の間 no-op になる。
+ * main.ts が起動時に遷移元を判定し setAutoRecordSuppressed({ reachedRead, autoSave }) で 2 系統を独立に設定する
+ * （判定条件は suppression.ts の純関数へ切り出し）。到達・読了とオートセーブで抑止条件を分けるのは、オートセーブが
+ * 単一スロット・上書き型のため「過去に一度開いただけ（reached のみ）の sec を外部から再訪」した際に読者の
+ * 現在の読みかけ位置を奪わないため（到達・読了は加算的で害がない）。栞追加（addBookmark）と saveScrollToHistory は
+ * いずれのフラグの対象外＝明示操作／履歴 state は常に動く。
  */
 
 import type { SceneAddress, SecAddress, AutoSaveEntry, PendingJump, SecKey } from './types';
@@ -89,9 +90,17 @@ let _reached: Set<SecKey> = new Set();
 let _read: Set<SecKey> = new Set();
 let _bookmarks: BookmarkEntry[] = [];
 
-// 自動記録（到達・読了・オートセーブ）の抑止フラグ。外部サイト/直接アクセスで開いた本文ページで立てる
-// （main.ts が遷移元を判定して設定）。栞追加（addBookmark）など明示操作は対象外。既定は false（記録する）。
-let _autoRecordSuppressed = false;
+// 自動記録の抑止フラグ。到達・読了とオートセーブで 2 系統に分ける（判定条件が異なるため）。
+// 外部サイト/直接アクセスで開いた本文ページで main.ts が立てる（判定条件は suppression.ts の純関数）。
+// 栞追加（addBookmark）と saveScrollToHistory はいずれの対象外＝明示操作／履歴 state は常に動く。既定は false（記録する）。
+let _reachedReadSuppressed = false;
+let _autoSaveSuppressed = false;
+
+// setAutoRecordSuppressed の入力。到達・読了系（reachedRead）とオートセーブ系（autoSave）を独立に制御する。
+export type AutoRecordSuppression = {
+    reachedRead: boolean;
+    autoSave: boolean;
+};
 
 // 0〜1 にクランプする。割合（ratio）の保存・読取で範囲外の値を正す。
 function _clamp01(v: number): number {
@@ -110,7 +119,8 @@ function secKey(ep: number, sec: number): SecKey {
 export function init(): void {
     _reached = _loadStringSet(KEY_REACHED);
     _read = _loadStringSet(KEY_READ);
-    _autoRecordSuppressed = false; // 抑止は main.ts が init 後に setAutoRecordSuppressed() で明示設定する
+    _reachedReadSuppressed = false; // 抑止は main.ts が init 後に setAutoRecordSuppressed() で明示設定する
+    _autoSaveSuppressed = false;
 
     if (localStorage.getItem(KEY_SCHEMA_VERSION) !== SCHEMA_VERSION) {
         _migrate();
@@ -120,11 +130,13 @@ export function init(): void {
     _bookmarks = _loadBookmarks();
 }
 
-// 自動記録（到達・読了・オートセーブ）の抑止を設定する。main.ts が起動時に遷移元を判定して呼ぶ。
-// true の間は recordReached / recordRead / saveAutoSave が no-op になる（栞追加 addBookmark は対象外）。
-// setAutoRecordSuppressed(suppressed: boolean): void
-export function setAutoRecordSuppressed(suppressed: boolean): void {
-    _autoRecordSuppressed = suppressed;
+// 自動記録の抑止を 2 系統独立に設定する。main.ts が起動時に遷移元と読者の履歴を判定して呼ぶ。
+// reachedRead=true の間 recordReached / recordRead が no-op、autoSave=true の間 saveAutoSave が no-op になる
+// （栞追加 addBookmark と saveScrollToHistory は対象外）。
+// setAutoRecordSuppressed(suppression: AutoRecordSuppression): void
+export function setAutoRecordSuppressed(suppression: AutoRecordSuppression): void {
+    _reachedReadSuppressed = suppression.reachedRead;
+    _autoSaveSuppressed = suppression.autoSave;
 }
 
 // ── 既読（到達／読了）──────────────────────────────────────────────
@@ -132,7 +144,7 @@ export function setAutoRecordSuppressed(suppressed: boolean): void {
 // 当 sec を到達として記録する。main.ts が本文ページのロード時に呼ぶ。
 // recordReached(ep: number, sec: number): void
 export function recordReached(ep: number, sec: number): void {
-    if (_autoRecordSuppressed) return;
+    if (_reachedReadSuppressed) return;
     if (_addTo(_reached, secKey(ep, sec))) _persistSet(KEY_REACHED, _reached);
 }
 
@@ -140,11 +152,31 @@ export function recordReached(ep: number, sec: number): void {
 // nav.ts が sec 末尾到達（#btn-next 表示）時に呼ぶ。
 // recordRead(ep: number, sec: number): void
 export function recordRead(ep: number, sec: number): void {
-    if (_autoRecordSuppressed) return;
+    if (_reachedReadSuppressed) return;
     const key = secKey(ep, sec);
     let changed = _addTo(_read, key);
     if (changed) _persistSet(KEY_READ, _read);
     if (_addTo(_reached, key)) _persistSet(KEY_REACHED, _reached);
+}
+
+// 到達セットに ep/sec が含まれるか。外部流入抑止判定（main.ts）で「当 sec 痕跡」の一つとして使う。
+// hasReached(ep: number, sec: number): boolean
+export function hasReached(ep: number, sec: number): boolean {
+    return _reached.has(secKey(ep, sec));
+}
+
+// 読了セットに ep/sec が含まれるか。外部流入抑止判定（main.ts）で「前 sec 読了」「当 sec 痕跡」の判定材料として使う。
+// hasRead(ep: number, sec: number): boolean
+export function hasRead(ep: number, sec: number): boolean {
+    return _read.has(secKey(ep, sec));
+}
+
+// autosave スロット（唯一の 1 件）が当ページの ep/sec を指しているか＝直前まで読んでいたセクションへ戻ってきたか。
+// 現行の main.ts _isResuming を bookmark 側に移設した相当。外部流入抑止判定で「読みかけ再開」の例外として使う。
+// isAutoSaveAt(ep: number, sec: number): boolean
+export function isAutoSaveAt(ep: number, sec: number): boolean {
+    const auto = getAutoSave();
+    return auto !== null && auto.ep === ep && auto.sec === sec;
 }
 
 // 到達セット（"EP-SEC" 配列）を返す。
@@ -211,7 +243,7 @@ export function clearSlots(): void {
 // 現在 sec の読書位置（スクロール範囲比 ratio・0〜1）を最新1件だけ上書き保存する。スロットルは呼び出し元（reader.ts）が行う。
 // saveAutoSave(ep: number, sec: number, ratio: number): void
 export function saveAutoSave(ep: number, sec: number, ratio: number): void {
-    if (_autoRecordSuppressed) return;
+    if (_autoSaveSuppressed) return;
     const entry: AutoSaveEntry = { ep, sec, ratio: _clamp01(ratio), savedAt: Date.now() };
     localStorage.setItem(KEY_AUTOSAVE, JSON.stringify(entry));
 }
@@ -245,7 +277,7 @@ function _readAutoSaveFromKey(key: string): AutoSaveEntry | null {
 // ── 履歴エントリのスクロール位置（history.state）──────────────────────
 
 // 現在の履歴エントリにスクロール範囲比 ratio（0〜1）を刻む（戻る/進むで HTML 再読込された場合の per-entry 復元用）。
-// reader.ts が autosave と同じスロットルで呼ぶ。_autoRecordSuppressed の対象にしない：history.state は
+// reader.ts が autosave と同じスロットルで呼ぶ。抑止フラグの対象にしない：history.state は
 // localStorage を汚さず、外部流入ページでも戻り位置を残せた方がよい（既読化・プライバシーと無関係。
 // 復元側 main.ts が _isInAppNavigation でガードする）。
 // saveScrollToHistory(ratio: number): void

@@ -16,6 +16,7 @@
  *   getNextUrl(): string | null                          進行ボタン用。次 sec 本文／ep 境界は次 ep タイトル／無ければ null
  *   getPrevUrl(): string | null                          戻るボタン用（本文ページ）。前 sec 本文／先頭 sec は当 ep タイトル
  *   getPrevAddress(): SecAddress | null                  戻る遷移先が前 sec 本文のときの ep/sec（本文末着地フラグ書込用）。先頭 sec（遷移先＝タイトル）は null
+ *   getPrevPublishedSec(): SecAddress | null             物語順で一つ前の公開 sec の ep/sec を返す（ep 境界を跨ぐ）。同 ep 内に前公開 sec があればそれ、無ければ前 ep の最終公開 sec。ep1 の先頭 sec など前が無ければ null。外部流入抑止判定（main.ts）で「前 sec を読了しているか」の判定材料として使う（getPrevAddress は戻るナビ用で ep 境界を跨がず、責務が違う）
  *   getTitleEnterUrl(): string | null                    タイトル「本文を読む」用。当 ep 先頭公開 sec の本文ページ
  *   getTitlePrevUrl(): string | null                     タイトル「戻る」用。前 ep の最終公開 sec の本文ページ（無ければ null）
  *   getTitlePrevAddress(): SecAddress | null             タイトル「戻る」遷移先の ep/sec（終端スクロールフラグ書込用）
@@ -114,6 +115,23 @@ export function getPrevUrl(): string | null {
 export function getPrevAddress(): SecAddress | null {
     const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
     return prevSec === null ? null : { ep: _current.ep, sec: prevSec };
+}
+
+/**
+ * 物語順で一つ前の公開 sec の ep/sec を返す（ep 境界を跨ぐ）。
+ * - 同 ep 内に前公開 sec があればその ep/sec
+ * - 無ければ前 ep の最終公開 sec
+ * - ep1 の先頭 sec など前が無ければ null
+ * main.ts の外部流入抑止判定で「前 sec を読了しているか」を判定するのに使う。
+ * 戻るナビ用の getPrevAddress は ep 境界を跨がない別責務なので流用しない。
+ */
+export function getPrevPublishedSec(): SecAddress | null {
+    const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
+    if (prevSec !== null) return { ep: _current.ep, sec: prevSec };
+    const prevEp = _prevEpWithPublished(_current.ep);
+    if (prevEp === null) return null;
+    const last = _lastPublishedSec(prevEp);
+    return last === null ? null : { ep: prevEp, sec: last };
 }
 
 /** タイトル「本文を読む」の遷移先。当 ep の先頭公開 sec の本文ページ。公開 sec が無ければ null */
