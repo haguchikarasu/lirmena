@@ -17,7 +17,7 @@
     "sections": [
       { "id": 1, "published": true, "end": false },
       { "id": 2, "published": true, "end": false },
-      { "id": 3, "published": false, "end": false },
+      { "id": 3, "published": true, "end": false },
       { "id": 4, "published": false, "end": false }
     ]
   },
