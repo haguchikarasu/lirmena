@@ -160,10 +160,15 @@ ruby rt {
   border-color: var(--idx-border-accent);
 }
 
-.idx-chip--read::after {
+.idx-chip::after {
   content: '✓';
   font-size: 9px;
   opacity: 0.7;
+  visibility: hidden;
+}
+
+.idx-chip--read::after {
+  visibility: visible;
 }
 
 /* ===== 栞エリア ===== */
