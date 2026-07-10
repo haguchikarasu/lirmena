@@ -32,8 +32,7 @@
       { "id": 3, "published": false, "end": false },
       { "id": 4, "published": false, "end": false },
       { "id": 5, "published": false, "end": false },
-      { "id": 6, "published": false, "end": false },
-      { "id": 7, "published": false, "end": false }
+      { "id": 6, "published": false, "end": false }
     ]
   }
 ]
