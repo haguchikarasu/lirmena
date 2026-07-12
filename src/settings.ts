@@ -1,11 +1,13 @@
 /*
  * settings.ts
  * 責務: フォントサイズ・フォント・段落間マージン・書字方向・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
- * export: init(), open(), getReadingAnchor(), setReadingAnchor()
+ * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings()
  * 依存: なし（栞・既読・読破のクリア・書字方向変更後の処理のコールバックは main.ts から注入）
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
  *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
  *   3つのクリアボタン（栞をクリア／既読をクリア／読破状況をクリア）は window.confirm() で承認を取ってから callback を呼ぶ。
+ *   getSettings(): Settings は現在の表示設定（フォントサイズ・フォント・段落間空行・書字方向）のコピーを返す。
+ *   main.ts が analytics.send() への引数として使う（表示設定は settings.ts が単一の源として所有）。
  *
  * 設定項目とデフォルト値（定数で定義）:
  *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
@@ -30,7 +32,7 @@ type LineGap = 'on' | 'off';
 // axis.ts の WritingMode と同値。両者は import で結ばず <html data-writing-mode> 属性＝DOM 契約で疎結合に保つ。
 type WritingMode = 'vertical' | 'horizontal';
 
-interface Settings {
+export interface Settings {
     fontSize: FontSize;
     fontFamily: FontFamily;
     lineGap: LineGap;
@@ -95,6 +97,13 @@ export function open(): void {
 // getReadingAnchor(): number
 export function getReadingAnchor(): number {
     return _readingAnchor;
+}
+
+// 現在の全設定項目のコピーを返す（呼び出し側が変更しても内部状態に影響しない）。
+// main.ts が analytics.send() への引数として使う。
+// getSettings(): Settings
+export function getSettings(): Settings {
+    return { ..._current };
 }
 
 // 読書点を % で設定し、localStorage 保存＋ CSS 変数 --reading-anchor へ反映する。[0,100] にクランプ。

@@ -22,6 +22,7 @@
  *   menu     : init(characters: CharactersData, volumes: VolumesData): void
  *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除。要件 06-13）
  *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
+ *              getSettings(): Settings（表示設定のスナップショット。analytics.send() への引数に使う）
  *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void（端末カテゴリの真実源 <html data-device> を反映＋matchMedia 購読）
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
@@ -33,9 +34,14 @@
  *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
  *   suppression: shouldSuppressReachedRead(input): boolean / shouldSuppressAutoSave(input): boolean（純関数）
  *   volumes  : computeStoryStage(read, volumes, episodes): StoryStage（A 案：各 vol の end sec を read で stage 1〜5 移行）
+ *   analytics: send(settings, storyStage, read: SecKey[], reached: SecKey[], episodes: EpisodesData): void
+ *              （表示設定・物語進行段階・到達/読了・episodes を渡し reader_snapshot カスタムイベントを1回送信）
  * 【被依存】なし
  * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
  *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
+ *         別途 analytics.send() が表示設定・読書進捗のスナップショットを reader_snapshot カスタムイベントとして
+ *         1回手動送信する（要件 08-nonfunctional「匿名の利用状況送信」）。page_view の自動送信・?noga 等の
+ *         無効化判定はシェル側の既存スニペットに委ね、analytics.ts 側では再実装しない。
  * 【注意】wheel 補正は #main-container に1度だけ登録する。縦書きでは deltaY を axis 経由で forward
  *         （横スクロール）へ写し、横書きではブラウザ既定の縦スクロールに委ねる（リスナを抑制＝preventDefault しない）。
  *         加えて pan.init() でマウス手のひらツール（左ドラッグ横スクロール）を有効化する（微調整＝ホイール／
@@ -81,6 +87,7 @@ import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
 import * as feedback from './feedback';
+import * as analytics from './analytics';
 import { computeStoryStage } from './volumes';
 import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
 import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
@@ -214,9 +221,15 @@ async function _bootstrap(): Promise<void> {
     // （_isExternalEntry() && !_isResuming() → setAutoRecordSuppressed で recordRead 抑止）が担う。
     // 判定関数（volumes.ts）側では抑止を再実装せず、この既存機構に委ねる（責務分離・要件 06-5）。
     // ページ内で ep 固定なので付与は 1 回でよい。末尾到達で recordRead が走った直後の再評価は行わず、次ページ遷移で反映。
-    document.documentElement.dataset.storyStage = String(
-        computeStoryStage(bookmark.getRead(), volumesData, data)
-    );
+    const read = bookmark.getRead();
+    const reached = bookmark.getReached();
+    const storyStage = computeStoryStage(read, volumesData, data);
+    document.documentElement.dataset.storyStage = String(storyStage);
+    // GA4 へ表示設定・読書進捗のスナップショットを reader_snapshot カスタムイベントとして1回送信する
+    // （要件 08-nonfunctional「匿名の利用状況送信」）。read/reached はこの直後の到達記録（recordReached）より
+    // 前の値＝当ページ訪問による変化を含まない状態を送る。既存の page_view 自動計測とは別イベントで、
+    // ?noga 等の無効化判定はシェル側の gtag.js 導入スニペットの既存機構に委ねる（重複実装しない）。
+    analytics.send(settings.getSettings(), storyStage, read, reached, data);
     // 外部流入時の抑止判定を到達・読了とオートセーブで独立に決める（判定は suppression.ts の純関数）。
     // 記録する OR 条件：lirmena 内移動 / 前 sec 読了 / 当 sec 痕跡（到達・読了は reached/read/autosave 一致 のいずれか、
     // オートセーブは autosave 一致 のみ）。到達・読了は加算的で害がないため広めに、オートセーブは単一スロット・

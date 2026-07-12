@@ -2,7 +2,7 @@
 // 許可リストは design/module-matrix.md と同期する（matrix を更新したら本ファイルも同じ単位で更新）。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
-const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression)';
+const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics)';
 
 module.exports = {
   forbidden: [
@@ -43,7 +43,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 12 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
+      comment: 'リーフ 13 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',
@@ -57,7 +57,7 @@ module.exports = {
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
     { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/bookmark\\.ts$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
-    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression)\\.ts$' } },
+    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
     { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|ruby)\\.ts$' } },
     { from: { path: '(^|/)src/reader\\.ts$' },   to: { path: '(^|/)src/(state|progress|opening|bookmark)\\.ts$' } },

@@ -8,7 +8,7 @@
  *   各テストは localStorage.clear() ＋ init() で module 内 state（_readingAnchor）を再構築して隔離する。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { init, getReadingAnchor, setReadingAnchor } from './settings';
+import { init, getReadingAnchor, setReadingAnchor, getSettings } from './settings';
 
 const NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
@@ -55,6 +55,28 @@ describe('setReadingAnchor（永続化＋CSS 変数反映）', () => {
         expect(getReadingAnchor()).toBe(100);
         setReadingAnchor(-10);
         expect(getReadingAnchor()).toBe(0);
+    });
+});
+
+// 仕様（IF コメント）：getSettings() は現在の設定項目のコピーを返し、呼び出し側が書き換えても内部状態に影響しない。
+describe('getSettings（現在値のスナップショット取得）', () => {
+    it('init 直後はデフォルト値のコピーを返す', () => {
+        init(NOOP);
+        expect(getSettings()).toEqual({
+            fontSize: 'medium',
+            fontFamily: 'serif',
+            lineGap: 'on',
+            writingMode: 'horizontal',
+        });
+    });
+
+    it('返り値を書き換えても内部状態（getReadingAnchor 等）に影響しない', () => {
+        init(NOOP);
+        const snapshot = getSettings();
+        snapshot.fontSize = 'large';
+        snapshot.writingMode = 'vertical';
+        expect(getSettings().fontSize).toBe('medium');
+        expect(document.documentElement.getAttribute('data-writing-mode')).toBe('horizontal');
     });
 });
 
