@@ -146,6 +146,92 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   margin-bottom: 1.6rem;
 }
 
+/* ===== 巻カード＋アコーディオン（要件 06-7 巻カード＆アコーディオン表示） =====
+   各 vol を <details class="idx-vol-card"> でグルーピング。summary クリックで開閉し、
+   初期 open は index.ts が storyStage に応じて open 属性で制御する（開閉状態は永続化しない）。
+   アクセント色は既存 --idx-accent / --idx-border-accent（--stage-hue 解決経由）に乗せ、
+   stage 連動を自動追従する（新規 hex 値は書かない）。 */
+
+.idx-vol-card {
+  background: var(--idx-surface);
+  border: 1px solid var(--idx-border);
+  border-left: 2px solid var(--idx-border-accent);
+  border-radius: 7px;
+  margin-bottom: 1.6rem;
+}
+
+.idx-vol-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1.05rem 1.3rem;
+  list-style: none;
+  cursor: pointer;
+}
+.idx-vol-head::-webkit-details-marker { display: none; }
+
+.idx-vol-card[open] > .idx-vol-head {
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--idx-border);
+}
+
+.idx-vol-chev {
+  color: var(--idx-text-date);
+  font-size: 0.72rem;
+  transition: transform 0.18s, color 0.18s;
+  flex-shrink: 0;
+  display: inline-block;
+  width: 0.9em;
+  /* U+25B6 を UA によって絵文字化させないため、monospace 系フォントに固定 */
+  font-family: monospace, sans-serif;
+}
+.idx-vol-card[open] > .idx-vol-head .idx-vol-chev {
+  transform: rotate(90deg);
+  color: var(--idx-accent);
+}
+
+.idx-vol-k {
+  font-size: 1.18rem;
+  letter-spacing: 0.12em;
+  color: var(--idx-text-primary);
+  flex: 1;
+}
+.idx-vol-head:hover .idx-vol-k {
+  color: var(--idx-accent);
+}
+
+.idx-vol-pill {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  color: var(--idx-accent);
+  border: 1px solid var(--idx-border-accent);
+  /* アクセントソフト面色（既存 .idx-resume:hover と同一パターン。stage-hue 追従） */
+  background: hsl(var(--stage-hue) 91% 57% / 0.08);
+  font-family: monospace, sans-serif;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.idx-vol-body {
+  padding: 1.3rem 1.4rem 0.5rem;
+}
+/* body 末尾の .idx-ep（および巻末あとがき）の下側にカード内 padding だけを残す */
+.idx-vol-body > .idx-ep:last-child {
+  margin-bottom: 1.1rem;
+}
+
+.idx-vol-head:focus-visible {
+  outline: 2px solid var(--idx-accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .idx-vol-chev { transition: none; }
+}
+
 /* ===== エピソード一覧 ===== */
 
 .idx-ep {

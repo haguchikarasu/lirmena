@@ -4,12 +4,20 @@
  *       チップを描画し、栞・オートセーブ（本編／あとがき独立）を並べ、stage に応じてヒーローカード画像を
  *       差し替える。設定ポップアップ／共有／FAB／変更履歴は既存流用。
  * export: なし（script type="module" としてロードされるエントリポイント）
- * 依存: bookmark.ts（getRead で stage 判定材料を取る＋スキーマ移行 init）、volumes.ts（computeStoryStage）。
+ * 依存: bookmark.ts（getRead で stage 判定材料を取る＋スキーマ移行 init）、
+ *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）。
  *       src/ 内はこの2本のみ例外 import（目次の独立方針の緩和：判定ロジックを二重化しない・二重管理を避ける）。
  *
  * 機能:
- *   - story.json を fetch して vol 単位で ep・sec 一覧を動的生成
+ *   - story.json を fetch して vol → ep → sec 一覧を動的生成
  *     （sec01 のリンク先はタイトルページ [ep]-00.html、sec02 以降は本文ページ）
+ *   - 各 vol は <details class="idx-vol-card"> でグルーピングして表示（要件 06-7 巻カード＆アコーディオン表示）。
+ *     summary に「第N巻」＋状態バッジ（vol.afterword.published なら「巻完結・全M話」／それ以外は「連載中」）を置き、
+ *     本体に当 vol の ep 一覧＋（あとがき公開時のみ）「第N巻あとがき」チップを入れる。
+ *     初期 open は storyStage（＝computeStoryStage(read, story)）と vol.volume が一致する巻のみ。
+ *     storyStage === story.length + 1（物語完結）のときは全 vol 閉じる。開閉状態は永続化しない。
+ *   - 表示可能な ep（＝公開済み sec が1つ以上ある ep）も公開されたあとがきも持たない vol は巻カードごと非表示。
+ *     既存節「公開済み sec が1つもない ep は完全非表示」を vol 粒度に引き上げた挙動。
  *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみ「第◯巻あとがき」チップを差し込む
  *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
@@ -335,20 +343,71 @@ function applyStoryStage(story: StoryVolume[]): void {
     }
 }
 
-// ----- 目次本体（vol → ep → sec、直後にあとがきチップ） -----
+// ----- 目次本体（vol カード → ep → sec、直後にあとがきチップ） -----
 
-// story を vol 単位でループし、各 vol の ep 一覧＋（afterword.published のとき）あとがきチップを描画する。
-// 未公開 sec・公開済み sec が0の ep は非表示（既存挙動維持）。
+// story を vol 単位でループし、各 vol を <details class="idx-vol-card"> でグルーピングして描画する。
+// summary に「第N巻」＋状態バッジ（巻完結・全M話 or 連載中）、本体に当 vol の ep 一覧＋（あとがき公開時のみ）
+// 巻末あとがきチップを入れる。初期 open は computeStoryStage(read, story) と vol.volume が一致する巻のみ
+// （storyStage === story.length + 1 の物語完結時は全 vol 閉じる）。開閉状態は永続化しない。
+// vol 単位の非表示：表示可能な ep（公開済み sec が1つ以上）も公開されたあとがきも持たない vol はカード自体非表示。
 function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
     area.innerHTML = '';
 
-    for (const vol of story) {
-        for (const ep of vol.episodes) {
-            const publishedSecs = ep.sections.filter(s => s.published);
-            if (publishedSecs.length === 0) continue;
+    // 初期 open 判定用の storyStage を1回だけ算出（あとがきキーは stage 判定に影響しない・要件 06-5）。
+    // computeStoryStage は types.ts の StoryData（Volume[]）を受けるが、ローカル StoryVolume は判定に必要な
+    // フィールド（volume・epRange・episodes.sections.published）を全て持つため構造互換（applyStoryStage と同流儀）。
+    const storyStage = computeStoryStage(
+        Array.from(read),
+        story as unknown as Parameters<typeof computeStoryStage>[1],
+    );
 
+    for (const vol of story) {
+        // 表示可能な ep（公開済み sec が1つ以上）とそのフィルタ済み sec を先に確定する。
+        // 未公開 sec は完全除外（既存挙動維持）／未執筆 vol 判定にも使う。
+        const publishedEps = vol.episodes
+            .map(ep => ({ ep, publishedSecs: ep.sections.filter(s => s.published) }))
+            .filter(x => x.publishedSecs.length > 0);
+        const hasAfterword = vol.afterword?.published === true;
+        // vol 単位の非表示：表示可能な ep もあとがきもない vol は巻カードを出さない
+        if (publishedEps.length === 0 && !hasAfterword) continue;
+
+        // 巻カード（<details>）を作る。open 属性で初期表示を制御し、以後の開閉はブラウザ標準に委ねる。
+        const card = document.createElement('details');
+        card.className = 'idx-vol-card';
+        if (vol.volume === storyStage) card.open = true;
+
+        // summary（クリックで開閉）：chev（回転アニメは CSS の [open] セレクタが担当）／巻見出し／状態バッジ
+        const summary = document.createElement('summary');
+        summary.className = 'idx-vol-head';
+
+        const chev = document.createElement('span');
+        chev.className = 'idx-vol-chev';
+        chev.setAttribute('aria-hidden', 'true');
+        chev.textContent = '▶';
+        summary.appendChild(chev);
+
+        const kEl = document.createElement('span');
+        kEl.className = 'idx-vol-k';
+        kEl.textContent = `第${vol.volume}巻`;
+        summary.appendChild(kEl);
+
+        const pill = document.createElement('span');
+        pill.className = 'idx-vol-pill';
+        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）
+        pill.textContent = hasAfterword
+            ? `巻完結・全${publishedEps.length}話`
+            : '連載中';
+        summary.appendChild(pill);
+
+        card.appendChild(summary);
+
+        // 本体：ep ブロック（既存の idx-ep / idx-chip をそのまま使う）＋巻末あとがき
+        const body = document.createElement('div');
+        body.className = 'idx-vol-body';
+
+        for (const { ep, publishedSecs } of publishedEps) {
             const epEl = document.createElement('div');
             epEl.className = 'idx-ep';
 
@@ -382,11 +441,11 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
             }
 
             epEl.appendChild(secListEl);
-            area.appendChild(epEl);
+            body.appendChild(epEl);
         }
 
         // 巻末あとがきチップ（vol.afterword.published=true のときのみ）
-        if (vol.afterword?.published === true) {
+        if (hasAfterword) {
             const afterwordEl = document.createElement('div');
             afterwordEl.className = 'idx-ep idx-ep--afterword';
 
@@ -415,8 +474,11 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
             chips.appendChild(link);
 
             afterwordEl.appendChild(chips);
-            area.appendChild(afterwordEl);
+            body.appendChild(afterwordEl);
         }
+
+        card.appendChild(body);
+        area.appendChild(card);
     }
 
     if (area.children.length === 0) {
