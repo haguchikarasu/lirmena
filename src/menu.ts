@@ -1,8 +1,8 @@
 /*
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
- * export: init(characters: CharactersData, volumes: VolumesData): void
- * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
+ * export: init(characters: CharactersData): void
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現在 vol の逆引き経由でキャラ紹介の巻を特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
@@ -52,7 +52,7 @@ import * as settings from './settings';
 import * as transition from './transition';
 import * as tutorial from './tutorial';
 import { applyRuby } from './ruby';
-import type { CharactersData, VolumesData } from './types';
+import type { CharactersData } from './types';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
@@ -61,14 +61,13 @@ let _share: HTMLElement;
 let _bookmark: HTMLElement;
 let _items: HTMLButtonElement[] = [];
 let _charactersData: CharactersData = [];
-let _volumesData: VolumesData = [];
 
 // DOM からメニューボタン・パネル・オーバーレイを取得し、項目を生成してイベントを登録する。
 // main.ts が起動時に一度だけ呼ぶ。キャラクター紹介データを受け取って保持する。
-// init(characters: CharactersData, volumes: VolumesData): void
-export function init(characters: CharactersData, volumes: VolumesData): void {
+// vol の逆引きは state.getCurrentVolume() で行うため volumes データは引数で受け取らない。
+// init(characters: CharactersData): void
+export function init(characters: CharactersData): void {
     _charactersData = characters;
-    _volumesData = volumes;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
     _overlay = document.querySelector<HTMLElement>('#characters-overlay')!;
@@ -99,11 +98,15 @@ function _buildItems(): void {
         return b;
     };
 
+    // あとがきモード時は「栞を追加」を出さない：state.getCurrent() が ep/sec=0 を返すため、
+    // 押すと "00-00" を指す壊れた栞ができてしまう（あとがきは巻末 sec 本文の栞で代用する運用）。
+    const isAfterword = state.getMode() === 'afterword';
+
     const btnIndex = makeBtn('目次へ戻る', () => {
         transition.leave(state.indexUrl());
     });
 
-    const btnBookmark = makeBtn('栞を追加', () => {
+    const btnBookmark = isAfterword ? null : makeBtn('栞を追加', () => {
         _openBookmarkPopup();
     });
 
@@ -123,17 +126,12 @@ function _buildItems(): void {
         _openShare();
     });
 
-    _panel.append(
-        btnIndex,
-        btnBookmark,
-        btnTutorial,
-        btnCharacters,
-        sep(),
-        btnSettings,
-        btnShare,
-    );
-
-    _items = [btnIndex, btnBookmark, btnTutorial, btnCharacters, btnSettings, btnShare];
+    const items: HTMLButtonElement[] = [btnIndex];
+    if (btnBookmark) items.push(btnBookmark);
+    items.push(btnTutorial, btnCharacters);
+    _panel.append(...items, sep(), btnSettings, btnShare);
+    items.push(btnSettings, btnShare);
+    _items = items;
 }
 
 // #share-popup に共有ポップアップのパネル（リンクをコピー / X でシェア / LINE でシェア / 閉じる）を生成する。
@@ -296,12 +294,14 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
-// 現在 ep が属する巻のキャラクターカードを生成し、ポップアップを表示する。
+// 現在 ep（あとがきモードなら現在 vol）が属する巻のキャラクターカードを生成し、ポップアップを表示する。
 // 巻が特定できない場合は巻1にフォールバックする。
+// あとがきモードでは state.getCurrent().ep が 0 になるため、_volumesData の epRange 逆引きは失敗して vol1
+// にフォールバックしていた（vol2+ のあとがきで誤って vol1 のキャストが出る）。state.getCurrentVolume()
+// は本文／あとがき両モードで正しく解決するのでこちらを使う。
 // _openCharactersPopup(): void
 function _openCharactersPopup(): void {
-    const ep = state.getCurrent().ep;
-    const volume = _volumesData.find(v => v.epRange[0] <= ep && ep <= v.epRange[1])?.volume ?? 1;
+    const volume = state.getCurrentVolume()?.volume ?? 1;
     const volumeEntry = _charactersData.find(c => c.volume === volume);
     const characters = volumeEntry?.characters ?? [];
 

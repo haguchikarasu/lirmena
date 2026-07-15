@@ -17,15 +17,19 @@
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
-  <link rel="icon" href="/favicon.ico" />
+  <!-- 目次の favicon は stage に応じて index.ts が差し替える（stage N → vol N の favicon[N].png、
+       stage story.length+1（物語完結）→ 最終 vol の favicon[story.length+1].png）。初期値は vol1 のフォールバック -->
+  <link id="app-favicon" rel="icon" href="vol01/favicon1.png" />
   <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
        body 背景と文字色だけをインラインで先付ける。値は src/styles/toc.css の背景色と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
-  <!-- 書字方向・端末カテゴリの早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+  <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
        - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
-       - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新 -->
+       - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新
+       - data-story-stage: index.ts / main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュした値を先付け。
+                           未設定は '1'（stage1・緑）にフォールバック。値は 1〜5 の文字列のみ許容。 -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -34,6 +38,10 @@
     try {
       var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
       document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
+    try {
+      var stg = localStorage.getItem('lirmena.storyStage');
+      document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->
@@ -56,7 +64,7 @@
   <!-- ヒーローエリア -->
   <div class="idx-hero">
     <div class="idx-hero-card">
-      <img src="public/cover/vol01.avif" alt="タイトル" class="idx-hero-img" />
+      <img id="idx-hero-img" src="public/vol01/vol01.avif" alt="タイトル" />
     </div>
     <div class="idx-version-badges">
       <span id="badge-content-version" class="idx-version-badge"></span>

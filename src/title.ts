@@ -30,7 +30,7 @@ import * as loader from './loader';
 import * as bookmark from './bookmark';
 import * as transition from './transition';
 import { applyRuby } from './ruby';
-import type { ChangelogEntry, EpisodesData } from './types';
+import type { ChangelogEntry, StoryData } from './types';
 
 const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
 
@@ -46,15 +46,15 @@ async function _init(): Promise<void> {
         return;
     }
 
-    let data: EpisodesData;
+    let story: StoryData;
     try {
-        data = await loader.loadEpisodes();
+        story = await loader.loadStory();
     } catch {
         _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
         return;
     }
 
-    state.init(data, { ep, sec: 0 });
+    state.init(story, { ep, sec: 0 });
 
     _renderTitle(ep);
     _wireButtons();
@@ -87,10 +87,13 @@ function _renderTitle(ep: number): void {
 
     const titleScreen = document.querySelector<HTMLElement>('#title-screen');
     if (titleScreen) {
-        // 背景ファイル名は episodes.json の coverFile（省略時 title.avif）。常に epNN/ 配下から解決。
+        // 背景ファイル名は story.json のエピソード内 coverFile（省略時 title.avif）。
+        // パスは public/vol[YY]/ep[XX]/{file} 構造（story.json のフォルダ再編に合わせ、vol は state から取得）。
         const episode = state.getEpisode(ep);
+        const vol = state.getCurrentVolume();
         const file = episode?.coverFile ?? 'title.avif';
-        const path = `${import.meta.env.BASE_URL}ep${String(ep).padStart(2, '0')}/${file}`;
+        const volStr = vol ? String(vol.volume).padStart(2, '0') : '01';
+        const path = `${import.meta.env.BASE_URL}vol${volStr}/ep${String(ep).padStart(2, '0')}/${file}`;
         titleScreen.style.backgroundImage = `url('${path}')`;
         // 左右位置は CSS 変数に流すのみ。縦長画面での反映可否は src/styles/_title.css のメディアクエリが担う。
         if (episode?.coverPositionX) {

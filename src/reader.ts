@@ -12,7 +12,9 @@
  * fan-out（handleScroll）:
  *   ① progress.update(progress) — bg.ts が本文領域基準で算出した連続進捗（0〜1）をそのまま渡す
  *   ② opening.update(forward) — 進行軸の先頭（forward≈0）でのみ開幕アフォーダンスを表示（n.scrollLeft は forward 進行 px）
- *   ③ bookmark.saveAutoSave(ep, sec, ratio) — オートセーブ上書き（スクロール範囲比 0〜1・過剰書込を避けスロットル）
+ *   ③ オートセーブ上書き（スクロール範囲比 0〜1・過剰書込を避けスロットル）：
+ *        本文モード → bookmark.saveAutoSave(ep, sec, ratio)（キー autosave）
+ *        あとがきモード → bookmark.saveAutoSaveAfterword(vol, ratio)（独立キー autosaveAfterword）
  *      加えて bookmark.saveScrollToHistory(ratio) — 現在の履歴エントリへスクロール範囲比を刻む
  *      （戻る/進むで HTML 再読込された場合の per-entry スクロール復元用・同じスロットルに相乗り。割合なので書字方向に依存しない）
  *   ④ state.setCurrentScene(n.currentScene) — 現在シーンを反映し、栞保存の coarse アドレスに使う
@@ -57,7 +59,12 @@ export function handleScroll(n: ScrollNotification): void {
     const now = Date.now();
     if (now - _lastAutoSaveAt >= AUTOSAVE_THROTTLE_MS) {
         _lastAutoSaveAt = now;
-        bookmark.saveAutoSave(_address.ep, _address.sec, n.ratio);
+        if (state.getMode() === 'afterword') {
+            const vol = state.getCurrentAfterwordVol();
+            if (vol !== null) bookmark.saveAutoSaveAfterword(vol, n.ratio);
+        } else {
+            bookmark.saveAutoSave(_address.ep, _address.sec, n.ratio);
+        }
         bookmark.saveScrollToHistory(n.ratio);
     }
 }

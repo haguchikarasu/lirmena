@@ -1,89 +1,125 @@
 /*
  * volumes.ts
- * 責務: 読者の read セットと volumes/episodes 定義から、物語進行段階（stage 1〜5）を算出する純関数を提供する。
+ * 責務: 読者の read セットと story.json 定義から、物語進行段階（stage 1〜5）を算出する純関数を提供する。
  * export: type StoryStage = 1 | 2 | 3 | 4 | 5
- *         computeStoryStage(read: string[], volumes: VolumesData, episodes: EpisodesData): StoryStage
- * 依存: 型のみ（VolumesData / EpisodesData）。DOM・localStorage・fetch 非依存。純関数（引数を破壊しない）。
+ *         computeStoryStage(read: SecKey[], story: StoryData): StoryStage
+ * 依存: 型のみ（StoryData / Volume / SecKey）。DOM・localStorage・fetch 非依存。純関数（引数を破壊しない）。
  *
- * 物語進行段階（stage）— A 案：各 vol の end sec を read で移行：
- *   1: 初期・何も完読していない（vol1 の end sec 未 read）
- *   2: vol1 の end sec を read（vol1 完読・vol2 開始）
- *   3: vol2 の end sec を read（vol2 完読）
- *   4: vol3 の end sec を read（vol3 完読）
- *   5: vol4 の end sec を read（vol4 完読・物語完結・エンディング色）
+ * 物語進行段階（stage 1〜5）— 最大読破位置ベース：
+ *   1: 初期。vol1 の最終公開 sec に達していない
+ *   2: vol1 の最終公開 sec に達している かつ vol2 冒頭 sec が公開済み
+ *   3: vol2 の最終公開 sec に達している かつ vol3 冒頭 sec が公開済み
+ *   4: vol3 の最終公開 sec に達している かつ vol4 冒頭 sec が公開済み
+ *   5: vol4（＝最終 vol）の最終公開 sec に達している（次巻がないため自動的に stage 5＝物語完結）
  *
- * end フィールド：
- *   episodes.json の各 sec は EpisodeSection.end: boolean を required で持つ（省略不可）。
- *   仕様は「1 vol につき end: true は 1 sec のみ」（各 vol の最終 sec）。
- *   実装は防御的に「その vol の全 end sec が read」で判定する（誤って複数付いても安全側で全部 read されるまで stage 上げない）。
- *   誤配置の runtime 検出は volumes.test.ts の schema 検証テストが担う。
+ * 判定アルゴリズム：
+ *   1. 全 vol を volume 昇順で走査し、公開済み本文 sec に「物語順の通し番号」を振る（あとがきキーは除外）。
+ *      未公開 sec は通し番号を消費しない＝maxReadPos が公開範囲を超えて過大評価されない。
+ *   2. read セット内の各キーを通し番号 Map で解決し、最大値 maxReadPos を得る。
+ *      本文 sec 用 regex /^\d{2}-\d{2}$/ にマッチするキーだけを扱う＝あとがきキー "vol01-af" 等は無視する。
+ *   3. 各 vol について「最終公開 sec の通し番号」と「次巻冒頭 ep の sec1 が公開済みか」を判定：
+ *      ・当 vol の最終公開 sec が存在しない or maxReadPos がそれ未満 → break（未到達）
+ *      ・次巻がある場合、次巻の epRange[0] の sec1 が未公開 → break（次巻公開待ち）
+ *      ・次巻がない（最終 vol）→ stage は volume + 1
+ *   4. 上限 Math.min(stage, story.length + 1) as StoryStage で 4vol → 5, 5vol → 6 のように動的化する。
  *
- * read キー形式：
- *   "EP-SEC" の2桁ゼロ埋め文字列（例 "01-02"）。types.ts の SecKey 型・bookmark.getRead() が返す形式と一致。
- *   不正キー（空文字・非形式）、volumes 定義に含まれない ep（範囲外）は無視する（防御的）。
+ * 順読要求は撤廃：
+ *   maxReadPos は read セット内の最大 index。手動 localStorage 編集や内部遷移で先取り read された sec の
+ *   分だけ stage が動的に上がる。これは「localStorage クリア後に vol3 巻末 sec のみ再読で stage 4 に復元」
+ *   したい要望（ユーザー明示・要件 06-5）を優先した仕様。外部流入（迷い込み）は main.ts の
+ *   suppression.ts ゲートで recordRead が抑止されるため、通常の読者操作では過大な先取り移行は起きない。
  *
- * 順読要求：
- *   volumes を volume 昇順で走査し、途中で end sec 未 read の vol に当たったら break（それより後の vol は判定しない）。
- *   これにより「vol3 の end sec だけ read されて vol1/vol2 未完読」の場合 stage 1 のまま＝先取り移行を防ぐ。
+ * SNS 迷い込み等の意図せぬ移行は当関数では扱わない：
+ *   前段の main.ts が _isExternalEntry() && !_isResuming() → bookmark.setAutoRecordSuppressed(true) で
+ *   recordRead を抑止するため、当関数は read セットを素直に見る（責務分離・要件 06-5）。
  *
- * SNS 迷い込みの区別は当関数では扱わない：
- *   「順に読んでいる読者」と「SNS で end sec に迷い込んだ読者」の区別は main.ts の外部流入抑止ロジック
- *   （_isExternalEntry() && !_isResuming() → bookmark.setAutoRecordSuppressed(true) で recordRead が抑止される）
- *   が前段でゲートするため、当関数は read セットを素直に見るだけ（責務分離・要件 06-5）。
- *
- * 4vol＋読破の 5 段階固定：
- *   将来 vol5 以降が構想変更で追加された場合、当関数は volumes 昇順走査で自動対応する（コード変更不要）。
- *   ただし _base.css の --stage-6-color 追加、_progress.css の html[data-story-stage="6"] セレクタ追加、
- *   design/module-responsibilities.md / design/requirements/06-5-bookmark.html の追記が同時に必要。
+ * 型の運用：
+ *   StoryStage = 1 | 2 | 3 | 4 | 5 は現行 4vol 固定前提の型。将来 vol5 追加時は story.length + 1 = 6 が
+ *   返り得るため、型の 6 追加＋_base.css の --stage-6-hue 定数追加＋末尾セレクタ html[data-story-stage="6"]
+ *   { --stage-hue: var(--stage-6-hue); } 追加＋設計正典（design/module-responsibilities.md /
+ *   design/requirements/06-5-bookmark.html）の追記が同時に必要。
  */
 
-import type { VolumesData, EpisodesData } from './types';
+import type { StoryData, Volume, SecKey } from './types';
 
-// 物語進行段階の型。1〜5 の有限値のみ返る（number より狭い）。CLAUDE.md §3 汎用型回避。
+// 物語進行段階の型。1〜5 の有限値のみ返る（CLAUDE.md §3 汎用型回避）。
 export type StoryStage = 1 | 2 | 3 | 4 | 5;
 
-// 各 vol の end sec を全 read で stage 移行する A 案の純関数。
-// - volumes を volume 昇順で走査（引数は破壊せずコピー：[...volumes].sort(...)）
-// - 各 vol について epRange 内で end: true の sec を集める
-// - end sec が 0 個 → 未確定として break（それより後の vol も判定しない）
-// - 全 end sec が read セットに含まれる → stage = vol.volume + 1、そうでなければ break
-// - Math.min(stage, 5) で 5 を上限にクランプ
-// computeStoryStage(read: string[], volumes: VolumesData, episodes: EpisodesData): StoryStage
-export function computeStoryStage(
-    read: string[],
-    volumes: VolumesData,
-    episodes: EpisodesData
-): StoryStage {
-    const readSet = new Set(read);
+// 本文 sec キーの正規表現。あとがきキー "vol01-af"（^vol\d{2}-af$）と区別する。
+const SEC_KEY_RE = /^\d{2}-\d{2}$/;
 
-    // volumes をコピーしてから volume 昇順ソート（引数破壊禁止＝純関数保証）
-    const sortedVols = [...volumes].sort((a, b) => a.volume - b.volume);
+// 読者の read セットと story.json から stage を算出する純関数。
+// computeStoryStage(read: SecKey[], story: StoryData): StoryStage
+export function computeStoryStage(read: SecKey[], story: StoryData): StoryStage {
+    if (story.length === 0) return 1;
 
-    let stage = 1;
-    for (const vol of sortedVols) {
-        // この vol の epRange 内で end: true の sec を集める（仕様は 1 個・実装は防御的に配列）
-        const endSecKeys: string[] = [];
-        for (const ep of episodes) {
-            if (ep.id < vol.epRange[0] || ep.id > vol.epRange[1]) continue;
-            for (const sec of ep.sections) {
-                if (sec.end) endSecKeys.push(`${_pad2(ep.id)}-${_pad2(sec.id)}`);
+    // 本文 sec キーのみを残す（あとがきキー "vol01-af" 等を除外）
+    const readSet = new Set(read.filter(k => SEC_KEY_RE.test(k)));
+
+    // 引数破壊禁止＝コピーしてから volume 昇順ソート
+    const vols = [...story].sort((a, b) => a.volume - b.volume);
+
+    // 公開済み本文 sec に物語順の通し番号を振る（未公開 sec は消費しない）
+    const order = new Map<string, number>();
+    let pos = 0;
+    for (const vol of vols) {
+        const eps = [...vol.episodes].sort((a, b) => a.id - b.id);
+        for (const ep of eps) {
+            const secs = [...ep.sections].sort((a, b) => a.id - b.id);
+            for (const sec of secs) {
+                if (!sec.published) continue;
+                order.set(_secKey(ep.id, sec.id), pos++);
             }
         }
-
-        // end sec が 0 個 → 物語構造未確定 → break（それより後の vol も判定しない）
-        if (endSecKeys.length === 0) break;
-
-        // 全部が read されていなければ break（それより後の vol は未読とみなす＝順読要求）
-        if (!endSecKeys.every(k => readSet.has(k))) break;
-
-        // この vol は完読 → 次の stage へ進む
-        stage = vol.volume + 1;
     }
 
-    // 5 を上限にクランプ（4vol＋読破の 5 段階固定）
-    return Math.min(stage, 5) as StoryStage;
+    // read セット内の最大通し番号
+    let maxReadPos = -1;
+    for (const k of readSet) {
+        const idx = order.get(k);
+        if (idx !== undefined && idx > maxReadPos) maxReadPos = idx;
+    }
+
+    // 各 vol の最終公開 sec の通し番号（無ければ null）
+    const volLastPos = vols.map(v => _findVolLastPublishedPos(v, order));
+
+    let stage = 1;
+    for (let i = 0; i < vols.length; i++) {
+        const last = volLastPos[i];
+        if (last === null) break;              // この vol に公開 sec なし → 未確定で打ち切り
+        if (maxReadPos < last) break;          // この vol の最終公開 sec に達していない
+        const nextVol = vols[i + 1];
+        if (nextVol && !_isNextVolFirstSecPublished(nextVol)) break; // 次巻冒頭 sec1 未公開
+        stage = vols[i].volume + 1;
+    }
+
+    // vol 数から動的に上限クランプ（4vol → 5, 5vol → 6）
+    return Math.min(stage, story.length + 1) as StoryStage;
 }
 
-function _pad2(n: number): string {
-    return String(n).padStart(2, '0');
+// vol 内で最後の公開 sec の通し番号を返す。無ければ null。
+function _findVolLastPublishedPos(vol: Volume, order: Map<string, number>): number | null {
+    const eps = [...vol.episodes].sort((a, b) => b.id - a.id); // ep 降順
+    for (const ep of eps) {
+        const secs = [...ep.sections].sort((a, b) => b.id - a.id); // sec 降順
+        for (const sec of secs) {
+            const idx = order.get(_secKey(ep.id, sec.id));
+            if (idx !== undefined) return idx;
+        }
+    }
+    return null;
+}
+
+// 次巻の冒頭 ep（epRange[0] の ep）の sec1 が公開済みかを返す。
+// 次巻冒頭 ep 自体が episodes に定義されていない（未執筆 vol）or sec1 が未公開 → false。
+function _isNextVolFirstSecPublished(nextVol: Volume): boolean {
+    const firstEpId = nextVol.epRange[0];
+    const ep = nextVol.episodes.find(e => e.id === firstEpId);
+    if (!ep) return false;
+    const sec1 = ep.sections.find(s => s.id === 1);
+    return sec1?.published === true;
+}
+
+function _secKey(ep: number, sec: number): string {
+    return `${String(ep).padStart(2, '0')}-${String(sec).padStart(2, '0')}`;
 }

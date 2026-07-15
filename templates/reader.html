@@ -1,6 +1,9 @@
 <!DOCTYPE html>
-<!-- 【自動生成テンプレ／編集はここ】本文ページ（sec≥1）の雛形。src/plugins/pages.ts が episodes.json を読み、
-     {{ep}} / {{sec}} を埋めて contents/[ep]-[sec].html を build/serve 両方で生成する。生成物は触らず、この雛形を直す。
+<!-- 【自動生成テンプレ／編集はここ】本文ページ（sec≥1）／巻末あとがきページ（vol[XX]-afterword.html）の雛形。
+     vite.config.ts の pages() プラグインが public/story.json を読み、{{bodyAttrs}} に本文モードは
+     `data-ep="X" data-sec="Y"`、あとがきモードは `data-vol="X" data-kind="afterword"` を埋めて
+     contents/[ep]-[sec].html または contents/vol[XX]-afterword.html を build/serve 両方で生成する。
+     生成物は触らず、この雛形を直す。
      CSS は main.ts が import './styles/index.css' でバンドルし、Vite が <link>（ハッシュ名）を自動注入する（手書き link は置かない）。 -->
 <!-- class="at-opening"：開幕（本文先頭の黒い余白）を初期状態に。opening.ts が本文に入ると外す -->
 <html lang="ja" class="at-opening">
@@ -17,14 +20,17 @@
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
-  <link rel="icon" href="/favicon.ico" />
+  <!-- favicon は vol ごとに切替（vol 下に帰属）。pages() プラグインが {{faviconHref}} をそのページの vol の
+       favicon 相対パスへ埋める。あとがきページは vol[XX]-afterword.html＝そのページの vol の物を使う -->
+  <link rel="icon" href="{{faviconHref}}" />
   <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
        body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
-  <!-- 書字方向・端末カテゴリの早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
-       保存値が無ければ既定＝横書き。axis.ts/settings.ts と同じ lirmena.writingMode キー -->
+  <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+       保存値が無ければ既定＝横書き／stage1（緑）。axis.ts/settings.ts と同じ lirmena.writingMode キー、
+       stage は main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュする（1〜5 の文字列）。 -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -33,6 +39,10 @@
     try {
       var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
       document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
+    try {
+      var stg = localStorage.getItem('lirmena.storyStage');
+      document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->
@@ -51,7 +61,7 @@
     }
   </script>
 </head>
-<body data-ep="{{ep}}" data-sec="{{sec}}">
+<body {{bodyAttrs}}>
   <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
   <p id="loading" role="status">読み込み中</p>
 
@@ -64,6 +74,11 @@
     <article id="scene-content" hidden></article>
     <nav id="btn-container-end" class="btn-container">
       <button id="btn-next" type="button" aria-label="次へ" tabindex="1">次へ</button>
+      <!-- 巻末sec 本文ページの「次へ」の後ろに出す「◯巻あとがき」ボタン。
+           本文モードで自 vol の巻末公開 sec かつ story.json の当 vol afterword.published=true のとき、
+           nav.ts が hidden を外して当 vol のあとがきページへ遷移する。あとがきページでは常に hidden。
+           label は nav.ts が state.getCurrentVolume().volume を元に「第◯巻あとがき」に差し替える。 -->
+      <button id="btn-afterword" type="button" tabindex="2" hidden></button>
       <div id="btn-share-group" hidden>
         <p id="btn-share-heading">感想を届ける</p>
         <div id="btn-share-row">

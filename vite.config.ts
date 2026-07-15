@@ -1,33 +1,76 @@
 import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
-import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'fs'
+import { validateStoryFiles } from './src/story-integrity'
+import type { StoryData } from './src/types'
 
 // マルチページ構成（1ページ＝1sec）のビルド設定。
-// - 本文/タイトルページは templates/{reader,title}.html を雛形に、pages() プラグインが
-//   episodes.json から contents/[ep]-[sec].html を build/serve 両方で自動生成する（手書きシェルは廃止）。
-//   生成物 contents/ は .gitignore（触らない＝雛形とプラグインだけを追跡する）。
+// - 本文/タイトルページ／巻末あとがきは templates/{reader,title}.html を雛形に、pages() プラグインが
+//   public/story.json から contents/[ep]-[sec].html / contents/[ep]-00.html / contents/vol[XX]-afterword.html を
+//   build/serve 両方で自動生成する（手書きシェルは廃止）。生成物 contents/ は .gitignore（触らない＝雛形と
+//   プラグインだけを追跡する）。
+// - 生成前に story.json の整合を story-integrity.ts の純関数で検査し、違反があれば throw して build を止める。
 // - 生成 HTML は Vite の MPA 入力として登録され、各ページの <script src="/src/{main,title}.ts"> を
 //   解決し、そこが import する CSS 込みでバンドルする。<script>/<link> は Vite が base 付き・ハッシュ名へ自動書換。
 // - 目次ページ index.html も MPA 入力（src/index.ts と目次 CSS を import）。
 // - 出力はハッシュ名（Vite 既定＝固定名指定を置かない）。固定名参照をやめたのでデプロイ直後のキャッシュ
 //   新旧不整合（HTML は新・JS は旧）が構造的に起きない。
 
-interface SectionDef { id: number; published: boolean }
-interface EpisodeDef { id: number; sections: SectionDef[] }
-
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-// テンプレの {{ep}} / {{sec}} を埋める（tsconfig の lib に依存しないよう replaceAll ではなく正規表現 replace）。
-function renderTemplate(tpl: string, ep: number, sec: number): string {
-  return tpl.replace(/\{\{ep\}\}/g, String(ep)).replace(/\{\{sec\}\}/g, String(sec))
+// 本文ページ用の body 属性文字列
+function bodyAttrsSec(ep: number, sec: number): string {
+  return `data-ep="${ep}" data-sec="${sec}"`
 }
 
-// episodes.json ＋ テンプレ2種から contents/[ep]-[sec].html を全生成し、生成パス配列を返す。
-// 生成範囲：各 ep に title(sec=0) 1本 ＋ sections 配列分の reader（published 無関係＝旧手書きシェルと一致）。
+// あとがきページ用の body 属性文字列
+function bodyAttrsAfterword(vol: number): string {
+  return `data-vol="${vol}" data-kind="afterword"`
+}
+
+// contents/*.html から見た vol の favicon 相対パス。stage に応じた動的差し替えは目次のみ（本文/タイトル/
+// あとがきページは自分の属する vol の favicon で静的に埋める。stage 5 の完結相当は本編読了後の目次到達で
+// 初めて発火するので、本文ページ側で favicon を差し替える必要はない）。
+// 命名規則：vol[XX]/favicon[N].png（N は vol.volume と一致。最終 vol のみ stage 5＝完結用 favicon5.png も
+// 併置し、それは index.ts の動的差し替えでのみ参照される＝本文/タイトル/あとがき静的埋め込みは vol.volume 番のみ）。
+function faviconHrefFor(vol: number): string {
+  return `../vol${pad(vol)}/favicon${vol}.png`
+}
+
+// reader.html の {{bodyAttrs}} / {{faviconHref}} プレースホルダを埋める
+function renderReaderTpl(tpl: string, attrs: string, faviconHref: string): string {
+  return tpl
+    .replace(/\{\{bodyAttrs\}\}/g, attrs)
+    .replace(/\{\{faviconHref\}\}/g, faviconHref)
+}
+
+// title.html の {{ep}} / {{sec}} / {{faviconHref}} プレースホルダを埋める（既存互換）
+function renderTitleTpl(tpl: string, ep: number, sec: number, faviconHref: string): string {
+  return tpl
+    .replace(/\{\{ep\}\}/g, String(ep))
+    .replace(/\{\{sec\}\}/g, String(sec))
+    .replace(/\{\{faviconHref\}\}/g, faviconHref)
+}
+
+// story.json ＋ テンプレ2種から contents/[ep]-[sec].html / [ep]-00.html / vol[XX]-afterword.html を全生成し、
+// 生成パス配列を返す。生成範囲：各 vol 各 ep について title(sec=0) 1本 ＋ sections 配列分の reader、
+// vol.afterword.published=true のときはさらに vol[XX]-afterword.html。published 無関係で HTML は全生成
+// （旧手書きシェルと一致）。
 function generatePages(root: string): string[] {
-  const episodes = JSON.parse(
-    readFileSync(resolve(root, 'public/episodes.json'), 'utf-8'),
-  ) as EpisodeDef[]
+  const story = JSON.parse(
+    readFileSync(resolve(root, 'public/story.json'), 'utf-8'),
+  ) as StoryData
+
+  // ── 整合チェック（違反時は build fail）─────────────────────────
+  const errors = validateStoryFiles(story, {
+    afterwordTxtExists: (vol) =>
+      existsSync(resolve(root, `public/vol${pad(vol)}/vol${pad(vol)}-afterword.txt`)),
+    coverExists: (vol, file) => existsSync(resolve(root, `public/vol${pad(vol)}/${file}`)),
+  })
+  if (errors.length > 0) {
+    throw new Error(`story.json 整合違反:\n  - ${errors.join('\n  - ')}`)
+  }
+
   const readerTpl = readFileSync(resolve(root, 'templates/reader.html'), 'utf-8')
   const titleTpl = readFileSync(resolve(root, 'templates/title.html'), 'utf-8')
 
@@ -39,21 +82,31 @@ function generatePages(root: string): string[] {
   }
 
   const paths: string[] = []
-  for (const ep of episodes) {
-    const titlePath = resolve(outDir, `${pad(ep.id)}-00.html`)
-    writeFileSync(titlePath, renderTemplate(titleTpl, ep.id, 0))
-    paths.push(titlePath)
-    for (const sec of ep.sections) {
-      const p = resolve(outDir, `${pad(ep.id)}-${pad(sec.id)}.html`)
-      writeFileSync(p, renderTemplate(readerTpl, ep.id, sec.id))
-      paths.push(p)
+  for (const vol of story) {
+    const favicon = faviconHrefFor(vol.volume)
+    for (const ep of vol.episodes) {
+      // タイトルページ (sec=0)
+      const titlePath = resolve(outDir, `${pad(ep.id)}-00.html`)
+      writeFileSync(titlePath, renderTitleTpl(titleTpl, ep.id, 0, favicon))
+      paths.push(titlePath)
+      // 本文ページ
+      for (const sec of ep.sections) {
+        const p = resolve(outDir, `${pad(ep.id)}-${pad(sec.id)}.html`)
+        writeFileSync(p, renderReaderTpl(readerTpl, bodyAttrsSec(ep.id, sec.id), favicon))
+        paths.push(p)
+      }
+    }
+    // あとがきページ（published=true のときだけ生成）
+    if (vol.afterword?.published === true) {
+      const afterwordPath = resolve(outDir, `vol${pad(vol.volume)}-afterword.html`)
+      writeFileSync(afterwordPath, renderReaderTpl(readerTpl, bodyAttrsAfterword(vol.volume), favicon))
+      paths.push(afterwordPath)
     }
   }
   return paths
 }
 
-// 本文/タイトルページを episodes.json から自動生成し、MPA 入力に登録するプラグイン。
-// 旧 devShellBundles()（固定名バンドルへの dev リダイレクト）を置き換える。
+// 本文/タイトル/あとがきページを story.json から自動生成し、MPA 入力に登録するプラグイン。
 function pages(root: string): Plugin {
   return {
     name: 'lirmena-pages',
@@ -63,10 +116,10 @@ function pages(root: string): Plugin {
       const pagePaths = generatePages(root)
       return { build: { rollupOptions: { input: [resolve(root, 'index.html'), ...pagePaths] } } }
     },
-    // dev：episodes.json / テンプレの変更を監視し、再生成して full-reload する。
+    // dev：story.json / テンプレの変更を監視し、再生成して full-reload する。
     configureServer(server) {
       const watched = [
-        resolve(root, 'public/episodes.json'),
+        resolve(root, 'public/story.json'),
         resolve(root, 'templates/reader.html'),
         resolve(root, 'templates/title.html'),
       ].map((p) => p.replace(/\\/g, '/'))

@@ -18,7 +18,7 @@ describe('feedback.init', () => {
     });
 
     it('要素が何も無くても例外を投げない（title.html のように何も置かないページで安全）', () => {
-        vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+        vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
         expect(() => init()).not.toThrow();
     });
 
@@ -28,7 +28,7 @@ describe('feedback.init', () => {
 
     describe('#btn-share-x（href 注入）', () => {
         it('ep=1/sec=1：text は「第1話 #1\\nURL」の改行区切り・url パラメータは無い', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             init();
@@ -42,7 +42,7 @@ describe('feedback.init', () => {
         });
 
         it('ep=2/sec=3：text に ep/sec 番号がそのまま入る（zero-pad しない）', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 2, sec: 3, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 2, sec: 3 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             init();
@@ -53,7 +53,7 @@ describe('feedback.init', () => {
         });
 
         it('ep=12/sec=34：2桁 ep/sec でも同じ組み立て', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 12, sec: 34, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 12, sec: 34 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             init();
@@ -64,7 +64,7 @@ describe('feedback.init', () => {
         });
 
         it('改行文字（\\n）が %0A としてエンコードされる（X 投稿画面で改行になる）', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 2, sec: 3, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 2, sec: 3 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             init();
@@ -74,7 +74,7 @@ describe('feedback.init', () => {
         });
 
         it('# と ✨ が URL エンコードされている（生の # がクエリ境界にならないこと）', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 2, sec: 3, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 2, sec: 3 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             init();
@@ -89,7 +89,7 @@ describe('feedback.init', () => {
 
     describe('#btn-share-marshmallow（href 注入）', () => {
         it('href に MARSHMALLOW_URL がそのまま設定される', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = '<a id="btn-share-marshmallow"></a>';
 
             init();
@@ -100,7 +100,7 @@ describe('feedback.init', () => {
 
         it('マシュマロは ep/sec に依存しない（state.getCurrent の値と無関係に同じ URL）', () => {
             document.body.innerHTML = '<a id="btn-share-marshmallow"></a>';
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 99, sec: 88, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 99, sec: 88 });
 
             init();
 
@@ -111,7 +111,7 @@ describe('feedback.init', () => {
 
     describe('#btn-share-group（wrapper hidden 制御）', () => {
         it('wrapper があれば hidden が外れて感想窓口ブロックが表示される', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = `
                 <div id="btn-share-group" hidden>
                     <a id="btn-share-x"></a>
@@ -126,14 +126,14 @@ describe('feedback.init', () => {
         });
 
         it('wrapper が無ければ hidden 操作は no-op（例外を投げない）', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = '';
 
             expect(() => init()).not.toThrow();
         });
 
         it('内部 <a> の hidden は触らない（wrapper 側で一元管理する契約）', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             // 内部 <a> に hidden 属性を初期値として持たせても、feedback は解除しない
             document.body.innerHTML = `
                 <div id="btn-share-group" hidden>
@@ -153,7 +153,7 @@ describe('feedback.init', () => {
 
     describe('個別 no-op', () => {
         it('#btn-share-x のみあれば X だけ href 注入、他は無処理', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = '<a id="btn-share-x"></a>';
 
             expect(() => init()).not.toThrow();
@@ -162,7 +162,7 @@ describe('feedback.init', () => {
         });
 
         it('#btn-share-marshmallow のみあればマシュマロだけ href 注入、他は無処理', () => {
-            vi.spyOn(state, 'getCurrent').mockReturnValue({ ep: 1, sec: 1, scene: 0 });
+            vi.spyOn(state, 'getShareContext').mockReturnValue({ kind: 'sec', ep: 1, sec: 1 });
             document.body.innerHTML = '<a id="btn-share-marshmallow"></a>';
 
             expect(() => init()).not.toThrow();

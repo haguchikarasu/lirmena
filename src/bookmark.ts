@@ -60,7 +60,16 @@
  * いずれのフラグの対象外＝明示操作／履歴 state は常に動く。
  */
 
-import type { SceneAddress, SecAddress, AutoSaveEntry, PendingJump, SecKey } from './types';
+import type {
+    SceneAddress,
+    SecAddress,
+    AutoSaveEntry,
+    PendingJump,
+    SecKey,
+    AfterwordKey,
+    AutoSaveAfterwordEntry,
+    PendingJumpAfterword,
+} from './types';
 
 // 栞1件。flat 形＋固定スロット（slot=1..3）。ratio はスクロール範囲比（0〜1・書字方向非依存）。
 // 旧 nested { address }・旧 flat（slot 無し／px scrollLeft）は移行で flat 化・割合化（ratio=0）する。
@@ -82,6 +91,8 @@ const KEY_BOOKMARKS = 'bookmarks';
 const KEY_AUTOSAVE = 'autosave';
 const KEY_PENDING_JUMP = 'pendingJump';
 const KEY_PENDING_SCROLL_END = 'pendingScrollEnd';
+const KEY_AUTOSAVE_AFTERWORD = 'autosaveAfterword';
+const KEY_PENDING_JUMP_AFTERWORD = 'pendingJumpAfterword';
 const KEY_SCHEMA_VERSION = 'schemaVersion';
 const KEY_LEGACY_SCENE_READ = 'sceneRead';
 
@@ -374,6 +385,105 @@ export function readPendingScrollEnd(): SecAddress | null {
 // clearPendingScrollEnd(): void
 export function clearPendingScrollEnd(): void {
     localStorage.removeItem(KEY_PENDING_SCROLL_END);
+}
+
+// ── あとがき（vol[XX]-af）─────────────────────────────────────────────
+//
+// 巻末あとがきページ用の到達／読了／オートセーブ／pendingJump。
+// 到達／読了キーは本文 sec と同じ localStorage キー（"reached" / "read"）に "vol01-af" 形式で追加する
+// （キー regex `^vol\d{2}-af$` で本文 sec 用 `^\d{2}-\d{2}$` と区別可能）。
+// stage 判定（volumes.computeStoryStage）は本文 sec 用の regex でフィルタするので、あとがきキーは stage に影響しない。
+// autosave / pendingJump は独立キー（autosaveAfterword / pendingJumpAfterword）で並立させる：既存 autosave スキーマ
+// を union に拡張すると影響範囲が大きく、また本文とあとがきは別ページで並行して「続きから読む」候補になり得るため。
+// index.ts の「続きから読む」は autosave（本文）と autosaveAfterword（あとがき）を savedAt 比較で新しい方を採用する。
+// 抑止フラグ（_reachedReadSuppressed / _autoSaveSuppressed）は本文 sec と共通で、あとがきも同じ扱い（あとがきに
+// 外部から迷い込んでも同ゲート）。
+
+// あとがきキーの生成："vol01-af" 形式
+function afterwordKey(vol: number): AfterwordKey {
+    return `vol${String(vol).padStart(2, '0')}-af`;
+}
+
+// 当 vol のあとがきを到達として記録する。main.ts（あとがきモード）がロード時に呼ぶ。
+// recordReachedAfterword(vol: number): void
+export function recordReachedAfterword(vol: number): void {
+    if (_reachedReadSuppressed) return;
+    if (_addTo(_reached, afterwordKey(vol))) _persistSet(KEY_REACHED, _reached);
+}
+
+// 当 vol のあとがきを読了として記録する。読了は到達を含意する。
+// nav.ts（あとがきモード）が末尾到達で呼ぶ。
+// recordReadAfterword(vol: number): void
+export function recordReadAfterword(vol: number): void {
+    if (_reachedReadSuppressed) return;
+    const key = afterwordKey(vol);
+    const changed = _addTo(_read, key);
+    if (changed) _persistSet(KEY_READ, _read);
+    if (_addTo(_reached, key)) _persistSet(KEY_REACHED, _reached);
+}
+
+// hasReachedAfterword(vol: number): boolean
+export function hasReachedAfterword(vol: number): boolean {
+    return _reached.has(afterwordKey(vol));
+}
+
+// hasReadAfterword(vol: number): boolean
+export function hasReadAfterword(vol: number): boolean {
+    return _read.has(afterwordKey(vol));
+}
+
+// あとがきのオートセーブ（独立キー autosaveAfterword）を保存。スロットルは呼び出し元（reader.ts）が行う。
+// saveAutoSaveAfterword(vol: number, ratio: number): void
+export function saveAutoSaveAfterword(vol: number, ratio: number): void {
+    if (_autoSaveSuppressed) return;
+    const entry: AutoSaveAfterwordEntry = { vol, ratio: _clamp01(ratio), savedAt: Date.now() };
+    localStorage.setItem(KEY_AUTOSAVE_AFTERWORD, JSON.stringify(entry));
+}
+
+// あとがきのオートセーブを返す。無ければ null。「続きから読む」は本編と savedAt 比較で新しい方を採用する。
+// getAutoSaveAfterword(): AutoSaveAfterwordEntry | null
+export function getAutoSaveAfterword(): AutoSaveAfterwordEntry | null {
+    try {
+        const raw = localStorage.getItem(KEY_AUTOSAVE_AFTERWORD);
+        if (!raw) return null;
+        const o = JSON.parse(raw) as Record<string, unknown>;
+        const vol = Number(o.vol);
+        if (!Number.isFinite(vol)) return null;
+        const ratio = Number(o.ratio);
+        return {
+            vol,
+            ratio: Number.isFinite(ratio) ? _clamp01(ratio) : 0,
+            savedAt: Number(o.savedAt) || Date.now(),
+        };
+    } catch { /* ignore */ }
+    return null;
+}
+
+// autosaveAfterword が当 vol を指しているか＝外部流入抑止判定の「読みかけ再開」例外に使う。
+// isAutoSaveAfterwordAt(vol: number): boolean
+export function isAutoSaveAfterwordAt(vol: number): boolean {
+    const auto = getAutoSaveAfterword();
+    return auto !== null && auto.vol === vol;
+}
+
+// あとがき用の pendingJump（栞ジャンプ／「続きから読む」の位置受け渡し。独立キー pendingJumpAfterword）。
+// writePendingJumpAfterword(jump: PendingJumpAfterword): void
+export function writePendingJumpAfterword(jump: PendingJumpAfterword): void {
+    localStorage.setItem(KEY_PENDING_JUMP_AFTERWORD, JSON.stringify(jump));
+}
+
+// readPendingJumpAfterword(): PendingJumpAfterword | null
+export function readPendingJumpAfterword(): PendingJumpAfterword | null {
+    try {
+        const raw = localStorage.getItem(KEY_PENDING_JUMP_AFTERWORD);
+        if (raw) return JSON.parse(raw) as PendingJumpAfterword;
+    } catch { /* ignore */ }
+    return null;
+}
+
+// clearPendingJumpAfterword(): void
+export function clearPendingJumpAfterword(): void {
+    localStorage.removeItem(KEY_PENDING_JUMP_AFTERWORD);
 }
 
 // ── private helpers ───────────────────────────────────────────────

@@ -2,276 +2,263 @@
  * volumes.test.ts
  * volumes.ts の仕様駆動テスト。
  * IF: type StoryStage = 1|2|3|4|5
- *     computeStoryStage(read, volumes, episodes): StoryStage
+ *     computeStoryStage(read: SecKey[], story: StoryData): StoryStage
  * 期待値は IF コメント／要件 06-5-bookmark「進捗バーの色（物語進行段階：5段階）」から導出する（実装をなぞらない）。
  *
  * 網羅する観点：
- *   - A 案の判定：各 vol の end sec を read で移行（stage 1〜5）
- *   - 順読要求：後ろの vol の end sec だけ read されていても前段が未読なら stage 上がらない
- *   - 防御的複数 end：仕様外だが実装が誤り耐性を持つこと
- *   - 境界と不正入力：空データ・不正キー・範囲外 ep
- *   - **純関数の非破壊性**：呼び出し後に引数の内容が変わらないこと（Codex design レビュー #5）
- *   - **実データ schema 検証**：public/episodes.json の全 sec が end: boolean を持ち、
- *     1 vol につき end: true が 0 or 1 個であること（Codex design レビュー #2・#3）
+ *   - 最大読破位置ベースの判定：vol の最終公開 sec 到達 & 次巻冒頭 sec 公開で移行
+ *   - 順読要求撤廃：vol1 未 read でも vol3 巻末 read で stage 4 に上がる
+ *   - 次巻冒頭 sec 未公開ゲート：貴巻末 read でも次巻冒頭が未公開なら stage 上がらない
+ *   - あとがきキー "vol01-af" は判定に影響しない
+ *   - 未公開 sec の残 read キー（過去データ）で maxReadPos が公開範囲を超えない
+ *   - 4vol 完読で stage 5（次巻無し・動的クランプ）
+ *   - 純関数の非破壊性
+ *   - 不正入力・境界の耐性
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { computeStoryStage } from './volumes';
-import type { VolumesData, EpisodesData } from './types';
+import type { StoryData } from './types';
 
-// 本番 volumes.json と同じ 4vol 構成
-const VOLUMES: VolumesData = [
-    { volume: 1, epRange: [1, 4] },
-    { volume: 2, epRange: [5, 7] },
-    { volume: 3, epRange: [8, 10] },
-    { volume: 4, epRange: [11, 14] },
+// 本番相当の 4vol 構成（全 sec published=true にして最大読破位置の計算をシンプルにする）
+// vol1: ep1[1,2], ep2[1], ep3[1], ep4[1,2]  ← 末尾 "04-02"
+// vol2: ep5[1], ep6[1], ep7[1,2]            ← 末尾 "07-02"
+// vol3: ep8[1], ep9[1], ep10[1,2]           ← 末尾 "10-02"
+// vol4: ep11[1], ep12[1], ep13[1], ep14[1,2] ← 末尾 "14-02"
+const STORY: StoryData = [
+    {
+        volume: 1,
+        epRange: [1, 4],
+        heroCard: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [
+            { id: 1, title: 'ep1', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+            { id: 2, title: 'ep2', sections: [{ id: 1, published: true }] },
+            { id: 3, title: 'ep3', sections: [{ id: 1, published: true }] },
+            { id: 4, title: 'ep4', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+        ],
+    },
+    {
+        volume: 2,
+        epRange: [5, 7],
+        heroCard: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [
+            { id: 5, title: 'ep5', sections: [{ id: 1, published: true }] },
+            { id: 6, title: 'ep6', sections: [{ id: 1, published: true }] },
+            { id: 7, title: 'ep7', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+        ],
+    },
+    {
+        volume: 3,
+        epRange: [8, 10],
+        heroCard: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [
+            { id: 8, title: 'ep8', sections: [{ id: 1, published: true }] },
+            { id: 9, title: 'ep9', sections: [{ id: 1, published: true }] },
+            { id: 10, title: 'ep10', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+        ],
+    },
+    {
+        volume: 4,
+        epRange: [11, 14],
+        heroCard: { file: 'vol01.avif' },
+        heroCardCompleted: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [
+            { id: 11, title: 'ep11', sections: [{ id: 1, published: true }] },
+            { id: 12, title: 'ep12', sections: [{ id: 1, published: true }] },
+            { id: 13, title: 'ep13', sections: [{ id: 1, published: true }] },
+            { id: 14, title: 'ep14', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+        ],
+    },
 ];
 
-// 各 vol の最終 sec に end: true を付けたモック episodes（仕様通り 1 vol につき 1 sec）
-// vol1 end: "04-02"、vol2 end: "07-02"、vol3 end: "10-02"、vol4 end: "14-02"
-const EPISODES: EpisodesData = [
-    { id: 1, title: 'ep1', sections: [{ id: 1, published: true, end: false }, { id: 2, published: true, end: false }] },
-    { id: 2, title: 'ep2', sections: [{ id: 1, published: true, end: false }, { id: 2, published: true, end: false }] },
-    { id: 3, title: 'ep3', sections: [{ id: 1, published: false, end: false }] },
-    { id: 4, title: 'ep4', sections: [{ id: 1, published: false, end: false }, { id: 2, published: false, end: true }] },
-    { id: 5, title: 'ep5', sections: [{ id: 1, published: false, end: false }] },
-    { id: 6, title: 'ep6', sections: [{ id: 1, published: false, end: false }] },
-    { id: 7, title: 'ep7', sections: [{ id: 1, published: false, end: false }, { id: 2, published: false, end: true }] },
-    { id: 8, title: 'ep8', sections: [{ id: 1, published: false, end: false }] },
-    { id: 9, title: 'ep9', sections: [{ id: 1, published: false, end: false }] },
-    { id: 10, title: 'ep10', sections: [{ id: 1, published: false, end: false }, { id: 2, published: false, end: true }] },
-    { id: 11, title: 'ep11', sections: [{ id: 1, published: false, end: false }] },
-    { id: 12, title: 'ep12', sections: [{ id: 1, published: false, end: false }] },
-    { id: 13, title: 'ep13', sections: [{ id: 1, published: false, end: false }] },
-    { id: 14, title: 'ep14', sections: [{ id: 1, published: false, end: false }, { id: 2, published: false, end: true }] },
-];
-const VOL1_END = '04-02';
-const VOL2_END = '07-02';
-const VOL3_END = '10-02';
-const VOL4_END = '14-02';
+const VOL1_LAST = '04-02';
+const VOL2_LAST = '07-02';
+const VOL3_LAST = '10-02';
+const VOL4_LAST = '14-02';
 
-describe('computeStoryStage — A 案の判定', () => {
-    describe('各 vol の end sec を read で stage 移行', () => {
-        it('read が空 → stage 1（初期・未完読）', () => {
-            expect(computeStoryStage([], VOLUMES, EPISODES)).toBe(1);
+describe('computeStoryStage — 最大読破位置＋次巻冒頭公開の判定', () => {
+    describe('基本の段階遷移（全 vol 公開状態）', () => {
+        it('read が空 → stage 1', () => {
+            expect(computeStoryStage([], STORY)).toBe(1);
         });
 
-        it('vol1 end sec のみ read → stage 2', () => {
-            expect(computeStoryStage([VOL1_END], VOLUMES, EPISODES)).toBe(2);
+        it('vol1 末尾 read → stage 2（vol2 冒頭 sec 公開済み）', () => {
+            expect(computeStoryStage([VOL1_LAST], STORY)).toBe(2);
         });
 
-        it('vol1 + vol2 end sec read → stage 3', () => {
-            expect(computeStoryStage([VOL1_END, VOL2_END], VOLUMES, EPISODES)).toBe(3);
+        it('vol2 末尾 read → stage 3（vol3 冒頭 sec 公開済み）', () => {
+            expect(computeStoryStage([VOL2_LAST], STORY)).toBe(3);
         });
 
-        it('vol1-3 end sec read → stage 4', () => {
-            expect(computeStoryStage([VOL1_END, VOL2_END, VOL3_END], VOLUMES, EPISODES)).toBe(4);
+        it('vol3 末尾 read → stage 4（vol4 冒頭 sec 公開済み）', () => {
+            expect(computeStoryStage([VOL3_LAST], STORY)).toBe(4);
         });
 
-        it('vol1-4 全 end sec read → stage 5（物語完結）', () => {
-            expect(
-                computeStoryStage([VOL1_END, VOL2_END, VOL3_END, VOL4_END], VOLUMES, EPISODES)
-            ).toBe(5);
+        it('vol4（最終）末尾 read → stage 5（次巻なし＝物語完結）', () => {
+            expect(computeStoryStage([VOL4_LAST], STORY)).toBe(5);
         });
 
-        it('vol1-4 に加えて他の sec も read されていても stage 5 は変わらない', () => {
-            expect(
-                computeStoryStage(
-                    [VOL1_END, VOL2_END, VOL3_END, VOL4_END, '01-01', '02-02'],
-                    VOLUMES,
-                    EPISODES
-                )
-            ).toBe(5);
+        it('全 vol 末尾 read → stage 5', () => {
+            expect(computeStoryStage([VOL1_LAST, VOL2_LAST, VOL3_LAST, VOL4_LAST], STORY)).toBe(5);
         });
     });
 
-    describe('順読要求（vol の順序で連続的に完読）', () => {
-        it('vol3 end のみ read（vol1/vol2 未完読）→ stage 1 のまま（先取り移行を防ぐ）', () => {
-            expect(computeStoryStage([VOL3_END], VOLUMES, EPISODES)).toBe(1);
+    describe('順読要求は撤廃（最大位置で判定）', () => {
+        it('vol1 未 read で vol3 末尾のみ read → stage 4（旧仕様なら stage 1）', () => {
+            expect(computeStoryStage([VOL3_LAST], STORY)).toBe(4);
         });
 
-        it('vol1 + vol3 end read（vol2 未完読）→ stage 2 のまま（vol2 で止まる）', () => {
-            expect(computeStoryStage([VOL1_END, VOL3_END], VOLUMES, EPISODES)).toBe(2);
+        it('vol1/vol2 未 read で vol4 末尾のみ read → stage 5', () => {
+            expect(computeStoryStage([VOL4_LAST], STORY)).toBe(5);
         });
 
-        it('vol1 + vol2 + vol4 end read（vol3 未完読）→ stage 3 のまま', () => {
-            expect(
-                computeStoryStage([VOL1_END, VOL2_END, VOL4_END], VOLUMES, EPISODES)
-            ).toBe(3);
-        });
-
-        it('vol4 end のみ read（vol1-3 全部未完読）→ stage 1 のまま', () => {
-            expect(computeStoryStage([VOL4_END], VOLUMES, EPISODES)).toBe(1);
-        });
-
-        it('volumes が volume 昇順以外に並んでいても順読要求は変わらない（引数順序に非依存）', () => {
-            const shuffled: VolumesData = [VOLUMES[2], VOLUMES[0], VOLUMES[3], VOLUMES[1]];
-            expect(computeStoryStage([VOL1_END, VOL3_END], shuffled, EPISODES)).toBe(2);
+        it('localStorage クリア後に vol3 巻末を再 read しただけで stage 4 に復元される', () => {
+            // 旧順読要求では stage 1 のまま（vol1/vol2 完読痕跡なし）→ 新仕様は stage 4
+            expect(computeStoryStage([VOL3_LAST], STORY)).toBe(4);
         });
     });
 
-    describe('end フラグが無い vol は判定境界（未確定として break）', () => {
-        it('どの vol にも end sec が無い（現行データ相当）→ stage 1', () => {
-            const noEndEpisodes: EpisodesData = EPISODES.map(e => ({
-                ...e,
-                sections: e.sections.map(s => ({ ...s, end: false })),
-            }));
-            expect(computeStoryStage([VOL1_END, VOL2_END], VOLUMES, noEndEpisodes)).toBe(1);
+    describe('次巻冒頭 sec1 未公開ゲート', () => {
+        // vol2 冒頭 ep5 sec1 が未公開のバリアント
+        const NEXT_CLOSED: StoryData = [
+            STORY[0],
+            {
+                ...STORY[1],
+                episodes: [
+                    { id: 5, title: 'ep5', sections: [{ id: 1, published: false }] }, // 冒頭未公開
+                    STORY[1].episodes[1],
+                    STORY[1].episodes[2],
+                ],
+            },
+            STORY[2],
+            STORY[3],
+        ];
+
+        it('vol1 末尾 read でも vol2 冒頭 sec1 未公開なら stage 1 のまま', () => {
+            expect(computeStoryStage([VOL1_LAST], NEXT_CLOSED)).toBe(1);
         });
 
-        it('vol1 のみ end が定義され read されている、vol2 は end 未宣言 → stage 2 で止まる', () => {
-            const partialEndEpisodes: EpisodesData = EPISODES.map(e => {
-                if (e.id === 7) {
-                    return { ...e, sections: e.sections.map(s => ({ ...s, end: false })) };
-                }
-                return e;
-            });
-            expect(
-                computeStoryStage([VOL1_END, VOL2_END], VOLUMES, partialEndEpisodes)
-            ).toBe(2);
-        });
-    });
-
-    describe('防御的複数 end（仕様外だが安全側に倒す）', () => {
-        it('1 vol に end が 2 個定義され、一部だけ read → その vol は未完読扱いで stage 上がらない', () => {
-            const doubleEndEpisodes: EpisodesData = EPISODES.map(e => {
-                if (e.id === 4) {
-                    return {
-                        ...e,
-                        sections: [
-                            { id: 1, published: false, end: true },
-                            { id: 2, published: false, end: true },
-                        ],
-                    };
-                }
-                return e;
-            });
-            expect(computeStoryStage(['04-02'], VOLUMES, doubleEndEpisodes)).toBe(1);
-        });
-
-        it('1 vol に end が 2 個定義され、全部 read → その vol は完読扱いで stage 上がる', () => {
-            const doubleEndEpisodes: EpisodesData = EPISODES.map(e => {
-                if (e.id === 4) {
-                    return {
-                        ...e,
-                        sections: [
-                            { id: 1, published: false, end: true },
-                            { id: 2, published: false, end: true },
-                        ],
-                    };
-                }
-                return e;
-            });
-            expect(
-                computeStoryStage(['04-01', '04-02'], VOLUMES, doubleEndEpisodes)
-            ).toBe(2);
+        it('次巻冒頭未公開の状況では、たとえ後続 vol の sec を先取り read しても stage 上がらない', () => {
+            // vol1 末尾も vol3 末尾も read。vol2 冒頭が未公開なので stage 1 で頭打ち
+            expect(computeStoryStage([VOL1_LAST, VOL3_LAST], NEXT_CLOSED)).toBe(1);
         });
     });
 
-    describe('不正入力の耐性', () => {
-        it('不正キー（空文字・"abc"・"01-"・"-01"）が read に混じっても stage 1', () => {
-            expect(
-                computeStoryStage(['', 'abc', '01-', '-01'], VOLUMES, EPISODES)
-            ).toBe(1);
+    describe('最終 vol の扱い（次巻ゲート適用外）', () => {
+        it('vol4（最終）末尾 read → 次巻がないので stage 5 になる', () => {
+            expect(computeStoryStage([VOL4_LAST], STORY)).toBe(5);
         });
 
-        it('read に不正キーが混じっていても正常な end キーが揃えば stage は上がる', () => {
-            expect(
-                computeStoryStage([VOL1_END, 'bad', '01-'], VOLUMES, EPISODES)
-            ).toBe(2);
+        it('story.length + 1 で動的クランプ（現状 4vol → stage 上限 5）', () => {
+            // stage が計算上 6 以上になっても 5 に張り付く（現状の 4vol 前提）
+            expect(computeStoryStage([VOL1_LAST, VOL2_LAST, VOL3_LAST, VOL4_LAST], STORY)).toBe(5);
         });
     });
 
-    describe('データ形状の境界', () => {
-        it('volumes が空 → stage 1', () => {
-            expect(computeStoryStage([VOL1_END], [], EPISODES)).toBe(1);
+    describe('あとがきキーの除外', () => {
+        it('あとがきキー "vol01-af" 単独 → stage 1（stage 判定に影響しない）', () => {
+            expect(computeStoryStage(['vol01-af'], STORY)).toBe(1);
         });
 
-        it('episodes が空 → どの vol の end sec も見つからず stage 1', () => {
-            expect(computeStoryStage([VOL1_END], VOLUMES, [])).toBe(1);
+        it('本文 sec read＋あとがきキー混在 → 本文 sec のみで判定', () => {
+            expect(computeStoryStage([VOL1_LAST, 'vol01-af'], STORY)).toBe(2);
         });
 
-        it('volumes と episodes 両方空 → stage 1', () => {
-            expect(computeStoryStage([VOL1_END], [], [])).toBe(1);
+        it('あとがきキー "vol04-af" 単独 → stage 1（最終 vol あとがきでも stage 上げない）', () => {
+            expect(computeStoryStage(['vol04-af'], STORY)).toBe(1);
         });
     });
 
-    describe('キー形式（2桁ゼロ埋め "EP-SEC"）', () => {
-        it('ep が 2 桁（"14-02"）で正しく vol4 end と判定される', () => {
-            expect(
-                computeStoryStage([VOL1_END, VOL2_END, VOL3_END, VOL4_END], VOLUMES, EPISODES)
-            ).toBe(5);
+    describe('未公開 sec の残 read キー（過去データ）耐性', () => {
+        // vol1 の ep2 sec4 を未公開にしたバリアント。read セットに "02-04" が残っていても
+        // order Map に載らないため maxReadPos が公開範囲を超えない。
+        const WITH_UNPUBLISHED: StoryData = [
+            {
+                ...STORY[0],
+                episodes: [
+                    STORY[0].episodes[0],
+                    { id: 2, title: 'ep2', sections: [{ id: 1, published: true }, { id: 4, published: false }] },
+                    STORY[0].episodes[2],
+                    STORY[0].episodes[3],
+                ],
+            },
+            STORY[1],
+            STORY[2],
+            STORY[3],
+        ];
+
+        it('未公開 sec の read キー "02-04" は無視される → stage 上げない', () => {
+            expect(computeStoryStage(['02-04'], WITH_UNPUBLISHED)).toBe(1);
+        });
+
+        it('公開 sec の read と未公開 sec の残 read が混在 → 公開 sec のみで判定', () => {
+            // vol1 末尾 "04-02" は read されているので stage 2、"02-04" は無視される
+            expect(computeStoryStage([VOL1_LAST, '02-04'], WITH_UNPUBLISHED)).toBe(2);
+        });
+    });
+
+    describe('未執筆 vol / 途中 vol 未公開の境界', () => {
+        // vol1 と vol2 まで定義、vol3・vol4 は episodes=[]（未執筆）
+        const PARTIAL: StoryData = [
+            STORY[0],
+            STORY[1],
+            { ...STORY[2], episodes: [] },
+            { ...STORY[3], episodes: [] },
+        ];
+
+        it('vol1 末尾 read → stage 2（vol2 は公開済み）', () => {
+            expect(computeStoryStage([VOL1_LAST], PARTIAL)).toBe(2);
+        });
+
+        it('vol2 末尾 read → stage 3 にはならず 2 で止まる（vol3 冒頭 sec 未公開＝episodes=[]）', () => {
+            expect(computeStoryStage([VOL2_LAST], PARTIAL)).toBe(2);
+        });
+    });
+
+    describe('不正入力・境界の耐性', () => {
+        it('story が空 → stage 1', () => {
+            expect(computeStoryStage([VOL1_LAST], [])).toBe(1);
+        });
+
+        it('不正キー（空文字・"abc"・"01-"・"vol01"）が混じっても stage 上げに影響しない', () => {
+            expect(computeStoryStage(['', 'abc', '01-', 'vol01'], STORY)).toBe(1);
+        });
+
+        it('不正キーと正常な末尾 read が混在 → 正常キーで判定される', () => {
+            expect(computeStoryStage([VOL1_LAST, 'bad', 'vol01'], STORY)).toBe(2);
+        });
+
+        it('volume 順不同の story を渡しても volume 昇順で判定される（引数順序に非依存）', () => {
+            const shuffled: StoryData = [STORY[3], STORY[0], STORY[2], STORY[1]];
+            expect(computeStoryStage([VOL1_LAST], shuffled)).toBe(2);
         });
     });
 });
 
-describe('computeStoryStage — 純関数の非破壊性（引数を破壊しない）', () => {
+describe('computeStoryStage — 純関数の非破壊性', () => {
     it('呼び出し後に read 配列の内容と長さが変わらない', () => {
-        const read = [VOL1_END, VOL2_END];
+        const read = [VOL1_LAST, VOL2_LAST];
         const before = [...read];
-        computeStoryStage(read, VOLUMES, EPISODES);
+        computeStoryStage(read, STORY);
         expect(read).toEqual(before);
     });
 
-    it('呼び出し後に volumes 配列の順序が変わらない（[...volumes].sort() の非破壊性を担保）', () => {
-        // 昇順ではない順序を渡し、呼び出し後も元の順序が保たれることを確認
-        const volumes: VolumesData = [VOLUMES[3], VOLUMES[0], VOLUMES[2], VOLUMES[1]];
-        const before = volumes.map(v => v.volume);
-        computeStoryStage([VOL1_END, VOL2_END], volumes, EPISODES);
-        expect(volumes.map(v => v.volume)).toEqual(before);
+    it('呼び出し後に story 配列の順序と内容が変わらない（[...story].sort の非破壊性）', () => {
+        const shuffled: StoryData = [STORY[3], STORY[0], STORY[2], STORY[1]];
+        const beforeVolumes = shuffled.map(v => v.volume);
+        const beforeSnapshot = JSON.parse(JSON.stringify(shuffled));
+        computeStoryStage([VOL1_LAST], shuffled);
+        expect(shuffled.map(v => v.volume)).toEqual(beforeVolumes);
+        expect(shuffled).toEqual(beforeSnapshot);
     });
 
-    it('呼び出し後に episodes 配列とその sections が変わらない', () => {
-        const episodesCopy = JSON.parse(JSON.stringify(EPISODES));
-        computeStoryStage([VOL1_END, VOL2_END], VOLUMES, EPISODES);
-        expect(EPISODES).toEqual(episodesCopy);
-    });
-});
-
-/**
- * 実データ（public/episodes.json）の runtime schema 検証（Codex design レビュー #2・#3）。
- * TypeScript の型は tsc 時点でしかチェックされず、実 JSON は runtime fetch で読まれる。
- * このテストは fs で実 JSON を読んで:
- *   - 全 sec が end: boolean を required で持つこと（欠落があれば落ちる）
- *   - 各 vol につき end: true は 0 or 1 個であること（仕様「1 vol につき 1 sec」を担保）
- * を検証する。将来 sec 追加時に end 欠落や多重 end が npm test で自動検出される。
- */
-describe('public/episodes.json の runtime schema 検証', () => {
-    const EPISODES_JSON_PATH = resolve(__dirname, '../public/episodes.json');
-    const raw = readFileSync(EPISODES_JSON_PATH, 'utf-8');
-    const data = JSON.parse(raw) as EpisodesData;
-
-    // 本番の volumes.json も併せて読み込む（volume→epRange の対応を得る）
-    const VOLUMES_JSON_PATH = resolve(__dirname, '../public/volumes.json');
-    const volumesRaw = readFileSync(VOLUMES_JSON_PATH, 'utf-8');
-    const volumesData = JSON.parse(volumesRaw) as VolumesData;
-
-    it('全 sec が end: boolean を required で持つ（欠落なし）', () => {
-        for (const ep of data) {
-            for (const sec of ep.sections) {
-                expect(
-                    typeof sec.end,
-                    `ep${ep.id} sec${sec.id} の end フィールドが boolean でない（欠落または不正型）`
-                ).toBe('boolean');
-            }
-        }
-    });
-
-    it('各 vol につき end: true は 0 or 1 個（仕様「1 vol の最終 sec のみ」を担保）', () => {
-        for (const vol of volumesData) {
-            let endCount = 0;
-            for (const ep of data) {
-                if (ep.id < vol.epRange[0] || ep.id > vol.epRange[1]) continue;
-                for (const sec of ep.sections) {
-                    if (sec.end) endCount += 1;
-                }
-            }
-            expect(
-                endCount,
-                `vol${vol.volume}（epRange ${vol.epRange.join('-')}）に end: true が ${endCount} 個ある（0 or 1 でなければ仕様違反）`
-            ).toBeLessThanOrEqual(1);
-        }
+    it('vol.episodes / ep.sections も破壊されない', () => {
+        const snapshot = JSON.parse(JSON.stringify(STORY));
+        computeStoryStage([VOL1_LAST, VOL2_LAST, VOL3_LAST, VOL4_LAST], STORY);
+        expect(STORY).toEqual(snapshot);
     });
 });

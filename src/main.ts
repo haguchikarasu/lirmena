@@ -1,72 +1,44 @@
 /*
  * main.ts
- * 【責務】本文ページ（contents/[ep2桁]-[sec2桁].html）の起動・初期化・オーケストレーション。
- *         <body> の data-ep / data-sec から自ページを確定し、その sec の全シーンを連続レイアウトで一括描画する。
- *         ページ境界の移動は nav.ts が location.href で行う（URL ハッシュは持たない）。
+ * 【責務】本文ページ（contents/[ep2桁]-[sec2桁].html）／巻末あとがきページ（contents/vol[XX]-afterword.html）の
+ *         起動・初期化・オーケストレーション。<body> の data-ep / data-sec / data-vol / data-kind から自ページを
+ *         確定し、本文モードでは全シーンを連続レイアウトで一括描画、あとがきモードでは本文シェルを流用して
+ *         あとがき本文（stub 段落）を描画する。ページ境界の移動は nav.ts が location.href で行う。
  * 【IF】export なし（エントリーポイント）
  * 【依存】
- *   loader   : loadEpisodes(): Promise<EpisodesData>
+ *   loader   : loadStory(): Promise<StoryData>
  *              fetchCharacters(): Promise<CharactersData>
- *              fetchVolumes(): Promise<VolumesData>
- *              loadText(ep: number, sec: number): Promise<string>
+ *              loadText(ep, sec): Promise<string>
+ *              loadAfterwordText(vol): Promise<string>
  *   parser   : parse(text: string): Scene[]
- *   state    : init(data: EpisodesData, address: SecAddress): void
- *              isPublished(ep: number, sec: number): boolean
- *              getPrevPublishedSec(): SecAddress | null（物語順で一つ前の公開 sec・ep 境界跨ぎ・無ければ null）
+ *   state    : init(story: StoryData, address: SecAddress): void
+ *              initAfterword(story: StoryData, vol: number): void
+ *              isPublished / getPrevPublishedSec など（責務は state.ts 冒頭コメント参照）
  *   renderer : renderScenes(scenes: Scene[]): void
  *   bg       : init(layers: BgLayerSpec[], ep: number): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
  *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
- *   nav      : init(): void / update(): void / arm(): void（初期スクロール復元後に読了検知を有効化）
+ *   nav      : init() / initAfterword(vol) / update() / updateAfterword() / arm()
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
- *   menu     : init(characters: CharactersData, volumes: VolumesData): void
- *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除。要件 06-13）
- *   settings : init(callbacks: { onClearBookmarks: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
- *              getSettings(): Settings（表示設定のスナップショット。analytics.send() への引数に使う）
- *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void（端末カテゴリの真実源 <html data-device> を反映＋matchMedia 購読）
+ *   menu     : init(characters: CharactersData): void
+ *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除）
+ *   settings : init(callbacks): void / getSettings(): Settings
+ *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void
  *   tutorial : init(): void
  *   opening  : init(): void / update(progress: number): void
- *   pan      : init(): void（マウス手のひらツール。#main-container を左ドラッグで横スクロール）
- *   immersive: init(): void（背景鑑賞モード。タップ/クリック・Esc で <html>.is-immersive をトグル）
- *   bookmark : init(): void / setAutoRecordSuppressed(suppression: AutoRecordSuppression): void / recordReached(ep, sec): void
- *              clearSlots(): void / clearRead(): void / getRead()
- *              hasReached(ep, sec): boolean / hasRead(ep, sec): boolean / isAutoSaveAt(ep, sec): boolean（外部流入抑止判定の材料）
- *              readPendingJump() / clearPendingJump() / readPendingScrollEnd() / clearPendingScrollEnd() / getAutoSave()
- *   suppression: shouldSuppressReachedRead(input): boolean / shouldSuppressAutoSave(input): boolean（純関数）
- *   volumes  : computeStoryStage(read, volumes, episodes): StoryStage（A 案：各 vol の end sec を read で stage 1〜5 移行）
- *   analytics: send(settings, storyStage, read: SecKey[], reached: SecKey[], episodes: EpisodesData): void
- *              （表示設定・物語進行段階・到達/読了・episodes を渡し reader_snapshot カスタムイベントを1回送信）
+ *   pan      : init(): void
+ *   immersive: init(): void
+ *   bookmark : init() / setAutoRecordSuppressed / recordReached / recordReachedAfterword / etc.
+ *   suppression: shouldSuppressReachedRead / shouldSuppressAutoSave（本文モード用の純関数）
+ *   volumes  : computeStoryStage(read, story): StoryStage（本文 sec キーのみで判定・あとがきキー vol[XX]-af は除外）
+ *   analytics: send(settings, storyStage, read, reached, episodes): void
  * 【被依存】なし
- * 【注意】GA4（gtag）は本文シェルの config スニペットがページロード時に page_view を自動送信する。
- *         マルチページ化により main.ts からの手動 page_view 送信は不要（ページ単位計測に戻した）。
- *         別途 analytics.send() が表示設定・読書進捗のスナップショットを reader_snapshot カスタムイベントとして
- *         1回手動送信する（要件 08-nonfunctional「匿名の利用状況送信」）。page_view の自動送信・?noga 等の
- *         無効化判定はシェル側の既存スニペットに委ね、analytics.ts 側では再実装しない。
- * 【注意】wheel 補正は #main-container に1度だけ登録する。縦書きでは deltaY を axis 経由で forward
- *         （横スクロール）へ写し、横書きではブラウザ既定の縦スクロールに委ねる（リスナを抑制＝preventDefault しない）。
- *         加えて pan.init() でマウス手のひらツール（左ドラッグ横スクロール）を有効化する（微調整＝ホイール／
- *         大量移動＝ドラッグの棲み分け）。スクロールは scrollLeft 直接更新で既存 fan-out に自動追従する。
- * 【Phase 2】bookmark.init() で旧データ移行を起動。直後に computeStoryStage(read, volumes, episodes)
- *         で物語進行段階（stage 1〜5）を算出し <html data-story-stage="N"> を付与する（進捗バーの色を CSS 変数
- *         --progress-fill-color 経由で切替える受動的フック。A 案：各 vol の end sec を read で移行）。
- *         SNS 迷い込みは次段の外部流入抑止ロジック（suppression.ts の 2 純関数を bookmark.setAutoRecordSuppressed へ）
- *         が recordRead を抑止することで排除される（責務分離）。到達・読了は「外部流入 AND 前 sec 未読 AND 当 sec 痕跡なし（reached/read/autosave 一致 のいずれもなし）」時のみ抑止、
- *         オートセーブは「外部流入 AND 前 sec 未読 AND autosave 不一致」時のみ抑止＝過去 reached だけの sec の再訪で
- *         現在の読みかけ位置が奪われないよう到達・読了と独立に判定する。抑止解除中は recordReached() で自 sec を到達記録する。
- *         render 後に reader.init() → bg.subscribe(reader.handleScroll) を結線し、スクロール由来の通知を
- *         progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する。
- * 【Phase 3】renderScenes() 後に bg.init() で #bg-stack のクロスフェードレイヤーを構築。tutorial.init() で
- *         読書点マーカー・初回ガイドを起動。初期スクロール位置を以下の優先度で復元してから subscribe する：
- *           1. pendingJump（栞／続きから読む・自 ep/sec 一致）… ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭 → 消費
- *           2. pendingScrollEnd（タイトル「戻る」／開幕の「もどる」・自 ep/sec 一致）… 前セクションの本文末尾が読書点マーカー位置に来る位置へ（オートセーブより優先）→ 消費
- *           3. サイト内の明示前進ナビでない（リロード・ブラウザ戻る/進む・直接/外部アクセス）… まず history.state の ratio（per-entry）で復元、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
- *           4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビ）… sec 先頭（右端）
- *         復元位置はすべてスクロール範囲比 ratio（0〜1・書字方向非依存）で持ち、ratio × 現在の可動域で forward 進行 px へ逆算する
- *         （axis.setProgress が書字方向の符号を解決）。割合なので縦書き⇔横書きの切替を跨いでも近い本文位置を指す。
+ * 【注意】あとがきモードでは外部流入抑止判定を省略し、常に到達を記録する（あとがきに迷い込むケースは
+ *         実運用で稀・内部遷移限定と割り切る）。オートセーブは reader.ts が state.getMode で本文／あとがき
+ *         の saveAutoSave / saveAutoSaveAfterword を呼び分ける。「続きから読む」の復元は本文モードなら
+ *         autosave、あとがきモードなら autosaveAfterword を参照する（保存キーは独立）。
  */
 
-// CSS はこのエントリが import する（Vite が本ページ用に <link>（ハッシュ名）を自動注入する）。
-// 旧・独立 styles エントリ（src/styles/index.ts）とシェルの手書き <link> は廃止した。
 import './styles/index.css';
 
 import * as axis from './axis';
@@ -90,53 +62,32 @@ import * as feedback from './feedback';
 import * as analytics from './analytics';
 import { computeStoryStage } from './volumes';
 import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
-import type { Scene, EpisodesData, CharactersData, VolumesData, SecAddress } from './types';
+import type { Scene, EpisodesData, CharactersData, StoryData, SecAddress } from './types';
 
-/**
- * マウスホイール1ノッチあたりのスクロール量倍率（deltaY → scrollLeft の変換係数）。
- * 小さいほど1ノッチの移動が細かくなる（＝読書点を狙った位置で止めやすい）。
- * 「大味すぎる」を解消するためのきめ細かさの調整ノブ。値を変えるだけで粒度を調整できる。
- */
 const WHEEL_SCROLL_MULTIPLIER = 1;
+
+// _readAddress の返り値。本文モードは data-ep / data-sec、あとがきモードは data-vol / data-kind="afterword" から得る。
+type PageAddressLocal =
+    | { kind: 'sec'; ep: number; sec: number }
+    | { kind: 'afterword'; vol: number };
 
 document.addEventListener('DOMContentLoaded', () => { void _init(); });
 
-// 【安全網／短期対策】_bootstrap の初期化シーケンス（state.init〜reader.init）は try/catch で囲っておらず、
-// 旧 localStorage / 古い history.state / デプロイ直後のアセット新旧不整合（ハッシュ無し固定名 main.js 由来の
-// ブラウザ・CDN キャッシュの伝播ずれ）で同期例外が出ると、#loading に hidden が付かず「読み込み中」で永久固着しうる。
-// 原因を問わず例外を捕まえてフォールバック表示し、固着だけは構造的に防ぐ。
 async function _init(): Promise<void> {
     try {
         await _bootstrap();
     } catch (err) {
-        // 想定外の同期例外。読み込み中固着を避けるためエラー表示へ倒す（原因の詳細はコンソールへ）。
         console.error('[main] 初期化中に想定外の例外が発生しました。フォールバック表示します。', err);
         _showError('ページの表示中に問題が発生しました。お手数ですが再読み込みしてください。');
     }
 }
 
 /**
- * 初期化シーケンス本体（エントリーポイント _init から try/catch 付きで呼ばれる）。各モジュールを順次初期化する。
- * 想定済みエラー（URL 不正・データ取得失敗）は _showError() で中断する。想定外の同期例外は呼び出し元 _init が捕捉する。
- *
- * 初期化順序:
- *   0. transition.init()（到着フェードイン起動。await・エラー表示より前）
- *   1. <body> の data-ep / data-sec から自ページの ep/sec を確定
- *   2. loader.loadEpisodes() で episodes.json を取得し、自 sec が公開済みか検証
- *   3. state.init(data, { ep, sec }) で現在位置を確定
- *   4. characters.json / volumes.json と本文 txt を取得・パース
- *   5. #main-container に wheel リスナーを登録（縦スクロール入力→横スクロール補正）し、pan.init() で手のひらツール・immersive.init() で背景鑑賞モードを有効化
- *   6. settings / bookmark / nav / menu を初期化（bookmark.init で旧データ移行）。遷移元を判定し、外部サイト/
- *      直接アクセス（オートセーブ未一致）なら自動記録を抑止、そうでなければ自 sec を到達記録
- *   7. renderer.renderScenes() で全シーンを連続レイアウト描画
- *   8. bg.init() で #bg-stack のクロスフェードレイヤーを構築
- *   9. 初期スクロール位置を復元（pendingJump → pendingScrollEnd →〔明示前進ナビ以外〕history.state/オートセーブ → sec 先頭）
- *   10. tutorial.init()（読書点マーカー・初回ガイド）・opening.init()（開幕アフォーダンス）・nav.update() でボタン状態を確定
- *   11. reader.init() → bg.subscribe(reader.handleScroll) で結線し（復元位置で初回 emit）、
- *       復元スクロール発火後に nav.arm()（読了検知を有効化＝復元での誤読了を防ぐ）し、ローディングを隠す
+ * 初期化シーケンス本体。address の kind で本文モード（_bootstrapSec）／あとがきモード（_bootstrapAfterword）に分岐する。
+ * transition.init と _readAddress / loader.loadStory は共通処理としてラッパー側で行い、分岐先にはロード済みの
+ * story と address を渡す（両モードで再取得しない）。
  */
 async function _bootstrap(): Promise<void> {
-    // 到着フェードイン（シェルは class="fading" で読み込まれる）。await やエラー表示より前に外して黒から明ける。
     transition.init();
 
     const address = _readAddress();
@@ -144,21 +95,36 @@ async function _bootstrap(): Promise<void> {
         _showError('ページ情報が不正です。URLをご確認ください。');
         return;
     }
-    const { ep, sec } = address;
 
-    let data: EpisodesData;
+    let story: StoryData;
     try {
-        data = await loader.loadEpisodes();
+        story = await loader.loadStory();
     } catch {
         _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
         return;
     }
 
+    if (address.kind === 'afterword') {
+        await _bootstrapAfterword(story, address.vol);
+    } else {
+        await _bootstrapSec(story, address.ep, address.sec);
+    }
+}
+
+/**
+ * 本文モードの初期化シーケンス。
+ *   1. 平坦化 Episode[] から自 sec の存在／公開検証
+ *   2. state.init(story, { ep, sec }) で現在位置を確定
+ *   3. characters.json と本文 txt を取得・パース（vol 情報は story から派生）
+ *   4-11. wheel/pan/immersive → settings/device/bookmark → stage 算出＋analytics → 外部流入抑止 →
+ *         nav/menu/feedback → renderScenes/bg.init → 初期スクロール復元 → tutorial/opening/nav.update →
+ *         reader.init/bg.subscribe → arm → loading 非表示
+ */
+async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise<void> {
+    const data: EpisodesData = story.flatMap(v => v.episodes);
     const episode = data.find(e => e.id === ep);
     const section = episode?.sections.find(s => s.id === sec);
     if (!section) {
-        // 到達条件はシェル HTML と episodes.json の不整合＝サイト側の問題。URL 入力ミスではないので
-        // 「URL をご確認ください」は書かない（存在しない URL は GitHub Pages が 404 で返す）。
         _showError('ページが見つかりません。');
         return;
     }
@@ -167,15 +133,11 @@ async function _bootstrap(): Promise<void> {
         return;
     }
 
-    state.init(data, { ep, sec });
+    state.init(story, { ep, sec });
 
     let charactersData: CharactersData;
-    let volumesData: VolumesData;
     try {
-        [charactersData, volumesData] = await Promise.all([
-            loader.fetchCharacters(),
-            loader.fetchVolumes(),
-        ]);
+        charactersData = await loader.fetchCharacters();
     } catch {
         _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
         return;
@@ -189,19 +151,7 @@ async function _bootstrap(): Promise<void> {
         return;
     }
 
-    const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
-    // 縦書き：deltaY を axis 経由で forward（横スクロール）へ写す。横書き：ブラウザ既定の縦スクロールに委ねる（抑制）。
-    // 入力軸の写像は axis.getProgressFromEvent に集約し、ここでは係数と smooth 化のみ担う。
-    mainContainer.addEventListener('wheel', (e) => {
-        if (axis.getMode() === 'horizontal') return;
-        e.preventDefault();
-        const forward = axis.getProgressFromEvent(e) * WHEEL_SCROLL_MULTIPLIER;
-        mainContainer.scrollBy({ left: -forward, behavior: 'smooth' });
-    }, { passive: false });
-    // マウス手のひらツール（左ドラッグ横スクロール）。ホイール（微調整）と棲み分ける大量移動の手段。
-    pan.init();
-    // 背景鑑賞モード（読書エリアのタップ/クリック・Esc で <html>.is-immersive をトグル）。本文・クロムを伏せて背景本来の色を見せる。
-    immersive.init();
+    const mainContainer = _initMainContainer();
 
     settings.init({
         onClearBookmarks: () => bookmark.clearSlots(),
@@ -209,31 +159,18 @@ async function _bootstrap(): Promise<void> {
         onClearRead: () => bookmark.clearRead(),
         onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });
-    // 端末カテゴリ（PC/スマホ）の真実源 <html data-device> はシェル HTML のインラインスクリプトが FOUC 前に先付けする。
-    // device.init は同じ属性を JS 経由で再確認しつつ matchMedia('(pointer: coarse)') の change を購読し、
-    // ライブ切替（DevTools のデバイスモード等）で reader/tutorial を再配置する（書字方向切替と対称の結線）。
     device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
     bookmark.init();
-    // 読者の物語進行段階（stage 1〜5）を <html data-story-stage> に反映する。
-    // 進捗バー（#progress-fill）の色を CSS 変数（--progress-fill-color）経由で切替える受動的フック。
-    // A 案：各 vol の end sec を read（末尾までスクロール）で移行する判定なので、判定材料は bookmark.getRead() のみ。
-    // SNS リンクで end sec に迷い込んだ未読者を排除するのは、この直後の外部流入抑止ロジック
-    // （_isExternalEntry() && !_isResuming() → setAutoRecordSuppressed で recordRead 抑止）が担う。
-    // 判定関数（volumes.ts）側では抑止を再実装せず、この既存機構に委ねる（責務分離・要件 06-5）。
-    // ページ内で ep 固定なので付与は 1 回でよい。末尾到達で recordRead が走った直後の再評価は行わず、次ページ遷移で反映。
+
     const read = bookmark.getRead();
     const reached = bookmark.getReached();
-    const storyStage = computeStoryStage(read, volumesData, data);
+    const storyStage = computeStoryStage(read, story);
     document.documentElement.dataset.storyStage = String(storyStage);
-    // GA4 へ表示設定・読書進捗のスナップショットを reader_snapshot カスタムイベントとして1回送信する
-    // （要件 08-nonfunctional「匿名の利用状況送信」）。read/reached はこの直後の到達記録（recordReached）より
-    // 前の値＝当ページ訪問による変化を含まない状態を送る。既存の page_view 自動計測とは別イベントで、
-    // ?noga 等の無効化判定はシェル側の gtag.js 導入スニペットの既存機構に委ねる（重複実装しない）。
+    // 次回ロード時の FOUC 回避用にキャッシュ。reader.html / title.html / index.html の早期 <script> が
+    // 起動前に読み取り <html data-story-stage> を先付けする。値は 1〜5 の文字列のみ。
+    try { localStorage.setItem('lirmena.storyStage', String(storyStage)); } catch {}
     analytics.send(settings.getSettings(), storyStage, read, reached, data);
-    // 外部流入時の抑止判定を到達・読了とオートセーブで独立に決める（判定は suppression.ts の純関数）。
-    // 記録する OR 条件：lirmena 内移動 / 前 sec 読了 / 当 sec 痕跡（到達・読了は reached/read/autosave 一致 のいずれか、
-    // オートセーブは autosave 一致 のみ）。到達・読了は加算的で害がないため広めに、オートセーブは単一スロット・
-    // 上書き型のため過去 reached だけの sec に流入して現在の読みかけ位置を奪わないよう狭めに有効化する。
+
     const externalEntry = _isExternalEntry();
     const prev = state.getPrevPublishedSec();
     const prevSecRead = prev !== null && bookmark.hasRead(prev.ep, prev.sec);
@@ -244,27 +181,24 @@ async function _bootstrap(): Promise<void> {
     const autoSaveSuppressed = shouldSuppressAutoSave({ externalEntry, prevSecRead, autoSaveHere });
     bookmark.setAutoRecordSuppressed({ reachedRead: reachedReadSuppressed, autoSave: autoSaveSuppressed });
     if (!reachedReadSuppressed) bookmark.recordReached(ep, sec);
+
     nav.init();
-    menu.init(charactersData, volumesData);
+    menu.init(charactersData);
     feedback.init();
 
     renderer.renderScenes(scenes);
-    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), ep);
+    const currentVol = state.getCurrentVolume()?.volume ?? 1;
+    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), currentVol, ep);
 
-    // 初期スクロール位置を復元してから subscribe する（初回 emit が復元後の位置・現在シーンを反映するため）。
-    _restoreInitialScroll(mainContainer, address);
+    _restoreInitialScroll(mainContainer, { ep, sec });
 
     tutorial.init();
     opening.init();
     nav.update();
 
-    // スクロール由来の通知を progress（sec 進捗バー）／オートセーブ／現在シーンへ fan-out する結線。
     reader.init({ ep, sec });
     bg.subscribe(reader.handleScroll);
 
-    // 初期スクロール復元（_restoreInitialScroll のプログラム的スクロール）が発火する scroll イベントを
-    // 読了として誤記録しないよう、復元イベントが dispatch され終えてから nav の読了検知を有効化する。
-    // scroll ステップは rAF コールバックより前に走る（同フレーム）ため、二重 rAF で確実に復元後に arm する。
     requestAnimationFrame(() => requestAnimationFrame(() => nav.arm()));
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
@@ -272,12 +206,110 @@ async function _bootstrap(): Promise<void> {
 }
 
 /**
- * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する。
- * 1. pendingJump（栞／続きから読む）が自 ep/sec と一致 → ratio>0=割合位置 / ratio 0 & scene>0=該当シーン先頭。消費する
- * 2. pendingScrollEnd（タイトル「戻る」／開幕の「もどる」）が自 ep/sec と一致 → 前セクションの本文末尾が読書点マーカー位置に来る位置へ（オートセーブより優先）。消費する
- * 3. サイト内の明示前進ナビでない（＝リロード・ブラウザ戻る/進む・直接/外部アクセス）→ まず history.state の ratio（per-entry・autosave より優先）、無ければオートセーブ（自 ep/sec 一致）の ratio にフォールバック
- * 4. いずれもなし（目次クリック・進む/戻る等の明示前進ナビを含む）→ sec 先頭（進行軸の開始端）
- * 復元値（jump/history/autosave の ratio）はスクロール範囲比（0〜1・書字方向非依存）。_scrollToRatio が ratio × 現在の可動域で forward 進行 px へ逆算し、axis.setProgress が書字方向の符号を解決する。
+ * あとがきモードの初期化シーケンス。本文シェル（reader.html）を流用しつつ、本文の代わりに
+ * あとがき本文（public/vol[XX]/txt/vol[XX]-afterword.txt）をパースして描画する。
+ * オートセーブ／pendingJump は独立キー（autosaveAfterword / pendingJumpAfterword）を使い、
+ * 「戻る」は自 vol の巻末公開 sec 本文末へ、「次へ」は次巻タイトルページへ遷移する（nav 側でモード分岐）。
+ * 外部流入抑止判定は行わず常に到達を記録する（あとがきに迷い込むケースは実運用で稀と割り切る）。
+ */
+async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void> {
+    const target = story.find(v => v.volume === vol);
+    if (!target) {
+        _showError('ページが見つかりません。');
+        return;
+    }
+    if (target.afterword?.published !== true) {
+        _showError('このページはまだ公開されていません。');
+        return;
+    }
+
+    state.initAfterword(story, vol);
+
+    let charactersData: CharactersData;
+    try {
+        charactersData = await loader.fetchCharacters();
+    } catch {
+        _showError('データの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+
+    let scenes: Scene[];
+    try {
+        scenes = parser.parse(await loader.loadAfterwordText(vol));
+    } catch {
+        _showError('本文の読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+
+    const mainContainer = _initMainContainer();
+
+    settings.init({
+        onClearBookmarks: () => bookmark.clearSlots(),
+        onClearReached: () => bookmark.clearReached(),
+        onClearRead: () => bookmark.clearRead(),
+        onWritingModeChange: () => _onWritingModeChange(mainContainer),
+    });
+    device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
+    bookmark.init();
+
+    const read = bookmark.getRead();
+    const reached = bookmark.getReached();
+    const storyStage = computeStoryStage(read, story);
+    document.documentElement.dataset.storyStage = String(storyStage);
+    // 次回ロード時の FOUC 回避用にキャッシュ（本文モード側と同処理）。
+    try { localStorage.setItem('lirmena.storyStage', String(storyStage)); } catch {}
+    // analytics は本文 Episode[] を渡す（あとがきキー vol[XX]-af は buildSecOrderIndex に含まれない＝
+    // read_ratio 分母に影響しない・furthest_position は本文 sec のみで算出される既存動作を維持）。
+    analytics.send(settings.getSettings(), storyStage, read, reached, story.flatMap(v => v.episodes));
+
+    // あとがきは外部流入抑止判定を省略し、常に到達を記録する。
+    bookmark.setAutoRecordSuppressed({ reachedRead: false, autoSave: false });
+    bookmark.recordReachedAfterword(vol);
+
+    nav.initAfterword(vol);
+    menu.init(charactersData);
+    feedback.init();
+
+    renderer.renderScenes(scenes);
+    // あとがきは黒背景固定（スタブ本文は @@BG@@ を使わない前提。将来必要なら story.json に afterword.coverFile を追加する）。
+    // bg.init はレイヤーを scenes.length ぶん構築するので、パース結果の bgFile（すべて null＝黒レイヤー）をそのまま渡す。
+    // vol は当あとがきの vol、ep 引数はあとがきモードで使わないため 0（bg.ts 側の背景ファイル解決はレイヤー spec のみを見る＝ep パスは bgFile != null のとき使う）。
+    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), vol, 0);
+
+    _restoreInitialScrollAfterword(mainContainer, vol);
+
+    tutorial.init();
+    opening.init();
+    nav.updateAfterword();
+
+    // reader.init は本文用 SecAddress を受けるが、あとがきモードでは reader 内部の handleScroll が
+    // state.getMode() を見て saveAutoSaveAfterword を呼ぶため、ep/sec=0 のダミーを渡してよい。
+    reader.init({ ep: 0, sec: 0 });
+    bg.subscribe(reader.handleScroll);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => nav.arm()));
+
+    const loadingEl = document.querySelector<HTMLElement>('#loading');
+    if (loadingEl) loadingEl.hidden = true;
+}
+
+/** #main-container を取得し、wheel/pan/immersive の共通結線を行う（両モード共通） */
+function _initMainContainer(): HTMLElement {
+    const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
+    mainContainer.addEventListener('wheel', (e) => {
+        if (axis.getMode() === 'horizontal') return;
+        e.preventDefault();
+        const forward = axis.getProgressFromEvent(e) * WHEEL_SCROLL_MULTIPLIER;
+        mainContainer.scrollBy({ left: -forward, behavior: 'smooth' });
+    }, { passive: false });
+    pan.init();
+    immersive.init();
+    return mainContainer;
+}
+
+/**
+ * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する（本文モード用）。
+ * 1. pendingJump / 2. pendingScrollEnd / 3. history.state ratio → autosave / 4. sec 先頭
  */
 function _restoreInitialScroll(container: HTMLElement, address: SecAddress): void {
     const { ep, sec } = address;
@@ -298,19 +330,12 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
         return;
     }
 
-    // 復元は「サイト内の明示前進ナビ（目次クリック・進む/戻る・タイトル本文を読む）」では行わない
-    // （前進ナビは先頭/末尾から開始する仕様）。それ以外＝リロード・ブラウザ戻る/進む・直接/外部アクセスでのみ復元する。
-    // 「続きから読む」もサイト内クリックだが、index.ts が pendingJump を書くため上の優先度1で先に復元される。
     if (!_isInAppNavigation()) {
-        // 履歴エントリに刻んだ ratio を最優先。autosave の単一スロットと違い per-entry なので、
-        // 戻る/進むで前ページに移動して autosave が上書きされていても、戻り先ページの位置を保てる。
-        // 割合なので書字方向を跨いでも近い位置を指す（旧 px キー lirmenaScrollLeft は readScrollFromHistory が無視する）。
         const histRatio = bookmark.readScrollFromHistory();
         if (histRatio !== null) {
             _scrollToRatio(container, histRatio);
             return;
         }
-        // history.state が無い（既存ユーザー・初回エントリ）場合は従来のオートセーブにフォールバックする。
         const auto = bookmark.getAutoSave();
         if (auto && auto.ep === ep && auto.sec === sec) {
             _scrollToRatio(container, auto.ratio);
@@ -321,54 +346,57 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
     _scrollToHead(container);
 }
 
-/** sec 先頭（進行軸の開始端＝読書開始）へ。axis.setProgress(container, 0) で縦書き=右端／横書き=上端 */
+/**
+ * あとがきモード用の初期スクロール位置決定。
+ * 1. pendingJumpAfterword（vol 一致） → 2. history.state ratio（明示前進ナビでない時） →
+ * 3. autosaveAfterword（vol 一致） → 4. 先頭
+ * 「戻る」でここへ来るケースは無い（あとがき「戻る」は本文ページに遷移するため）＝pendingScrollEnd は対象外。
+ */
+function _restoreInitialScrollAfterword(container: HTMLElement, vol: number): void {
+    const jump = bookmark.readPendingJumpAfterword();
+    if (jump && jump.vol === vol) {
+        bookmark.clearPendingJumpAfterword();
+        _scrollToRatio(container, jump.ratio);
+        return;
+    }
+
+    if (!_isInAppNavigation()) {
+        const histRatio = bookmark.readScrollFromHistory();
+        if (histRatio !== null) {
+            _scrollToRatio(container, histRatio);
+            return;
+        }
+        const auto = bookmark.getAutoSaveAfterword();
+        if (auto && auto.vol === vol) {
+            _scrollToRatio(container, auto.ratio);
+            return;
+        }
+    }
+
+    _scrollToHead(container);
+}
+
 function _scrollToHead(container: HTMLElement): void {
     axis.setProgress(container, 0);
 }
 
-/** スクロール範囲比 ratio（0〜1）を現在の可動域へ写して forward 進行 px で復元する（縦書き⇔横書き非依存）。 */
 function _scrollToRatio(container: HTMLElement, ratio: number): void {
     const range = axis.getProgressRange(container);
     axis.setProgress(container, Math.min(1, Math.max(0, ratio)) * range);
 }
 
-/**
- * 書字方向のライブ切替（設定のトグル）後に settings から呼ばれる。属性切替では window resize が発火せず bg も
- * 自動再計算しないため、ここで明示的に再同期する（A-4）：
- *   1. 切替前の読書位置（reader.getLastRatio＝方向非依存のスクロール範囲比）を新方向のスクロール量へ復元する
- *   2. 読書点マーカーを新レイアウトの #main-container 矩形へ再配置する
- *   3. #main-container に scroll を発火し bg を再 emit（クロスフェード／進捗／開幕アフォーダンスを新方向で再計算）
- * settings は axis/bookmark を import せず、この導線（コールバック）経由で復元をトリガーする（疎結合を保つ）。
- */
 function _onWritingModeChange(container: HTMLElement): void {
     _scrollToRatio(container, reader.getLastRatio());
     tutorial.reposition();
     container.dispatchEvent(new Event('scroll'));
 }
 
-/**
- * 端末カテゴリ（PC/スマホ）のライブ切替後に device から呼ばれる。CSS 側で文字サイズ・本文帯幅・帯マージンが
- * 差し替わりスクロール範囲（axis.getProgressRange）が変わるため、書字方向切替と同じ手順で再同期する：
- *   1. 切替前の読書位置（reader.getLastRatio＝方向非依存のスクロール範囲比）を新レイアウトのスクロール量へ復元
- *   2. 読書点マーカーを新レイアウトの #main-container 矩形へ再配置
- *   3. #main-container に scroll を発火し bg を再 emit（クロスフェード／進捗／開幕アフォーダンスを新レイアウトで再計算）
- * 通常のユーザー操作で PC⇔SP がライブ切替することはまれだが、DevTools のデバイスモード切替や
- * 外部モニタ抜き差しに耐える結線（書字方向切替コールバックと対称の疎結合）。
- */
 function _onDeviceChange(container: HTMLElement): void {
     _scrollToRatio(container, reader.getLastRatio());
     tutorial.reposition();
     container.dispatchEvent(new Event('scroll'));
 }
 
-/**
- * 前セクションの本文末尾（最後の行）が読書点マーカー位置に来るところまで着地する。
- * opening.ts の「読み進める」が sec 先頭を読書点に合わせるのと対になる着地位置：本文の最後の行が
- * 読書点に来ることで、続きを読み進める自然な起点になる（末尾の恒久余白が丸ごと見える絶対終端は避ける）。
- * 読書点比率 ratio（0〜1・読み始め端基準）に対し、進行軸位置 = range − clientSize×(1−ratio)
- * （ratio=1＝読み始め端＝絶対終端、ratio=0＝読み終わり端＝clientSize 手前）。
- * 進行軸とスクロール符号差は axis.setProgress が吸収する（縦書き=scrollLeft 負方向／横書き=scrollTop）。
- */
 function _scrollToEnd(container: HTMLElement): void {
     const range = axis.getProgressRange(container);
     if (range <= 0) return;
@@ -377,20 +405,13 @@ function _scrollToEnd(container: HTMLElement): void {
     axis.setProgress(container, Math.max(0, target));
 }
 
-/** 移行旧栞の coarse 復元：指定シーン（1-indexed）の先頭へ。厳密でなくてよい（要件 06-5） */
 function _scrollToScene(scene: number): void {
     const scenes = document.querySelectorAll<HTMLElement>('#scene-content .scene');
     const el = scenes[scene - 1];
     if (!el) return;
-    // 進行軸方向の開始端へ寄せる（縦書き=inline 軸の右端／横書き=block 軸の上端）。
     el.scrollIntoView(axis.isReverse() ? { inline: 'start', block: 'nearest' } : { block: 'start', inline: 'nearest' });
 }
 
-/**
- * 遷移元が外部サイト（または直接アクセス・ブラウザブックマーク）かを判定する。
- * document.referrer が自サイト（同一オリジン）でなければ外部流入とみなす。
- * referrer が空（直接アクセス・ブックマーク・referrer 非送出）も外部扱いとする。
- */
 function _isExternalEntry(): boolean {
     const ref = document.referrer;
     if (!ref) return true;
@@ -401,44 +422,35 @@ function _isExternalEntry(): boolean {
     }
 }
 
-/**
- * Navigation Timing のナビゲーション種別を返す（'navigate' | 'reload' | 'back_forward' | 'prerender'）。
- * 取得できない場合は 'navigate' とみなす。リロード・ブラウザ戻る/進むの判別に使う。
- */
 function _navigationType(): string {
     const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
     return nav?.type ?? 'navigate';
 }
 
-/**
- * この到着が「サイト内の明示前進ナビ」（目次クリック・進む/戻るボタン・タイトル「本文を読む」）かを返す。
- * ＝ 通常遷移（navigate）かつ同一オリジンからのリンククリック。
- * リロード・ブラウザ戻る（navigate 以外）／直接・外部アクセス（referrer 空 or 別オリジン）は false。
- * 初期スクロール復元で「前進ナビは先頭/末尾から、それ以外はオートセーブ復元」を分けるのに使う。
- */
 function _isInAppNavigation(): boolean {
     return _navigationType() === 'navigate' && !_isExternalEntry();
 }
 
 /**
- * <body> の data-ep / data-sec を読み、{ ep, sec } を返す。
- * 数値として解釈できない場合は null。
+ * <body> の data-* を読み、本文モード ({ kind:'sec', ep, sec }) または
+ * あとがきモード ({ kind:'afterword', vol }) を返す。どちらとも解釈できなければ null。
+ * あとがきモードは data-kind="afterword" と数値の data-vol の両方が要る。
  */
-function _readAddress(): { ep: number; sec: number } | null {
-    const { ep, sec } = document.body.dataset;
-    const epNum = Number(ep);
-    const secNum = Number(sec);
+function _readAddress(): PageAddressLocal | null {
+    const ds = document.body.dataset;
+    if (ds.kind === 'afterword') {
+        const volNum = Number(ds.vol);
+        if (!Number.isInteger(volNum) || volNum < 1) return null;
+        return { kind: 'afterword', vol: volNum };
+    }
+    const epNum = Number(ds.ep);
+    const secNum = Number(ds.sec);
     if (!Number.isInteger(epNum) || !Number.isInteger(secNum) || epNum < 1 || secNum < 1) {
         return null;
     }
-    return { ep: epNum, sec: secNum };
+    return { kind: 'sec', ep: epNum, sec: secNum };
 }
 
-/**
- * エラーメッセージを #error-message に表示し、#main-container を非表示にする。
- * 開幕アフォーダンス（「もどる／読み進める」）は CSS が html.at-opening で表示するため、
- * エラー時は at-opening を外して一緒に消す（本文が無い＝進行の起点も無いため導線を出さない）。
- */
 function _showError(message: string): void {
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     const errorEl = document.querySelector<HTMLElement>('#error-message');

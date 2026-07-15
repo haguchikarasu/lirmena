@@ -40,13 +40,19 @@ const AT_OPENING_PX = 4;
 let _transitioning = false;
 
 // 現在地ラベル・「読み進める」「もどる」ボタンを初期化する。main.ts が起動時に1度だけ呼ぶ。
+// 本文モードは "EP-SEC" 形式（"01-02"）、あとがきモードは「第◯巻あとがき」形式でラベルを埋める。
 // init(): void
 export function init(): void {
-    // 現在地ラベル（"01-02"）：黒地に「読み進める」だけだと何の画面か分からないため ep-sec を示す。
+    // 現在地ラベル：黒地に「読み進める」だけだと何の画面か分からないため位置を示す。
     const label = document.getElementById('opening-label');
     if (label) {
-        const { ep, sec } = state.getCurrent();
-        label.textContent = `${_pad(ep)}-${_pad(sec)}`;
+        if (state.getMode() === 'afterword') {
+            const vol = state.getCurrentAfterwordVol();
+            label.textContent = vol === null ? '' : `第${vol}巻あとがき`;
+        } else {
+            const { ep, sec } = state.getCurrent();
+            label.textContent = `${_pad(ep)}-${_pad(sec)}`;
+        }
     }
 
     const start = document.querySelector<HTMLButtonElement>('#opening-start');
@@ -55,7 +61,8 @@ export function init(): void {
     // 「読み進める」：文章先頭辺を読書点マーカー位置へ合わせる量まで滑らかにスクロールし、同時にフェードアウトする。
     start?.addEventListener('click', _readOn);
 
-    // 「もどる」：戻る遷移 nav.goPrev() に委譲する（前 sec 本文末へ着地・離脱フェード。端の戻るボタンは廃止しここに一本化）。
+    // 「もどる」：戻る遷移 nav.goPrev() に委譲する（本文モードは前 sec 本文末／あとがきモードは自 vol 巻末 sec 本文末）。
+    // モード分岐は nav.goPrev 内で行うため opening 側では常に同じ呼び方でよい。
     back?.addEventListener('click', () => nav.goPrev());
 }
 

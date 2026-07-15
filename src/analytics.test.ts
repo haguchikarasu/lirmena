@@ -21,14 +21,14 @@ import type { EpisodesData } from './types';
 const EPISODES: EpisodesData = [
     {
         id: 1, title: 'ep1', sections: [
-            { id: 1, published: true, end: false },
-            { id: 2, published: true, end: false },
+            { id: 1, published: true },
+            { id: 2, published: true },
         ],
     },
     {
         id: 2, title: 'ep2', sections: [
-            { id: 1, published: true, end: false },
-            { id: 2, published: false, end: false }, // 未公開＝採番されない
+            { id: 1, published: true },
+            { id: 2, published: false }, // 未公開＝採番されない
         ],
     },
 ];
@@ -55,8 +55,8 @@ describe('buildSecOrderIndex', () => {
         const reversed: EpisodesData = [
             {
                 id: 1, title: 'ep1', sections: [
-                    { id: 2, published: true, end: false },
-                    { id: 1, published: true, end: false },
+                    { id: 2, published: true },
+                    { id: 1, published: true },
                 ],
             },
         ];
@@ -69,8 +69,8 @@ describe('buildSecOrderIndex', () => {
         const reversed: EpisodesData = [
             {
                 id: 1, title: 'ep1', sections: [
-                    { id: 2, published: true, end: false },
-                    { id: 1, published: true, end: false },
+                    { id: 2, published: true },
+                    { id: 1, published: true },
                 ],
             },
         ];

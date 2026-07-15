@@ -30,12 +30,13 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark のみ・design/module-matrix.md L50）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ・design/module-matrix.md L50。stage 判定と栞スキーマ移行を二重管理しないため）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
         pathNot: [
           '(^|/)src/bookmark\\.ts$',
+          '(^|/)src/volumes\\.ts$',
           '(^|/)src/types\\.ts$',
         ],
       },
@@ -55,7 +56,7 @@ module.exports = {
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/bookmark\\.ts$' } },
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/(bookmark|volumes)\\.ts$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },

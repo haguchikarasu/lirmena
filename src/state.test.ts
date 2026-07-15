@@ -8,24 +8,33 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { init, getPrevUrl, getPrevAddress, getPrevPublishedSec, indexUrl } from './state';
-import type { EpisodesData } from './types';
+import type { StoryData } from './types';
 
 // ep1: sec1,2,3 公開／sec4 未公開（末尾）。ep2: sec1 公開
-const DATA: EpisodesData = [
+const DATA: StoryData = [
     {
-        id: 1,
-        title: '太陽の行く先',
-        sections: [
-            { id: 1, published: true, end: false },
-            { id: 2, published: true, end: false },
-            { id: 3, published: true, end: false },
-            { id: 4, published: false, end: false },
+        volume: 1,
+        epRange: [1, 2],
+        heroCard: { file: 'vol01.avif' },
+        heroCardCompleted: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [
+            {
+                id: 1,
+                title: '太陽の行く先',
+                sections: [
+                    { id: 1, published: true },
+                    { id: 2, published: true },
+                    { id: 3, published: true },
+                    { id: 4, published: false },
+                ],
+            },
+            {
+                id: 2,
+                title: '丘の上の影',
+                sections: [{ id: 1, published: true }],
+            },
         ],
-    },
-    {
-        id: 2,
-        title: '丘の上の影',
-        sections: [{ id: 1, published: true, end: false }],
     },
 ];
 
@@ -71,10 +80,19 @@ describe('getPrevPublishedSec（物語順の前 sec・ep 境界跨ぎ）', () =>
     });
 
     it('前 ep に公開 sec が無ければスキップして更に前を探す', () => {
-        const data: EpisodesData = [
-            { id: 1, title: 'a', sections: [{ id: 1, published: true, end: false }] },
-            { id: 2, title: 'b', sections: [{ id: 1, published: false, end: false }] },
-            { id: 3, title: 'c', sections: [{ id: 1, published: true, end: false }] },
+        const data: StoryData = [
+            {
+                volume: 1,
+                epRange: [1, 3],
+                heroCard: { file: 'vol01.avif' },
+                heroCardCompleted: { file: 'vol01.avif' },
+                afterword: { published: false },
+                episodes: [
+                    { id: 1, title: 'a', sections: [{ id: 1, published: true }] },
+                    { id: 2, title: 'b', sections: [{ id: 1, published: false }] },
+                    { id: 3, title: 'c', sections: [{ id: 1, published: true }] },
+                ],
+            },
         ];
         init(data, { ep: 3, sec: 1 });
         expect(getPrevPublishedSec()).toEqual({ ep: 1, sec: 1 });

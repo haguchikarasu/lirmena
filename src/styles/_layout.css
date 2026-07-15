@@ -96,14 +96,18 @@ html.is-selecting #main-container {
 
 
 /* ===================================================
-   進行帯の3ボタン（次へ／Ｘで感想をポスト／マシュマロを送る）— 要件 06-13
+   進行帯のボタン群（次へ／◯巻あとがき／Ｘで感想をポスト／マシュマロを送る）— 要件 06-13
    読み終わり端（縦書き＝左端／横書き＝下端）に置く。戻るボタンは廃止し、戻る導線は開幕アフォーダンスの「もどる」に一本化。
-   サイズ・形は3ボタンとも共通で揃え、**主副は色（背景濃度）と font-weight だけで表現する**（モノトーン基本＝背景の絵と喧嘩しない）。
-     - 「次へ」：進行の主導線。濃いめの半透明黒＋明るい文字＋太字
+   サイズ・形は共通で揃え、**主副は色（背景濃度）と font-weight だけで表現する**（モノトーン基本＝背景の絵と喧嘩しない）。
+     - 「次へ」「◯巻あとがき」：進行の主導線。濃いめの半透明黒＋明るい文字＋太字
      - Ｘ／マシュマロ：感想窓口の副導線。透明背景＋薄い枠のゴースト風
-   ラベルは縦横とも日本語（「次へ」／次 ep なしは「目次へ戻る」）で常に .is-text-label が付く。
+   ラベルは縦横とも日本語で常に .is-text-label が付く。
+   DOM 順は #btn-next → #btn-afterword → #btn-share-group で、縦書き（.btn-container の row-reverse）だと
+   物理配置は右→左に「次へ・◯巻あとがき・感想窓口」＝あとがきボタンは「次へ」のすぐ左隣に来る。
+   横書き（column）では上→下に同順で並ぶ。
 =================================================== */
 #btn-next,
+#btn-afterword,
 #btn-share-x,
 #btn-share-marshmallow {
   z-index: 2;
@@ -125,11 +129,12 @@ html.is-selecting #main-container {
   text-decoration: none;
 }
 
-/* 「次へ」は主導線。**inline-size（書字方向の長さ）を SNS 2つの合計と揃えて引き伸ばし**、
+/* 「次へ」「◯巻あとがき」は主導線。**inline-size（書字方向の長さ）を SNS 2つの合計と揃えて引き伸ばし**、
    太字＋やや控えめな塗りで主感を出す。枠線色は SNS と揃えて統一感を保つ。
-   block-size（書字方向と直角の長さ）は他2つと揃える＝サイズ揃えの原則は直角方向で保つ。
+   block-size（書字方向と直角の長さ）は他ボタンと揃える＝サイズ揃えの原則は直角方向で保つ。
    inline-size は書字方向で自動追従（横書き：幅、縦書き：高さ） */
-#btn-next {
+#btn-next,
+#btn-afterword {
   inline-size: calc(2 * 10rem + 8px);  /* = 2×SNS の inline-size + gap */
   font-weight: 500;
   border: 0.5px solid rgba(255, 255, 255, 0.32);
@@ -146,7 +151,8 @@ html.is-selecting #main-container {
   inline-size: 10rem;  /* 「マシュマロを送る」8文字が1行で収まる幅（書字方向で自動追従） */
 }
 
-#btn-next:hover {
+#btn-next:hover,
+#btn-afterword:hover {
   background: rgba(0, 0, 0, 0.6);
   border-color: rgba(255, 255, 255, 0.5);
 }
@@ -158,6 +164,7 @@ html.is-selecting #main-container {
 }
 
 #btn-next:focus-visible,
+#btn-afterword:focus-visible,
 #btn-share-x:focus-visible,
 #btn-share-marshmallow:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.55);
@@ -167,6 +174,7 @@ html.is-selecting #main-container {
 /* 日本語テキストラベル（「次へ」「目次へ戻る」「Ｘでポスト」「マシュマロを送る」）：縦書きは縦組み・小さめフォント
    inline-size（縦組みでは物理 height）は基底の指定に委ねる（SNS は 9rem、次へは calc(2×9rem+8px)＝18.5rem 相当） */
 #btn-next.is-text-label,
+#btn-afterword.is-text-label,
 #btn-share-x.is-text-label,
 #btn-share-marshmallow.is-text-label {
   font-size: 0.85rem;
@@ -319,6 +327,7 @@ html[data-writing-mode="horizontal"] .btn-container {
    分岐では書かない（縦書き幅＝横書き高さで揃える方針）。inline-size は基底の指定に委ねる。
    width: auto も書かない（書くと基底の inline-size 引き伸ばしが打ち消される） */
 html[data-writing-mode="horizontal"] #btn-next.is-text-label,
+html[data-writing-mode="horizontal"] #btn-afterword.is-text-label,
 html[data-writing-mode="horizontal"] #btn-share-x.is-text-label,
 html[data-writing-mode="horizontal"] #btn-share-marshmallow.is-text-label {
   writing-mode: horizontal-tb;

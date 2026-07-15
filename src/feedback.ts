@@ -12,12 +12,13 @@
  * 【依存】state.ts（getCurrent() で自ページの ep/sec 取得）
  * 【被依存】main.ts（init 呼び出し）／menu.ts（MARSHMALLOW_URL 参照）
  * 【注意】
- *   - X の text は `✨輝くもの《リルメナ》✨第{ep}話 #{sec}\n{URL}` の固定フォーマット（改行区切りで
- *     text 一本化。url パラメータは使わない＝X 側で改行を保つため）。作品名は固定文字列・ep/sec 番号は
- *     ゼロ埋めしない。episodes.json の話タイトルは参照しない（ルビ記法など SNS で崩れる表現を避け、
- *     疎結合を保つため）。URL は `location.origin + location.pathname`（?noga 等の開発クエリを落として
- *     自ページの正規 URL）。dev/local 環境で押した場合はローカル URL が入るが、共有ボタンは本番閲覧者が
- *     押す前提。
+ *   - X の text は本文モード `✨輝くもの《リルメナ》✨第{ep}話 #{sec}\n{URL}` /
+ *     あとがきモード `✨輝くもの《リルメナ》✨第{vol}巻あとがき\n{URL}` の固定フォーマット
+ *     （改行区切りで text 一本化。url パラメータは使わない＝X 側で改行を保つため）。
+ *     作品名は固定文字列・番号はゼロ埋めしない。story.json の話タイトルは参照しない（ルビ記法など SNS で
+ *     崩れる表現を避け、疎結合を保つため）。共有コンテキストは state.getShareContext() から受け取る。
+ *     URL は `location.origin + location.pathname`（?noga 等の開発クエリを落として自ページの正規 URL）。
+ *     dev/local 環境で押した場合はローカル URL が入るが、共有ボタンは本番閲覧者が押す前提。
  *   - マシュマロは sec 単位の紐付けを持たない（マシュマロが1アカウント1箱の仕様のため）。作品全体で
  *     1つの外部 URL を新規タブで開くだけの受動リンク。
  *   - hidden の管理は wrapper #btn-share-group に一本化する（内部の <a> には hidden を付けない）。
@@ -44,14 +45,17 @@ export function init(): void {
 
 // #btn-share-x に X の intent URL を載せる。要素が無ければ no-op。
 // text と URL は改行で区切って text パラメータに一本化する（url パラメータで別送りにするとスペース連結になり
-// 改行が入らない。text 内に \n＝%0A で書けば投稿画面で改行される。URL カード表示は text 内 URL でも同等に働く）
+// 改行が入らない。text 内に \n＝%0A で書けば投稿画面で改行される。URL カード表示は text 内 URL でも同等に働く）。
+// 本文モードとあとがきモードで文言を切り替える（state.getShareContext 経由で受動的に情報を得る）。
 // _initShareX(): void
 function _initShareX(): void {
     const btn = document.querySelector<HTMLAnchorElement>('#btn-share-x');
     if (!btn) return;
-    const { ep, sec } = state.getCurrent();
+    const ctx = state.getShareContext();
     const url = location.origin + location.pathname;
-    const text = `✨${WORK_TITLE}✨第${ep}話 #${sec}\n${url}`;
+    const text = ctx.kind === 'afterword'
+        ? `✨${WORK_TITLE}✨第${ctx.vol}巻あとがき\n${url}`
+        : `✨${WORK_TITLE}✨第${ctx.ep}話 #${ctx.sec}\n${url}`;
     btn.href = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
 

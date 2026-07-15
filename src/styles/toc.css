@@ -16,7 +16,10 @@
   --idx-surface:       #0e0e0e;
   --idx-border:        #1a1a1a;
   --idx-border-strong: #202020;
-  --idx-border-accent: #1a3a28;
+  /* アクセント色は --stage-hue（stage 別で色相が切り替わる）経由で解決する。
+     彩度は 91% 固定・明度は --idx-accent-l で stage 別に補正可能（暗色 stage の紫/赤は明るく、黄は光を表現）。
+     未設定時は下記の --stage-hue: var(--stage-1-hue) = 146° にフォールバック＝現行の緑系 #1a3a28 / #2df590 と同色。 */
+  --idx-border-accent: hsl(var(--stage-hue) 40% 17%);
 
   --idx-text-primary:  #e8e8e8;
   --idx-text-body:     #cccccc;
@@ -25,8 +28,37 @@
   --idx-text-faint:    #b8b8b8;
   --idx-text-date:     #a0a0a0;
 
-  --idx-accent:        #2df590;
+  /* 目次アクセント明度（既定 stage 1/2 の 57%）。stage 3/4/5 は下の切替セレクタで持ち上げる。 */
+  --idx-accent-l: 57%;
+  --idx-accent:   hsl(var(--stage-hue) 91% var(--idx-accent-l));
+
+  /* ---- 物語進行段階（stage）別キーカラー：色相変数（唯一の真実源） ----
+     目次ページ独立方針のため _base.css の同ブロックをここに複製している（目次は toc.css のみを読み込むため）。
+     ● 【重要】5 定数の値・下の html[data-story-stage="N"] セレクタは _base.css の同ブロックと**必ず同期**して更新すること。
+     ● 追加/変更時は _base.css・toc.css の両方を同時に直す。将来 vol6 追加時は両方に --stage-6-hue と
+       data-story-stage="6" セレクタを追加＋volumes.ts の StoryStage 型・判定関数を同時更新。 */
+  --stage-1-hue: 146;   /* 緑（stage1・現行） */
+  --stage-2-hue: 185;   /* シアン（stage2） */
+  --stage-3-hue: 280;   /* 紫（stage3） */
+  --stage-4-hue: 0;     /* 赤（stage4） */
+  --stage-5-hue: 55;    /* 黄色（stage5・物語完結）＝バナナ色（50°）ではなく光寄りの純黄（55°） */
+
+  /* 解決変数：html[data-story-stage="N"] 未設定時（stage 未確定・初回訪問）のフォールバック。
+     下のセレクタ群が実際の切り替えを担う。 */
+  --stage-hue: var(--stage-1-hue);
 }
+
+/* 物語進行段階別キーカラーの解決（index.ts が <html data-story-stage="N"> を付与、
+   index.html の <head> 早期スクリプトが localStorage キャッシュから FOUC 前に先付け）。
+   未設定時は :root の --stage-hue: var(--stage-1-hue) にフォールバック（stage1 の緑）。
+   _base.css の同セレクタ群と同期させること（本文ページ側は _base.css 側が担う）。
+   stage 3/4/5 では --idx-accent-l を上書きし、目次のチェックマーク（.idx-chip--reached）や
+   「続きから読む」ボタン等のアクセント文字色を読みやすい明度に持ち上げる（紫・赤は暗すぎる／黄は光を表現）。 */
+html[data-story-stage="1"] { --stage-hue: var(--stage-1-hue); }
+html[data-story-stage="2"] { --stage-hue: var(--stage-2-hue); }
+html[data-story-stage="3"] { --stage-hue: var(--stage-3-hue); --idx-accent-l: 68%; }
+html[data-story-stage="4"] { --stage-hue: var(--stage-4-hue); --idx-accent-l: 68%; }
+html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70%; }
 
 /* ===== ベース ===== */
 
@@ -50,7 +82,7 @@
   margin: 0 auto;
 }
 
-.idx-hero-img {
+#idx-hero-img {
   display: block;
   width: 100%;
   height: auto;
@@ -93,7 +125,7 @@
 
 .idx-resume:hover,
 .idx-resume:focus {
-  background: rgba(45, 245, 144, 0.08);
+  background: hsl(var(--stage-hue) 91% 57% / 0.08);
   outline: none;
 }
 

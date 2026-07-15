@@ -88,35 +88,67 @@
   --theme-color: #080808;
 
   /* 物語進行段階（stage）別キーカラー。stage1=vol1到達（初期・未到達読者）／2=vol2到達／3=vol3到達／
-     4=vol4到達／5=vol4読破（物語完結）。実際の色対応は将来コンテンツ公開に合わせて決定。
-     暫定は全 stage が緑系（stage1 相当）で視認差は出ない。
+     4=vol4到達／5=vol4読破（物語完結）。
 
-     ● 微調整のしやすさのため HSL を 3 変数（hue／saturation／lightness）に分解している。
-       - 明度だけ調整したいときは --stage-lightness を触れば全 stage 一括で変わる
-       - 色相を変えたいとき（例：全体を青緑寄りに）は --stage-hue を動かす
-       - CSS には HSV は無い（standards 未対応）ので HSL で代用（Hue/Saturation は HSV と同じ概念）
-     ● 目次アクセント（--idx-accent: #2df590 ≒ HSL 146° 91% 57%）と同じ色相 146° を基点。
-       進捗バーは画面上端の細い線（3px 高）なので、明るすぎる色は視覚的に強すぎるため
-       明度を落として暗めの深緑に。目次チップとは別 UI なので別色でよい。
-     ● 将来 stage 別に色を変えたい場合は各 --stage-N-color を hsl(H S L) で個別上書きするか、
-       --stage-1-hue のように 1 段深く変数化する。
+     ● 唯一の真実源 = 色相変数 --stage-N-hue（下の 5 定数）。html[data-story-stage="N"] セレクタが
+       解決変数 --stage-hue を該当 hue に差し替える（本ファイル末尾のセレクタ群）。
+       進捗バー塗り色・目次アクセント（--idx-accent／--idx-border-accent／toc.css）・チュートリアル
+       アクセント（--tut-accent／--tut-accent-ink／_tutorial.css）は全て var(--stage-hue) 経由で
+       色相を取るため、この5定数を書き換えるだけでサイト全体のキーカラーが動く。
+       彩度・明度は UI ごとに違う（進捗バー：低彩度・目次：高彩度）ので各 UI 側で持たせる。
+     ● CSS には HSV は無い（standards 未対応）ので HSL で代用（Hue/Saturation は HSV と同じ概念）。
+     ● 将来 vol5 以降が追加される場合は --stage-6-hue を追加、末尾セレクタに data-story-stage="6" を追加、
+       volumes.ts の StoryStage 型・判定関数を同時に更新する。
 
-     stage の算出は volumes.ts の computeStoryStage、DOM 属性の付与は main.ts、
-     解決変数 --progress-fill-color の切替は _progress.css の html[data-story-stage="N"] セレクタ。
-     現行 volumes.json は 4vol＋読破の 5 段階固定。将来 vol5 以降が追加される場合は
-     _base.css の変数追加・_progress.css のセレクタ追加・volumes.ts の判定関数調整が同時に必要。 */
-  --stage-hue: 146;         /* 色相：緑 */
-  --stage-saturation: 40%;  /* 彩度 */
-  --stage-lightness: 50%;   /* 明度：小さいほど暗い（0=黒／50=純色／100=白） */
+     stage の算出は volumes.ts の computeStoryStage、DOM 属性の付与は main.ts / src/index.ts、
+     初回ロード時の FOUC 回避は本文シェル雛形 templates/reader.html・templates/title.html・
+     index.html の <head> 早期スクリプトが localStorage 'lirmena.storyStage' から先付ける。 */
+  --stage-1-hue: 146;   /* 緑（stage1・現行） */
+  --stage-2-hue: 185;   /* シアン（stage2） */
+  --stage-3-hue: 280;   /* 紫（stage3） */
+  --stage-4-hue: 0;     /* 赤（stage4） */
+  --stage-5-hue: 55;    /* 黄色（stage5・物語完結）＝バナナ色（50°）ではなく光寄りの純黄（55°） */
 
-  --stage-1-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
-  --stage-2-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
-  --stage-3-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
-  --stage-4-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
-  --stage-5-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+  /* 解決変数：html[data-story-stage="N"] 未設定時（stage 未確定・初回訪問）のフォールバック。
+     本ファイル末尾のセレクタ群が実際の切り替えを担う。 */
+  --stage-hue: var(--stage-1-hue);
 
-  /* 進捗バー塗り色の解決変数。デフォルトは stage1。_progress.css の html[data-story-stage="N"] で切り替え。 */
-  --progress-fill-color: var(--stage-1-color);
+  /* 進捗バー塗り色専用の彩度・明度（画面上端 3px 高の細い線なので明るすぎない深色に）。
+     目次・チュートリアルは自分の彩度・明度を _tutorial.css / toc.css に持つ。 */
+  --stage-saturation: 40%;
+  --stage-lightness: 50%;
+
+  /* 進捗バー塗り色の解決変数。--stage-hue の切替に自動追従（_progress.css 側の分岐は不要）。 */
+  --progress-fill-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+}
+
+/* 物語進行段階別キーカラーの解決（main.ts / src/index.ts が <html data-story-stage="N"> を付与、
+   本文シェル雛形の <head> 早期スクリプトが localStorage キャッシュから FOUC 前に先付け）。
+   未設定時は :root の --stage-hue: var(--stage-1-hue) にフォールバック（stage1 の緑）。
+   このセレクタは _tutorial.css・toc.css の派生変数（--tut-accent／--idx-accent 等）にも波及する。 */
+html[data-story-stage="1"] { --stage-hue: var(--stage-1-hue); }
+html[data-story-stage="2"] { --stage-hue: var(--stage-2-hue); }
+html[data-story-stage="3"] { --stage-hue: var(--stage-3-hue); }
+html[data-story-stage="4"] { --stage-hue: var(--stage-4-hue); }
+html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); }
+
+/* あとがきモード（body[data-kind="afterword"]）：stage 別キーカラーを使わず白系固定に切り替える。
+   目的：vol N 巻末 sec 読了 → あとがきへ遷移 で computeStoryStage が stage N+1 を返し、
+   あとがきページが次巻の色（例：vol1 巻末→あとがきで stage2 のシアン）で表示されてしまうのを避け、
+   巻の余韻を保つ。data-story-stage（<html> 側）と localStorage 'lirmena.storyStage' は真の stage を
+   保持し続ける（次回目次・次巻本文の FOUC 対策として必要）。ここではあとがきページの見た目だけを
+   グレースケールに落とす。
+   ● 【設計注記】--stage-saturation や --tut-s を body 上で上書きしても、参照側の --progress-fill-color /
+     --tut-accent は :root で hsl(var(...)) として宣言されているため、その中の var() は :root スコープで
+     substitution される（CSS Custom Properties Level 1 のカスケード仕様）。したがって body での基底変数
+     上書きは効かない。合成後の --progress-fill-color / --tut-accent / --tut-accent-ink を直接上書きする
+     必要がある。 */
+body[data-kind="afterword"] {
+  /* 進捗バー：無彩色の明色（画面上端 3px の細線） */
+  --progress-fill-color: hsl(0 0% 70%);
+  /* チュートリアル：本文の文字色 #e8e0d0 に近い明色。ボタン上文字は既存の暗色を保つ */
+  --tut-accent:     hsl(0 0% 78%);
+  --tut-accent-ink: hsl(0 0% 10%);
 }
 
 /* === 解決層：4 通りの組合せで --font-size-sm/md/lg, --line-length, --body-margin を上書き ===

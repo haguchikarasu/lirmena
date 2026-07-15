@@ -16,14 +16,17 @@
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
-  <link rel="icon" href="/favicon.ico" />
+  <!-- favicon は vol ごとに切替（vol 下に帰属）。pages() プラグインが {{faviconHref}} をそのページの vol の
+       favicon 相対パスへ埋める -->
+  <link rel="icon" href="{{faviconHref}}" />
   <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
        body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
-  <!-- 書字方向・端末カテゴリの早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
-       保存値が無ければ既定＝横書き。axis.ts/settings.ts と同じ lirmena.writingMode キー -->
+  <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+       保存値が無ければ既定＝横書き／stage1（緑）。axis.ts/settings.ts と同じ lirmena.writingMode キー、
+       stage は main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュする（1〜5 の文字列）。 -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -32,6 +35,10 @@
     try {
       var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
       document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
+    try {
+      var stg = localStorage.getItem('lirmena.storyStage');
+      document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->

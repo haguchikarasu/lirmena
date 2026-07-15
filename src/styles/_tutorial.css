@@ -12,9 +12,18 @@
   --tut-card-border: rgba(255, 255, 255, 0.10);
   --tut-ink: #e8e0d0;
   --tut-ink-sub: #a29c8e;
-  --tut-accent: #7bc47c;         /* キーカラー：緑（読書点の線・強調語） */
-  --tut-arrow: #e8e0d0;          /* ドラッグの「動かす方向」矢印。読書点の緑と区別する中立色 */
-  --tut-accent-ink: #12240f;     /* 緑ボタン上の文字色 */
+  /* アクセント色は _base.css の --stage-hue（stage 別で色相が切り替わる）経由で解決する。
+     彩度・明度はチュートリアル側の裁量で --tut-s / --tut-l に分解して持つ（S 38% L 63% の中明度アクセント／L 10% の暗色文字）。
+     未設定時は :root で --stage-hue: var(--stage-1-hue) = 146° にフォールバック（現行の緑系）。
+     ● あとがきモード（body[data-kind="afterword"]）では _base.css 末尾で --tut-s: 0%（彩度ゼロ＝グレースケール）に
+       上書きされ、キーカラー非依存の白系表示になる。詳細はそちらのブロック参照。 */
+  --tut-s:      38%;
+  --tut-l:      63%;
+  --tut-ink-s:  40%;
+  --tut-ink-l:  10%;
+  --tut-accent:     hsl(var(--stage-hue) var(--tut-s) var(--tut-l));         /* キーカラー：stage 別（stage1 = 緑・以下シアン/紫/赤/黄） */
+  --tut-arrow:      #e8e0d0;                                                  /* ドラッグの「動かす方向」矢印。アクセントと区別する中立色 */
+  --tut-accent-ink: hsl(var(--stage-hue) var(--tut-ink-s) var(--tut-ink-l)); /* アクセントボタン上の文字色（stage 別・暗色） */
   --tut-radius: 16px;
 }
 
@@ -72,8 +81,8 @@
   margin-bottom: 10px;
   padding: 3px 11px;
   border-radius: 999px;
-  background: rgba(123, 196, 124, 0.14);
-  border: 1px solid rgba(123, 196, 124, 0.35);
+  background: hsl(var(--stage-hue) var(--tut-s) var(--tut-l) /0.14);
+  border: 1px solid hsl(var(--stage-hue) var(--tut-s) var(--tut-l) /0.35);
   color: var(--tut-accent);
   font-size: 0.72rem;
   letter-spacing: 0.08em;
@@ -227,8 +236,8 @@ html[data-writing-mode="horizontal"] .fig-arrow::after  { bottom: -1px; transfor
 }
 .fig-menu-panel li.is-hi {
   color: var(--tut-accent);
-  background: rgba(123, 196, 124, 0.12);
-  border: 1px solid rgba(123, 196, 124, 0.4);
+  background: hsl(var(--stage-hue) var(--tut-s) var(--tut-l) /0.12);
+  border: 1px solid hsl(var(--stage-hue) var(--tut-s) var(--tut-l) /0.4);
 }
 .fig-fab {
   width: 40px; height: 40px; border-radius: 50%;

@@ -1,0 +1,170 @@
+[
+  {
+    "volume": 1,
+    "epRange": [1, 4],
+    "heroCard": { "file": "vol01.avif" },
+    "afterword": { "published": false },
+    "episodes": [
+      {
+        "id": 1,
+        "title": "太陽の行く先",
+        "coverFile": "title01.avif",
+        "coverPositionX": "20%",
+        "sections": [
+          { "id": 1, "published": true },
+          { "id": 2, "published": true }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "|翠昴晶《ペラティラ》さがし -前編-",
+        "coverFile": "title02.avif",
+        "coverPositionX": "20%",
+        "sections": [
+          { "id": 1, "published": true },
+          { "id": 2, "published": true },
+          { "id": 3, "published": true },
+          { "id": 4, "published": false }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "|翠昴晶《ペラティラ》さがし -後編-",
+        "coverFile": "title03.avif",
+        "coverPositionX": "50%",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false },
+          { "id": 4, "published": false },
+          { "id": 5, "published": false },
+          { "id": 6, "published": false }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      }
+    ]
+  },
+  {
+    "volume": 2,
+    "epRange": [5, 7],
+    "heroCard": { "file": "vol02.avif" },
+    "afterword": { "published": false },
+    "episodes": [
+      {
+        "id": 5,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      }
+    ]
+  },
+  {
+    "volume": 3,
+    "epRange": [8, 10],
+    "heroCard": { "file": "vol03.avif" },
+    "afterword": { "published": false },
+    "episodes": [
+      {
+        "id": 8,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      }
+    ]
+  },
+  {
+    "volume": 4,
+    "epRange": [11, 14],
+    "heroCard": { "file": "vol04.avif" },
+    "heroCardCompleted": { "file": "vol04-completed.avif" },
+    "afterword": { "published": false },
+    "episodes": [
+      {
+        "id": 11,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "（未執筆）",
+        "sections": [
+          { "id": 1, "published": false },
+          { "id": 2, "published": false },
+          { "id": 3, "published": false }
+        ]
+      }
+    ]
+  }
+]
