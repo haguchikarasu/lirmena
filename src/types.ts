@@ -146,6 +146,16 @@ export type ScrollNotification = { scrollLeft: number; ratio: number; scrollWidt
  */
 export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX'>;
 
+/**
+ * BgSource: bg.ts の画像 URL 解決先を示す discriminated union。main.ts が bg.init に渡す。
+ *   kind: 'ep'        … 本文ページ。URL は public/vol[XX]/ep[YY]/img/{ファイル名} を組み立てる
+ *   kind: 'afterword' … 巻末あとがきページ。URL は public/vol[XX]/{ファイル名} を組み立てる
+ *                       （あとがきは ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有する。要件 06-3 / 03）
+ */
+export type BgSource =
+    | { kind: 'ep'; vol: number; ep: number }
+    | { kind: 'afterword'; vol: number };
+
 export type CharacterEntry = { name: string; description: string; image: string };
 export type VolumeCharacters = { volume: number; characters: CharacterEntry[] };
 export type CharactersData = VolumeCharacters[];

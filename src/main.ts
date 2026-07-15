@@ -15,7 +15,7 @@
  *              initAfterword(story: StoryData, vol: number): void
  *              isPublished / getPrevPublishedSec など（責務は state.ts 冒頭コメント参照）
  *   renderer : renderScenes(scenes: Scene[]): void
- *   bg       : init(layers: BgLayerSpec[], ep: number): void
+ *   bg       : init(layers: BgLayerSpec[], source: BgSource): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
  *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
  *   nav      : init() / initAfterword(vol) / update() / updateAfterword() / arm()
@@ -188,7 +188,7 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
 
     renderer.renderScenes(scenes);
     const currentVol = state.getCurrentVolume()?.volume ?? 1;
-    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), currentVol, ep);
+    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), { kind: 'ep', vol: currentVol, ep });
 
     _restoreInitialScroll(mainContainer, { ep, sec });
 
@@ -271,10 +271,9 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     feedback.init();
 
     renderer.renderScenes(scenes);
-    // あとがきは黒背景固定（スタブ本文は @@BG@@ を使わない前提。将来必要なら story.json に afterword.coverFile を追加する）。
-    // bg.init はレイヤーを scenes.length ぶん構築するので、パース結果の bgFile（すべて null＝黒レイヤー）をそのまま渡す。
-    // vol は当あとがきの vol、ep 引数はあとがきモードで使わないため 0（bg.ts 側の背景ファイル解決はレイヤー spec のみを見る＝ep パスは bgFile != null のとき使う）。
-    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), vol, 0);
+    // あとがきモードでも @@BG@@ が使える。画像 URL は BgSource で分岐し、あとがきは public/vol[XX]/{ファイル名} 直下から解決する
+    // （ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有する。要件 06-3 / 03）。
+    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), { kind: 'afterword', vol });
 
     _restoreInitialScrollAfterword(mainContainer, vol);
 

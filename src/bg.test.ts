@@ -9,7 +9,7 @@
  *   getBoundingClientRect / scroll に依存する _emit・init・subscribe は jsdom 不安定のため自動化しない（CLAUDE.md §7）。
  */
 import { describe, expect, it } from 'vitest';
-import { computeP, layerOpacities, deriveCurrentScene, sceneEdges, computeProgress } from './bg';
+import { computeP, layerOpacities, deriveCurrentScene, sceneEdges, computeProgress, buildBgUrl } from './bg';
 
 describe('computeP（読書点 → 連続値 P）', () => {
     // vertical-rl RTL：中心列は x 降順（scene0 が右＝最大 x）。reverse=false。
@@ -241,6 +241,32 @@ describe('computeProgress（本文領域を読書点が走る割合 0〜1）', (
     it('本文幅 0（textLeft === textRight）なら 0', () => {
         expect(computeProgress(300, 300, 300, false)).toBe(0);
         expect(computeProgress(300, 300, 999, false)).toBe(0);
+    });
+});
+
+describe('buildBgUrl（BgSource ごとに vol/ep 直下を切替）', () => {
+    it('kind: ep は vol[XX]/ep[YY]/img/{ファイル名} を返す（本文モード・要件 03/05-1）', () => {
+        expect(buildBgUrl({ kind: 'ep', vol: 1, ep: 2 }, 'foo.avif')).toBe('vol01/ep02/img/foo.avif');
+    });
+
+    it('kind: afterword は vol[XX]/{ファイル名} 直下を返す（あとがきモード・ep/img/ を切らず heroCard と同居・要件 03/06-3）', () => {
+        expect(buildBgUrl({ kind: 'afterword', vol: 1 }, 'alley.avif')).toBe('vol01/alley.avif');
+    });
+
+    it('vol / ep は2桁ゼロ埋め（1桁を必ず補完＝命名規則と一致）', () => {
+        expect(buildBgUrl({ kind: 'ep', vol: 9, ep: 3 }, 'x.avif')).toBe('vol09/ep03/img/x.avif');
+        expect(buildBgUrl({ kind: 'afterword', vol: 9 }, 'x.avif')).toBe('vol09/x.avif');
+    });
+
+    it('2桁の vol / ep はそのまま連結（3桁化しない）', () => {
+        expect(buildBgUrl({ kind: 'ep', vol: 12, ep: 34 }, 'z.avif')).toBe('vol12/ep34/img/z.avif');
+        expect(buildBgUrl({ kind: 'afterword', vol: 12 }, 'z.avif')).toBe('vol12/z.avif');
+    });
+
+    it('BASE_URL は含まない（呼び出し側で連結する契約）', () => {
+        const url = buildBgUrl({ kind: 'ep', vol: 1, ep: 1 }, 'a.avif');
+        expect(url.startsWith('/')).toBe(false);
+        expect(url.startsWith('vol')).toBe(true);
     });
 });
 
