@@ -2,12 +2,12 @@
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
  * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h)
- *     validateStoryFiles(story, opts): string[]    — (i)(j) を含む合成版（fs 実在検査を注入）
+ *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
  *
  * 網羅する観点：
  *   - 実データ（public/story.json）が全整合ルール (a)〜(h) を満たす
  *   - 意図的に壊した story.json 断片で各違反 (a)〜(h) がメッセージに出る（回帰）
- *   - validateStoryFiles で (i)(j) の実在検査が期待どおりトリガーする
+ *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
  *   - 純関数の非破壊性（引数を破壊しない）
  */
 
@@ -175,16 +175,15 @@ describe('validateStory — 壊したパターンで各違反が検出される'
     });
 });
 
-describe('validateStoryFiles — (i)(j) の実在検査', () => {
-    it('全ファイル実在 → (i)(j) はトリガーしない（純データ検査の結果のみ）', () => {
+describe('validateStoryFiles — (i) の実在検査', () => {
+    it('全ファイル実在 → (i) はトリガーしない（純データ検査の結果のみ）', () => {
         const story = _baseStory();
         story[0].afterword = { published: false }; // (e') 誤検出を避けるため未公開に留める前提
         story[0].episodes[0].sections = [{ id: 1, published: false }]; // 全 sec 公開でない状態にする
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: () => true,
-            coverExists: () => true,
         });
-        expect(errors.filter(e => e.startsWith('(i)') || e.startsWith('(j)'))).toEqual([]);
+        expect(errors.filter(e => e.startsWith('(i)'))).toEqual([]);
     });
 
     it('(i) afterword.published=true なのに txt が存在しない → (i) エラー', () => {
@@ -192,27 +191,8 @@ describe('validateStoryFiles — (i)(j) の実在検査', () => {
         story[0].afterword = { published: true }; // vol1 全 sec 公開なので (e') は起きない
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: (vol) => vol !== 1, // vol1 だけ不在
-            coverExists: () => true,
         });
         expect(errors.some(e => e.startsWith('(i)') && e.includes('vol1'))).toBe(true);
-    });
-
-    it('(j) heroCard の画像が存在しない → (j) エラー', () => {
-        const story = _baseStory();
-        const errors = validateStoryFiles(story, {
-            afterwordTxtExists: () => true,
-            coverExists: (_vol, file) => file !== 'vol01.avif',
-        });
-        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol01.avif'))).toBe(true);
-    });
-
-    it('(j) 最終 vol の heroCardCompleted 画像が存在しない → (j) エラー', () => {
-        const story = _baseStory();
-        const errors = validateStoryFiles(story, {
-            afterwordTxtExists: () => true,
-            coverExists: (_vol, file) => file !== 'vol02-fin.avif',
-        });
-        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol02-fin.avif'))).toBe(true);
     });
 });
 
@@ -229,7 +209,6 @@ describe('validateStory — 純関数の非破壊性', () => {
         const snapshot = JSON.parse(JSON.stringify(story));
         validateStoryFiles(story, {
             afterwordTxtExists: () => true,
-            coverExists: () => true,
         });
         expect(story).toEqual(snapshot);
     });

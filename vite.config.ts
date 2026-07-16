@@ -65,7 +65,6 @@ function generatePages(root: string): string[] {
   const errors = validateStoryFiles(story, {
     afterwordTxtExists: (vol) =>
       existsSync(resolve(root, `public/vol${pad(vol)}/vol${pad(vol)}-afterword.txt`)),
-    coverExists: (vol, file) => existsSync(resolve(root, `public/vol${pad(vol)}/${file}`)),
   })
   if (errors.length > 0) {
     throw new Error(`story.json 整合違反:\n  - ${errors.join('\n  - ')}`)

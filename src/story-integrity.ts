@@ -3,7 +3,7 @@
  * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン）と
  *       runtime 時（volumes.test.ts / story.test.ts）で共有する。
  * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h)
- *         validateStoryFiles(story, opts): string[]    — (i)(j) を含む合成版（fs 実在を opts で注入）
+ *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
  * 依存: 型のみ（StoryData / Volume）。fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
  * 検査項目：
@@ -20,11 +20,13 @@
  *   (g) heroCardCompleted は volume 番号最大の vol のみが持つ・他 vol は持たない・最終 vol は必ず持つ
  *   (h) 全 vol・全 sec について end フィールドが書かれていない（撤廃済み検出）
  *   (i) afterword.published=true の vol は public/vol[XX]/vol[XX]-afterword.txt が実在（txt/ フォルダは切らない）
- *   (j) 全 vol の heroCard.file と最終 vol の heroCardCompleted.file が public/vol[XX]/ 配下に実在
- *       （画像も vol 直下・cover/ フォルダは切らない＝画像数が vol あたり最大 2 枚のため）
  *
- * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(j)" のタグ）。
+ * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(i)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
+ *
+ * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
+ * 公開直前の差し替え忘れという別ミスを生むだけで根本的ポカヨケにならないため。story.json 上の
+ * 記述整合（(f)(g)）のみ検査する。
  */
 
 import type { StoryData, Volume } from './types';
@@ -171,18 +173,15 @@ function _checkVolumeAfterword(vol: Volume, errors: string[]): void {
     }
 }
 
-// (a)〜(j) の完全検査（ファイル実在検査を含む）。exists 関数を注入することで fs 依存を呼び出し側に閉じ込める。
-// coverExists は vol と file 名を受け取り、public/vol[XX]/{file} を検査する（cover/ 中間フォルダは廃止）。
+// (a)〜(i) の完全検査（ファイル実在検査を含む）。exists 関数を注入することで fs 依存を呼び出し側に閉じ込める。
 // validateStoryFiles(story, opts): string[]
 export function validateStoryFiles(
     story: StoryData,
     opts: {
         afterwordTxtExists: (vol: number) => boolean;
-        coverExists: (vol: number, file: string) => boolean;
     }
 ): string[] {
     const errors = validateStory(story);
-    const maxVolume = story.length === 0 ? 0 : Math.max(...story.map(v => v.volume));
 
     for (const vol of story) {
         const volStr = String(vol.volume).padStart(2, '0');
@@ -190,16 +189,6 @@ export function validateStoryFiles(
         if (vol.afterword?.published === true && !opts.afterwordTxtExists(vol.volume)) {
             errors.push(
                 `(i) vol${vol.volume}: afterword.published=true だが public/vol${volStr}/vol${volStr}-afterword.txt が存在しない`
-            );
-        }
-        // (j) heroCard.file の実在
-        if (vol.heroCard?.file && !opts.coverExists(vol.volume, vol.heroCard.file)) {
-            errors.push(`(j) vol${vol.volume}: heroCard.file="${vol.heroCard.file}" が public/vol${volStr}/ 配下に存在しない`);
-        }
-        // (j) heroCardCompleted.file の実在（最終 vol のみ）
-        if (vol.volume === maxVolume && vol.heroCardCompleted?.file && !opts.coverExists(vol.volume, vol.heroCardCompleted.file)) {
-            errors.push(
-                `(j) vol${vol.volume}（最終 vol）: heroCardCompleted.file="${vol.heroCardCompleted.file}" が public/vol${volStr}/ 配下に存在しない`
             );
         }
     }
