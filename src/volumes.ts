@@ -37,7 +37,7 @@
  *   StoryStage = 1 | 2 | 3 | 4 | 5 は現行 4vol 固定前提の型。将来 vol5 追加時は story.length + 1 = 6 が
  *   返り得るため、型の 6 追加＋_base.css の --stage-6-hue 定数追加＋末尾セレクタ html[data-story-stage="6"]
  *   { --stage-hue: var(--stage-6-hue); } 追加＋設計正典（design/module-responsibilities.md /
- *   design/requirements/06-5-bookmark.html）の追記が同時に必要。
+ *   design/requirements/06-5-bookmark.md）の追記が同時に必要。
  */
 
 import type { StoryData, Volume, SecKey } from './types';

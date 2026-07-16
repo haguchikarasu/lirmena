@@ -1,5 +1,12 @@
 [
   {
+    "version": "3.12.3",
+    "date": "2026/7/16",
+    "changes": [
+      "制作者の開発体制メンテナンス：JSDoc・ビルド設定コメントに残っていた旧ファイル名（episodes.json）と旧 requirements HTML リンクを最新の story.json / md リンクに整合させた（読者の表示・操作には影響なし）。"
+    ]
+  },
+  {
     "version": "3.12.2",
     "date": "2026/7/16",
     "changes": [

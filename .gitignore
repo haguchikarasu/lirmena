@@ -3,7 +3,7 @@ dist/
 .DS_Store
 .claude/
 
-# pages() プラグイン（vite.config.ts）が episodes.json から生成する本文/タイトルページ。
+# pages() プラグイン（vite.config.ts）が story.json から生成する本文/タイトルページ／巻末あとがきページ。
 # 雛形は templates/ に、生成物はここに出る。追跡しない（先頭スラッシュで root 直下のみ＝public/contents は対象外）。
 /contents/
 

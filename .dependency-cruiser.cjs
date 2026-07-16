@@ -44,7 +44,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 13 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
+      comment: 'リーフ 14 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',

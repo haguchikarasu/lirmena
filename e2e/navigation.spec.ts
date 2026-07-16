@@ -1,7 +1,7 @@
 /*
  * 骨格 E2E ①：目次 → タイトル(ep1) → reader(ep1 sec1) の遷移が成立するか。
  * plan Phase 3 の導線 1 に対応（design/module-responsibilities.md：index.ts の「sec01 は ep の扉を経由」ルール）。
- * base=/lirmena/。目次では ep1 が「太陽の行く先」というタイトルで表示される（episodes.json）。
+ * base=/lirmena/。目次では ep1 が「太陽の行く先」というタイトルで表示される（story.json）。
  */
 
 import { test, expect } from './_fixtures';

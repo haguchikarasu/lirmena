@@ -3,7 +3,7 @@
  *   published … 公開状態（reader が開けるか）
  * ステージ移行判定は volumes.ts の computeStoryStage が「最大読破位置 ≧ 各 vol の最終公開 sec 位置」＋
  * 「次巻冒頭 sec 公開済み」で動的判定する（end フィールドは撤廃）。詳細は
- * design/requirements/06-5-bookmark.html の「進捗バーの色（物語進行段階：5段階）」節。
+ * design/requirements/06-5-bookmark.md の「進捗バーの色（物語進行段階：5段階）」節。
  */
 export type EpisodeSection = { id: number; published: boolean };
 /**

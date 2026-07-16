@@ -15,7 +15,7 @@
  *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴（全エントリを表示。無ければ「更新履歴なし」）
  *
- * 背景画像: {BASE_URL}ep[XX]/{coverFile}（episodes.json の coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
+ * 背景画像: {BASE_URL}vol[YY]/ep[XX]/{coverFile}（story.json のエピソード内 coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
  *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ src/styles/_title.css 側で background-position に反映する。
  *
  * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま（href に現在ページのクエリを引き継ぐ）。
