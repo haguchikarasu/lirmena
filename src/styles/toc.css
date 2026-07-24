@@ -357,6 +357,21 @@ ruby rt {
   visibility: visible;
 }
 
+/* 未公開 sec：破線グレー枠の ghost chip（要件 06-7・案 B-1）。部分公開 ep（公開 sec 有り + 未公開 sec 有り）
+   の chip 列末尾に非リンク要素として並び、「まだ続く」を視覚的に示す。.idx-chip の実線 border・背景・
+   padding を継承し、差分は border-style: dashed・border-color・color・cursor の 4 点。
+   色は「まだ届いていない」感を強めるため .idx-chip 既定（未読・#9a9a9a / #3a3a3a solid）よりトーンを
+   落として --idx-text-dim（#505050）と #262626（.idx-vol-card--notice の border-left と同色）を使い、
+   未読 chip とゴーストが視覚的に区別できるようにする。stage 色相非依存（未公開の中立表現に stage
+   アクセントを乗せると「これから読める」誤読を招くため）。.idx-chip::after の ✓ は visibility:
+   hidden の初期値のままなので（--read を付けない限り出現しない）明示打消しはしていない。 */
+.idx-chip--ghost {
+  border-style: dashed;
+  border-color: #262626;
+  color: var(--idx-text-dim);
+  cursor: default;
+}
+
 /* ===== 栞エリア ===== */
 
 .idx-bm-section {

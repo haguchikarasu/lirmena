@@ -23,6 +23,10 @@
  *     優先順位は完結 > 予告 > 連載中（完結と予告の併存は story-integrity (e) 強化で禁止）。
  *   - **ep.preview（要件 06-7 予告 ep）**：公開済み sec がゼロの ep で ep.preview があれば、
  *     タイトルと <span class="idx-ep-notice"> の予告テキストのみ描画する（sec chip なし・リンクなし）。
+ *   - **部分公開 ep（B-1 ゴースト chip・要件 06-7）**：公開 sec 1つ以上 かつ 未公開 sec 1つ以上 の ep
+ *     では、公開 chip の末尾に未公開 sec 分の ghost chip（<span class="idx-chip idx-chip--ghost">・
+ *     破線グレー・href なし・aria-hidden="true"）を並べて「まだ続く」を示す。全 sec 公開の ep には
+ *     出ない（＝vol/物語完結時は視覚差なし・要件 06-7 で明示された B-1 の既知の欠点）。
  *   - 表示可能な ep（＝公開済み sec が1つ以上 OR ep.preview を持つ ep）も公開あとがきも vol.preview も
  *     持たない vol は巻カードごと非表示。visibleEps ベースで判定するため、ep.preview だけを持つ
  *     vol は表示される。
@@ -488,7 +492,11 @@ function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount:
 
 // ep 1個分のブロック（タイトル＋sec chip 群 or 予告テキスト）を生成する。
 // publishedSecs が空 かつ hasPreview=true の場合は ep.preview を <span class="idx-ep-notice"> で描画。
-// それ以外は従来通り sec chip 群を描画する（両者混在ケースは integrity (l) で禁止＝発生しない）。
+// それ以外は従来通り公開 sec の chip 群を描画し、**部分公開 ep**（公開 sec 1つ以上 かつ 未公開 sec
+// 1つ以上）では続けて未公開 sec を ghost chip（.idx-chip--ghost・破線グレー・非リンク・aria-hidden）
+// として末尾に並べて「まだ続く」を示唆する（案 B-1・要件 06-7「部分公開 ep のゴースト chip」）。
+// 完全公開 ep ではゴースト chip は生成されず vol/物語完結時は視覚差ゼロ（B-1 の既知の欠点）。
+// 両者混在ケース（公開 sec 有り + 非空 ep.preview）は integrity (l) で禁止＝発生しない。
 function _buildEpBlock(
     ep: Episode,
     publishedSecs: { id: number; published: boolean }[],
@@ -535,6 +543,23 @@ function _buildEpBlock(
             link.appendChild(labelEl);
 
             chipsEl.appendChild(link);
+        }
+
+        // 未公開 sec を破線グレーの ghost chip として末尾に並べる（案 B-1・部分公開 ep の未完示唆）。
+        // rule (d) が「未公開 sec は末尾のみ」を保証しているため story.json 定義順そのまま append する
+        // だけで公開 chip の後ろに整列する。href なし・非リンク・既読/読破マーク／aria-label なし。
+        // ghost は視覚シグナル専用（非コンテンツ・非対話）なので aria-hidden="true" で支援技術には
+        // 隠す — 非視覚読者は公開 chip 列だけをナビ導線として認識する形にする。
+        for (const sec of ep.sections.filter(s => !s.published)) {
+            const ghost = document.createElement('span');
+            ghost.className = 'idx-chip idx-chip--ghost';
+            ghost.setAttribute('aria-hidden', 'true');
+
+            const labelEl = document.createElement('span');
+            labelEl.textContent = pad(sec.id);
+            ghost.appendChild(labelEl);
+
+            chipsEl.appendChild(ghost);
         }
     }
 
