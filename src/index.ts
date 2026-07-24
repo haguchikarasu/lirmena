@@ -12,8 +12,8 @@
  *   - story.json を fetch して vol → ep → sec 一覧を動的生成
  *     （sec01 のリンク先はタイトルページ [ep]-00.html、sec02 以降は本文ページ）
  *   - 各 vol は <details class="idx-vol-card"> でグルーピングして表示（要件 06-7 巻カード＆アコーディオン表示）。
- *     summary に「第N巻」＋状態バッジ（vol.afterword.published なら「巻完結・全M話」／それ以外は「連載中」）を置き、
- *     本体に当 vol の ep 一覧＋（あとがき公開時のみ）「第N巻あとがき」チップを入れる。
+ *     summary に「第N巻」＋状態バッジ（vol.afterword.published なら「全M話」／それ以外は「連載中」。判定名としての「巻完結」は残すが pill 表示テキストには出さない）を置き、
+ *     本体に当 vol の ep 一覧＋（あとがき公開時のみ）巻末あとがきチップ（ep タイトル「あとがき」＋ chip の視覚 label は `**`＝aria-hidden／aria-label は「第N巻 あとがき（＋既読／読破）」）を入れる。
  *     初期 open は storyStage（＝computeStoryStage(read, story)）と vol.volume が一致する巻のみ。
  *     storyStage === story.length + 1（物語完結）のときは全 vol 閉じる。開閉状態は永続化しない。
  *   - **vol.preview（要件 06-7 予告 vol）**：vol.preview を持つ vol は <details> ではなく
@@ -30,7 +30,7 @@
  *   - 表示可能な ep（＝公開済み sec が1つ以上 OR ep.preview を持つ ep）も公開あとがきも vol.preview も
  *     持たない vol は巻カードごと非表示。visibleEps ベースで判定するため、ep.preview だけを持つ
  *     vol は表示される。
- *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみ「第◯巻あとがき」チップを差し込む
+ *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみあとがきチップを差し込む
  *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
  *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
@@ -477,8 +477,9 @@ function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount:
     const pill = document.createElement('span');
     pill.className = 'idx-vol-pill';
     if (hasAfterword) {
-        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）
-        pill.textContent = `巻完結・全${visibleEpsCount}話`;
+        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）。
+        // pill 表示テキストには「巻完結」を出さず「全M話」だけ（判定名としてだけ使い分ける・要件 06-7）
+        pill.textContent = `全${visibleEpsCount}話`;
     } else if (hasVolPreview) {
         pill.classList.add('idx-vol-pill--notice');
         pill.textContent = vol.preview!.text;
@@ -497,6 +498,10 @@ function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount:
 // として末尾に並べて「まだ続く」を示唆する（案 B-1・要件 06-7「部分公開 ep のゴースト chip」）。
 // 完全公開 ep ではゴースト chip は生成されず vol/物語完結時は視覚差ゼロ（B-1 の既知の欠点）。
 // 両者混在ケース（公開 sec 有り + 非空 ep.preview）は integrity (l) で禁止＝発生しない。
+// ep タイトルは prefix span（.idx-ep-prefix「第◯話」）＋半角スペースのテキストノード＋
+// 本体（applyRuby でルビ展開する ep.title）の 3 ノード構成（要件 06-7）。
+// prefix は本体よりトーンを落とす（CSS の opacity で親色継承・stage 非依存）。
+// applyRuby の正規表現は `|` と `《》` を要求するので prefix には副作用ゼロ＝本体だけに適用しても挙動不変。
 function _buildEpBlock(
     ep: Episode,
     publishedSecs: { id: number; published: boolean }[],
@@ -509,7 +514,12 @@ function _buildEpBlock(
 
     const titleEl = document.createElement('p');
     titleEl.className = 'idx-ep-title';
-    applyRuby(`第${ep.id}話 ${ep.title}`, titleEl);
+    const prefixEl = document.createElement('span');
+    prefixEl.className = 'idx-ep-prefix';
+    prefixEl.textContent = `第${ep.id}話`;
+    titleEl.appendChild(prefixEl);
+    titleEl.appendChild(document.createTextNode(' '));
+    applyRuby(ep.title, titleEl);
     epEl.appendChild(titleEl);
 
     const chipsEl = document.createElement('div');
@@ -568,13 +578,18 @@ function _buildEpBlock(
 }
 
 // 巻末あとがきチップ（vol.afterword.published=true のときのみ呼ばれる）を生成する。
+// ep タイトルは巻情報なしの「あとがき」だけ（巻カード内に置かれるので巻情報は summary の「第N巻」で足りる）。
+// chip の視覚 label は `**`（視覚シンボル・aria-hidden で支援技術からは隠す）／link の aria-label は
+// 「第N巻 あとがき」を巻ごとに必ず含める（複数完結巻それぞれに `**` chip がある場合の識別可能性を担保・
+// 未読／既読／読破の 3 分岐すべてで常時セット）。本文ページ側 `#btn-afterword` の「第◯巻あとがき」表記
+// とは意図的に非対称（要件 06-7）。
 function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>): HTMLElement {
     const afterwordEl = document.createElement('div');
     afterwordEl.className = 'idx-ep idx-ep--afterword';
 
     const titleEl = document.createElement('p');
     titleEl.className = 'idx-ep-title';
-    titleEl.textContent = `第${vol.volume}巻あとがき`;
+    titleEl.textContent = 'あとがき';
     afterwordEl.appendChild(titleEl);
 
     const chips = document.createElement('div');
@@ -589,10 +604,14 @@ function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<
         + (isRead ? ' idx-chip--read' : '');
     link.href = withQuery(`contents/vol${pad(vol.volume)}-afterword.html`);
 
+    const baseAria = `第${vol.volume}巻 あとがき`;
+    if (isRead) link.setAttribute('aria-label', `${baseAria} 読破`);
+    else if (isReached) link.setAttribute('aria-label', `${baseAria} 既読`);
+    else link.setAttribute('aria-label', baseAria);
+
     const labelEl = document.createElement('span');
-    labelEl.textContent = 'あとがき';
-    if (isRead) link.setAttribute('aria-label', 'あとがき 読破');
-    else if (isReached) link.setAttribute('aria-label', 'あとがき 既読');
+    labelEl.textContent = '**';
+    labelEl.setAttribute('aria-hidden', 'true');
     link.appendChild(labelEl);
     chips.appendChild(link);
 

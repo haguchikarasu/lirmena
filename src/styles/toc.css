@@ -205,10 +205,12 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   letter-spacing: 0.1em;
   padding: 0.22rem 0.7rem;
   border-radius: 999px;
-  color: var(--idx-accent);
-  border: 1px solid var(--idx-border-accent);
-  /* アクセントソフト面色（既存 .idx-resume:hover と同一パターン。stage-hue 追従） */
-  background: hsl(var(--stage-hue) 91% 57% / 0.08);
+  /* stage 非依存の中立色（未読 chip と同系統）。stage 5 の黄色などのキーカラーに
+     巻き込まれて主張が強くなるのを避け、目次全体のトーンを落ち着かせる。
+     要件 06-7「stage 連動色だけを変数経由で解決／stage 非依存の中立色は直接色値でよい」 */
+  color: #9a9a9a;
+  border: 1px solid #3a3a3a;
+  background: var(--idx-surface);
   font-family: monospace, sans-serif;
   flex-shrink: 0;
   white-space: nowrap;
@@ -262,7 +264,9 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
    既存 .idx-vol-pill の white-space: nowrap を上書きする（.idx-vol-head 側も flex-wrap を許容）。
    加えて .idx-vol-pill の flex-shrink: 0 も上書きして shrink 可能にする＋min-width: 0 で flex 子要素の
    デフォルト最小幅（コンテンツ幅）を殺す。これで narrow layout で長文予告が pill 内で折り返せる
-   （上書き無しだと white-space: normal でも pill が max-content 幅を保って overflow する）。 */
+   （上書き無しだと white-space: normal でも pill が max-content 幅を保って overflow する）。
+   base pill も stage-hue 非依存の中立色になったが、`--notice` は「予告」を「完結／連載中」より
+   一段落として見せるため background: transparent＋text-muted で本ルールを維持する。 */
 .idx-vol-pill--notice {
   color: var(--idx-text-muted);
   border-color: #333;
@@ -312,6 +316,16 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   letter-spacing: 0.05em;
   color: var(--idx-text-body);
   margin-bottom: 0.9rem;
+}
+
+/* 「第◯話」プレフィックス（要件 06-7・_buildEpBlock の 3 ノード構成）。
+   本体タイトルよりトーンを落として目立たなくする。opacity で親の color を継承しつつ
+   薄くするので、.idx-ep--preview .idx-ep-title の muted 色にも自然に馴染む
+   （子要素で明示色を持たせると親の muted 色を継承しない）。 */
+.idx-ep-prefix {
+  opacity: 0.65;
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
 }
 
 /* ルビ（ep タイトル・栞の場所表示。index.ts の applyRuby が <ruby> を生成する） */

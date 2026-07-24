@@ -1,5 +1,7 @@
 /*
- * 目次ページの予告表示 E2E（要件 06-7「予告 vol」「予告 ep」・vol.preview / ep.preview）。
+ * 目次ページの予告表示 E2E（要件 06-7「予告 vol」「予告 ep」・vol.preview / ep.preview）と
+ * 目次アコーディオン表示（要件 06-7「巻カード＆アコーディオン表示」・状態バッジ pill・あとがきチップ・
+ * ep タイトルの prefix と本体の 3 ノード分離）を検証する。
  * 実データの story.json を触らず page.route で `/lirmena/story.json` を fixture に差し替えて検証する
  * （実データ回帰は他 spec が担当）。
  *
@@ -8,6 +10,10 @@
  *      （<details> ではなく <section class="idx-vol-card--notice">・chev は視覚的に非表示・body なし）
  *   2. ep.preview を持つ ep（公開 sec ゼロ）は sec chip を持たず .idx-ep-notice を持つ
  *   3. どちらも持たない未着手 vol はカードごと非表示（既存挙動維持）
+ *   4. 完結 vol の状態バッジ pill は「全M話」だけ（「巻完結」を表示に出さない・要件 06-7）
+ *   5. あとがきチップの ep タイトルは「あとがき」、chip label は「**」（aria-hidden）、
+ *      link 側 aria-label は必ず「第N巻 あとがき（＋既読／読破）」を含む
+ *   6. ep タイトルは prefix span（.idx-ep-prefix）＋半角スペース＋本体の 3 ノード構成で描画される
  */
 
 import { test, expect } from './_fixtures';
@@ -95,6 +101,37 @@ const FIXTURE_STORY_EMPTY_PREVIEW = [
                 title: '（未執筆）',
                 preview: { text: '   ' },
                 sections: [{ id: 1, published: false }],
+            },
+        ],
+    },
+];
+
+// 完結 vol fixture（afterword.published=true・全 ep 全 sec 公開・要件 06-7 「状態バッジと優先順位」1）。
+// 単一 vol（＝最終 vol でもある）なので heroCardCompleted 必須。
+// 完結 pill が「全M話」／あとがきチップの aria-label が「第1巻 あとがき」を含む／
+// ep タイトルの prefix span 分離、を同一ページで検証する。
+const FIXTURE_STORY_COMPLETED = [
+    {
+        volume: 1,
+        epRange: [1, 2],
+        heroCard: { file: 'vol01.avif' },
+        heroCardCompleted: { file: 'vol01-fin.avif' },
+        afterword: { published: true },
+        episodes: [
+            {
+                id: 1,
+                title: '太陽の行く先',
+                sections: [
+                    { id: 1, published: true },
+                    { id: 2, published: true },
+                ],
+            },
+            {
+                id: 2,
+                title: '月のうしろ',
+                sections: [
+                    { id: 1, published: true },
+                ],
             },
         ],
     },
@@ -206,5 +243,57 @@ test.describe('目次ページ 予告表示（vol.preview / ep.preview）', () =
         await expect(page.locator('section.idx-vol-card--notice')).toHaveCount(0);
         await expect(page.locator('.idx-ep--preview')).toHaveCount(0);
         await expect(page.locator('.idx-ep-notice')).toHaveCount(0);
+    });
+});
+
+test.describe('目次ページ 完結表示とチップ／プレフィックス', () => {
+    test('完結 vol の状態バッジ pill は「全M話」だけ（「巻完結」を表示に出さない）', async ({ page }) => {
+        await mockStoryJson(page, FIXTURE_STORY_COMPLETED);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area')).toBeVisible();
+
+        const completedCard = page.locator('details.idx-vol-card').first();
+        const pill = completedCard.locator('.idx-vol-pill');
+        // fixture の ep 数は 2 なので「全2話」ちょうど。判定文言「巻完結」は含まれない。
+        await expect(pill).toHaveText('全2話');
+        await expect(pill).not.toContainText('巻完結');
+    });
+
+    test('あとがきチップは ep タイトル「あとがき」・視覚 label「**」（aria-hidden）・aria-label に「第N巻 あとがき」を含む', async ({ page }) => {
+        await mockStoryJson(page, FIXTURE_STORY_COMPLETED);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area')).toBeVisible();
+
+        const afterwordBlock = page.locator('.idx-ep--afterword');
+        await expect(afterwordBlock).toHaveCount(1);
+        // ep タイトルは巻情報なしの「あとがき」のみ
+        await expect(afterwordBlock.locator('.idx-ep-title')).toHaveText('あとがき');
+
+        const link = afterwordBlock.locator('a.idx-chip');
+        // link の accessible name は必ず「第1巻 あとがき」を含む（未読時＝既読／読破ラベルなし）
+        await expect(link).toHaveAttribute('aria-label', '第1巻 あとがき');
+
+        // 視覚 label は「**」で aria-hidden。link 内の span を絞る
+        const visualLabel = link.locator('span');
+        await expect(visualLabel).toHaveText('**');
+        await expect(visualLabel).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    test('ep タイトルは prefix span（.idx-ep-prefix）＋半角スペース＋本体の 3 ノード構成', async ({ page }) => {
+        await mockStoryJson(page, FIXTURE_STORY_COMPLETED);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area')).toBeVisible();
+
+        // 通常 ep の ep-title は prefix span を持つ（あとがきの ep-title は持たない＝class 共有無害）
+        const ep1Title = page.locator('details.idx-vol-card .idx-ep').first().locator('.idx-ep-title');
+        await expect(ep1Title.locator('.idx-ep-prefix')).toHaveCount(1);
+        await expect(ep1Title.locator('.idx-ep-prefix')).toHaveText('第1話');
+
+        // textContent 上のプレフィックスと本体の間に半角スペースが残っている（読み上げ区切りの担保）
+        const textContent = await ep1Title.evaluate((el) => el.textContent);
+        expect(textContent).toBe('第1話 太陽の行く先');
+
+        // あとがきの .idx-ep-title は prefix span を持たない（あとがきブロック側）
+        await expect(page.locator('.idx-ep--afterword .idx-ep-prefix')).toHaveCount(0);
     });
 });
