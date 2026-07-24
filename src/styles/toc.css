@@ -452,7 +452,7 @@ ruby rt {
   max-width: 90vw;
   max-height: 85vh;
   overflow-y: auto;
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, serif;
+  font-family: serif;
 }
 
 .settings-panel__title {
