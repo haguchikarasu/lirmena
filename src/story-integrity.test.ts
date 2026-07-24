@@ -1,13 +1,14 @@
 /*
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
- * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h)
+ * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)
  *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
  *
  * 網羅する観点：
- *   - 実データ（public/story.json）が全整合ルール (a)〜(h) を満たす
- *   - 意図的に壊した story.json 断片で各違反 (a)〜(h) がメッセージに出る（回帰）
+ *   - 実データ（public/story.json）が全整合ルール (a)〜(l) を満たす
+ *   - 意図的に壊した story.json 断片で各違反 (a)〜(l) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
+ *   - preview を持つ未執筆 vol/ep が (a)〜(i) を壊さない正常系
  *   - 純関数の非破壊性（引数を破壊しない）
  */
 
@@ -21,6 +22,36 @@ const STORY_JSON_PATH = resolve(__dirname, '../public/story.json');
 
 function _loadRealStory(): StoryData {
     return JSON.parse(readFileSync(STORY_JSON_PATH, 'utf-8')) as StoryData;
+}
+
+// preview テスト用の未執筆 vol ベース。全 sec 未公開・afterword 非公開の 2vol 構成。
+// 全 sec 未公開なので (e') は発火せず、preview を書き加えても (k)/(l) が発火しない
+// ＝preview 正常系の回帰テストに使える。個別テストで vol.preview / ep.preview を足したり
+// 一部 sec を published:true にしたりして (k)/(l)/(e) を壊す。
+function _previewBaseStory(): StoryData {
+    return [
+        {
+            volume: 1,
+            epRange: [1, 2],
+            heroCard: { file: 'vol01.avif' },
+            afterword: { published: false },
+            episodes: [
+                { id: 1, title: 'ep1', sections: [{ id: 1, published: false }] },
+                { id: 2, title: 'ep2', sections: [{ id: 1, published: false }] },
+            ],
+        },
+        {
+            volume: 2,
+            epRange: [3, 4],
+            heroCard: { file: 'vol02.avif' },
+            heroCardCompleted: { file: 'vol02-fin.avif' },
+            afterword: { published: false },
+            episodes: [
+                { id: 3, title: 'ep3', sections: [{ id: 1, published: false }] },
+                { id: 4, title: 'ep4', sections: [{ id: 1, published: false }] },
+            ],
+        },
+    ];
 }
 
 // ベース story（全項目正しい）。個別テストで一部を壊して各エラーを再現する。
@@ -172,6 +203,140 @@ describe('validateStory — 壊したパターンで各違反が検出される'
         (story[0].episodes[0].sections[0] as unknown as Record<string, unknown>).end = false;
         const errors = validateStory(story);
         expect(errors.some(e => e.startsWith('(h)'))).toBe(true);
+    });
+});
+
+describe('validateStory — preview 系 (j)(k)(k\')(l) と (e) 強化', () => {
+    it('preview を持つ未執筆 vol / ep が (a)〜(i) を壊さない（正常系回帰）', () => {
+        const story = _previewBaseStory();
+        story[0].preview = { text: '2026年11月ごろ開始予定' };
+        story[1].episodes[0].preview = { text: '2026/7/31 より順次投稿予定' };
+        const errors = validateStory(story);
+        expect(errors, `違反: ${errors.join(' / ')}`).toEqual([]);
+    });
+
+    it('vol.preview.text が空文字は valid（事前配置テンプレとして preview 無扱い）', () => {
+        const story = _previewBaseStory();
+        story[0].preview = { text: '' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith('(j)'))).toEqual([]);
+    });
+
+    it('ep.preview.text が空白のみは valid（事前配置テンプレとして preview 無扱い）', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].preview = { text: '   ' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith('(j)'))).toEqual([]);
+    });
+
+    it('(j) vol.preview.text が非 string（数値）→ (j) エラー', () => {
+        const story = _previewBaseStory();
+        (story[0] as unknown as Record<string, unknown>).preview = { text: 123 };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol1'))).toBe(true);
+    });
+
+    it('(j) vol.preview が null → (j) エラー', () => {
+        const story = _previewBaseStory();
+        (story[0] as unknown as Record<string, unknown>).preview = null;
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol1'))).toBe(true);
+    });
+
+    it('(j) vol.preview が配列 → (j) エラー', () => {
+        const story = _previewBaseStory();
+        (story[0] as unknown as Record<string, unknown>).preview = ['text'];
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol1'))).toBe(true);
+    });
+
+    it('(j) vol.preview が {} (text 欠落) → (j) エラー', () => {
+        const story = _previewBaseStory();
+        (story[0] as unknown as Record<string, unknown>).preview = {};
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(j)') && e.includes('vol1'))).toBe(true);
+    });
+
+    it('(k) 公開済み sec を持つ ep がある vol に vol.preview → (k) エラー', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }];
+        story[0].preview = { text: '2026年11月ごろ開始予定' };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(k)') && e.includes('vol1'))).toBe(true);
+    });
+
+    it('(k\') vol.preview と ep.preview を同時に持つ → (k\') エラー', () => {
+        const story = _previewBaseStory();
+        story[0].preview = { text: '2026年11月ごろ開始予定' };
+        story[0].episodes[0].preview = { text: '2026/7/31 より順次投稿予定' };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith("(k')") && e.includes('vol1') && e.includes('ep1'))).toBe(true);
+    });
+
+    it('(l) 公開済み sec を持つ ep に ep.preview → (l) エラー', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }];
+        story[0].episodes[0].preview = { text: '2026/7/31 より順次投稿予定' };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(l)') && e.includes('vol1') && e.includes('ep1'))).toBe(true);
+    });
+
+    it('(e) afterword.published=true の vol が vol.preview を持つ → (e) エラー', () => {
+        const story = _baseStory();
+        story[0].afterword = { published: true };
+        story[0].preview = { text: '完結済みなのに予告' };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(e)') && e.includes('vol.preview'))).toBe(true);
+    });
+
+    it('(e) afterword.published=true の vol の ep が ep.preview を持つ → (e) エラー', () => {
+        const story = _baseStory();
+        story[0].afterword = { published: true };
+        story[0].episodes[0].preview = { text: '完結済みなのに予告' };
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(e)') && e.includes('ep1') && e.includes('preview'))).toBe(true);
+    });
+
+    // ↓ 空 text preview は (k)(l)(k')(e) の対象外＝事前配置テンプレとして許容する正常系
+    it('(k) 空 vol.preview は公開済み ep がある vol にも置ける（事前配置テンプレ用途）', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }];
+        story[0].preview = { text: '' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith('(k)'))).toEqual([]);
+    });
+
+    it('(l) 空 ep.preview は公開済み sec がある ep にも置ける（事前配置テンプレ用途）', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }];
+        story[0].episodes[0].preview = { text: '' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith('(l)'))).toEqual([]);
+    });
+
+    it("(k') 空 vol.preview + 非空 ep.preview は併存できる（空 vol.preview は無扱い）", () => {
+        const story = _previewBaseStory();
+        story[0].preview = { text: '' };
+        story[0].episodes[0].preview = { text: '2026/7/31 より順次投稿予定' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith("(k')"))).toEqual([]);
+    });
+
+    it("(k') 非空 vol.preview + 空 ep.preview は併存できる（空 ep.preview は無扱い）", () => {
+        const story = _previewBaseStory();
+        story[0].preview = { text: '2026年11月ごろ開始予定' };
+        story[0].episodes[0].preview = { text: '' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith("(k')"))).toEqual([]);
+    });
+
+    it('(e) afterword.published=true の完結 vol にも空 preview を残せる（事前配置テンプレ用途）', () => {
+        const story = _baseStory();
+        story[0].afterword = { published: true };
+        story[0].preview = { text: '' };
+        story[0].episodes[0].preview = { text: '' };
+        const errors = validateStory(story);
+        expect(errors.filter(e => e.startsWith('(e)') && e.includes('preview'))).toEqual([]);
     });
 });
 

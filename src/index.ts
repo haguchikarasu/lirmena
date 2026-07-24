@@ -16,8 +16,16 @@
  *     本体に当 vol の ep 一覧＋（あとがき公開時のみ）「第N巻あとがき」チップを入れる。
  *     初期 open は storyStage（＝computeStoryStage(read, story)）と vol.volume が一致する巻のみ。
  *     storyStage === story.length + 1（物語完結）のときは全 vol 閉じる。開閉状態は永続化しない。
- *   - 表示可能な ep（＝公開済み sec が1つ以上ある ep）も公開されたあとがきも持たない vol は巻カードごと非表示。
- *     既存節「公開済み sec が1つもない ep は完全非表示」を vol 粒度に引き上げた挙動。
+ *   - **vol.preview（要件 06-7 予告 vol）**：vol.preview を持つ vol は <details> ではなく
+ *     <section class="idx-vol-card idx-vol-card--notice"> を生成し、summary 相当の
+ *     <div class="idx-vol-head"> だけを入れる（詳細部 body は生成しない・開閉不可）。
+ *     状態バッジは「連載中」の代わりに vol.preview.text を pill として表示。
+ *     優先順位は完結 > 予告 > 連載中（完結と予告の併存は story-integrity (e) 強化で禁止）。
+ *   - **ep.preview（要件 06-7 予告 ep）**：公開済み sec がゼロの ep で ep.preview があれば、
+ *     タイトルと <span class="idx-ep-notice"> の予告テキストのみ描画する（sec chip なし・リンクなし）。
+ *   - 表示可能な ep（＝公開済み sec が1つ以上 OR ep.preview を持つ ep）も公開あとがきも vol.preview も
+ *     持たない vol は巻カードごと非表示。visibleEps ベースで判定するため、ep.preview だけを持つ
+ *     vol は表示される。
  *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみ「第◯巻あとがき」チップを差し込む
  *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
@@ -45,9 +53,23 @@ import './styles/toc.css';
 import * as bookmark from './bookmark';
 import { computeStoryStage } from './volumes';
 
-type Episode = { id: number; title: string; sections: { id: number; published: boolean }[] };
+// preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱いで
+// 目次に表示する。空 text（`{ text: "" }`）は「preview 無し」と同義扱いで、事前配置テンプレとして
+// 未着手 vol/ep に骨組みだけ置ける（story-integrity (j)(k)(k')(l)/(e) の判定も「非空 text」でのみ発火）。
+// 目次では sec chip の代わりにタイトル＋予告テキストを出す（ep）／summary 相当のヘッダのみ出す（vol）。
+type Preview = { text: string };
+// preview が定義されかつ text の trim が非空なら true。renderStory の描画分岐に使う。
+// story-integrity.ts の _hasEffectivePreview と同一ロジック（独立方針で複製）。
+// 実データは build 時 (j) 検査を通っているが、null/非オブジェクト/非 string text にも防御的に false を返す。
+function _hasEffectivePreview(preview: Preview | undefined): boolean {
+    if (preview === undefined || preview === null) return false;
+    if (typeof preview !== 'object') return false;
+    if (typeof preview.text !== 'string') return false;
+    return preview.text.trim() !== '';
+}
+type Episode = { id: number; title: string; sections: { id: number; published: boolean }[]; preview?: Preview };
 // story.json のトップレベル vol エントリ（index.ts の独立方針でローカル定義。詳細は types.ts の Volume）。
-// stage 判定・あとがき描画・ヒーローカード切替に必要なフィールドを最小限持つ。
+// stage 判定・あとがき描画・ヒーローカード切替・予告描画に必要なフィールドを最小限持つ。
 type StoryVolume = {
     volume: number;
     epRange: [number, number];
@@ -55,6 +77,7 @@ type StoryVolume = {
     heroCardCompleted?: { file: string };
     afterword: { published: boolean };
     episodes: Episode[];
+    preview?: Preview;
 };
 type BookmarkEntry = {
     slot: number;
@@ -345,11 +368,12 @@ function applyStoryStage(story: StoryVolume[]): void {
 
 // ----- 目次本体（vol カード → ep → sec、直後にあとがきチップ） -----
 
-// story を vol 単位でループし、各 vol を <details class="idx-vol-card"> でグルーピングして描画する。
-// summary に「第N巻」＋状態バッジ（巻完結・全M話 or 連載中）、本体に当 vol の ep 一覧＋（あとがき公開時のみ）
-// 巻末あとがきチップを入れる。初期 open は computeStoryStage(read, story) と vol.volume が一致する巻のみ
+// story を vol 単位でループして目次を描画する。通常 vol は <details class="idx-vol-card">、
+// vol.preview を持つ予告 vol は <section class="idx-vol-card idx-vol-card--notice"> で描画する。
+// 初期 open は computeStoryStage(read, story) と vol.volume が一致する巻のみ
 // （storyStage === story.length + 1 の物語完結時は全 vol 閉じる）。開閉状態は永続化しない。
-// vol 単位の非表示：表示可能な ep（公開済み sec が1つ以上）も公開されたあとがきも持たない vol はカード自体非表示。
+// vol 単位の非表示：visibleEps（公開 sec を持つ ep + ep.preview を持つ ep）もあとがきも vol.preview も
+// 持たない vol は巻カード自体非表示。優先順位は完結 > 予告 > 連載中（integrity (e) 強化で完結×予告は禁止）。
 function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
@@ -364,117 +388,49 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
     );
 
     for (const vol of story) {
-        // 表示可能な ep（公開済み sec が1つ以上）とそのフィルタ済み sec を先に確定する。
-        // 未公開 sec は完全除外（既存挙動維持）／未執筆 vol 判定にも使う。
-        const publishedEps = vol.episodes
-            .map(ep => ({ ep, publishedSecs: ep.sections.filter(s => s.published) }))
-            .filter(x => x.publishedSecs.length > 0);
+        // 表示可能な ep：公開 sec が1つ以上 OR **非空** ep.preview を持つ。
+        // 空 text preview（`{ text: "" }`）は事前配置テンプレなので「予告 ep」として扱わない
+        // ＝publishedSecs も preview も無い ep と同じで非表示（vol カードごと非表示条件にも寄与）。
+        // publishedSecs は sec chip 描画の入力、hasPreview は予告 ep 描画の分岐に使う。
+        const visibleEps = vol.episodes
+            .map(ep => ({
+                ep,
+                publishedSecs: ep.sections.filter(s => s.published),
+                hasPreview: _hasEffectivePreview(ep.preview),
+            }))
+            .filter(x => x.publishedSecs.length > 0 || x.hasPreview);
         const hasAfterword = vol.afterword?.published === true;
-        // vol 単位の非表示：表示可能な ep もあとがきもない vol は巻カードを出さない
-        if (publishedEps.length === 0 && !hasAfterword) continue;
+        const hasVolPreview = _hasEffectivePreview(vol.preview);
+        // vol 単位の非表示：表示可能な ep も vol.preview もあとがきも無い vol は巻カードを出さない
+        if (visibleEps.length === 0 && !hasAfterword && !hasVolPreview) continue;
 
-        // 巻カード（<details>）を作る。open 属性で初期表示を制御し、以後の開閉はブラウザ標準に委ねる。
+        // 予告 vol は <details> ではなく <section> ＋ ヘッダのみ生成し、開閉不可・body 非生成にする。
+        // vol.preview は「予告」用途で、完結と併存する状況は integrity (e) 強化で禁止。
+        if (hasVolPreview && !hasAfterword) {
+            const card = document.createElement('section');
+            card.className = 'idx-vol-card idx-vol-card--notice';
+            card.appendChild(_buildVolHead(vol, hasAfterword, visibleEps.length));
+            area.appendChild(card);
+            continue;
+        }
+
+        // 通常 vol：<details> でグルーピング。open 属性で初期表示を制御し、以後の開閉はブラウザ標準に委ねる。
         const card = document.createElement('details');
         card.className = 'idx-vol-card';
         if (vol.volume === storyStage) card.open = true;
-
-        // summary（クリックで開閉）：chev（回転アニメは CSS の [open] セレクタが担当）／巻見出し／状態バッジ
-        const summary = document.createElement('summary');
-        summary.className = 'idx-vol-head';
-
-        const chev = document.createElement('span');
-        chev.className = 'idx-vol-chev';
-        chev.setAttribute('aria-hidden', 'true');
-        chev.textContent = '▶';
-        summary.appendChild(chev);
-
-        const kEl = document.createElement('span');
-        kEl.className = 'idx-vol-k';
-        kEl.textContent = `第${vol.volume}巻`;
-        summary.appendChild(kEl);
-
-        const pill = document.createElement('span');
-        pill.className = 'idx-vol-pill';
-        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）
-        pill.textContent = hasAfterword
-            ? `巻完結・全${publishedEps.length}話`
-            : '連載中';
-        summary.appendChild(pill);
-
-        card.appendChild(summary);
+        card.appendChild(_buildVolHead(vol, hasAfterword, visibleEps.length));
 
         // 本体：ep ブロック（既存の idx-ep / idx-chip をそのまま使う）＋巻末あとがき
         const body = document.createElement('div');
         body.className = 'idx-vol-body';
 
-        for (const { ep, publishedSecs } of publishedEps) {
-            const epEl = document.createElement('div');
-            epEl.className = 'idx-ep';
-
-            const titleEl = document.createElement('p');
-            titleEl.className = 'idx-ep-title';
-            applyRuby(`第${ep.id}話 ${ep.title}`, titleEl);
-            epEl.appendChild(titleEl);
-
-            const secListEl = document.createElement('div');
-            secListEl.className = 'idx-chips';
-
-            for (const sec of publishedSecs) {
-                const isReached = isSectionInSet(ep.id, sec.id, reached);
-                const isRead = isSectionInSet(ep.id, sec.id, read);
-
-                const link = document.createElement('a');
-                link.className = 'idx-chip'
-                    + (isReached ? ' idx-chip--reached' : '')
-                    + (isRead ? ' idx-chip--read' : '');
-                link.href = sec.id === 1
-                    ? withQuery(`contents/${pad(ep.id)}-00.html`)
-                    : withQuery(`contents/${pad(ep.id)}-${pad(sec.id)}.html`);
-
-                const labelEl = document.createElement('span');
-                labelEl.textContent = pad(sec.id);
-                if (isRead) link.setAttribute('aria-label', `${pad(sec.id)} 読破`);
-                else if (isReached) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
-                link.appendChild(labelEl);
-
-                secListEl.appendChild(link);
-            }
-
-            epEl.appendChild(secListEl);
-            body.appendChild(epEl);
+        for (const { ep, publishedSecs, hasPreview } of visibleEps) {
+            body.appendChild(_buildEpBlock(ep, publishedSecs, hasPreview, reached, read));
         }
 
         // 巻末あとがきチップ（vol.afterword.published=true のときのみ）
         if (hasAfterword) {
-            const afterwordEl = document.createElement('div');
-            afterwordEl.className = 'idx-ep idx-ep--afterword';
-
-            const titleEl = document.createElement('p');
-            titleEl.className = 'idx-ep-title';
-            titleEl.textContent = `第${vol.volume}巻あとがき`;
-            afterwordEl.appendChild(titleEl);
-
-            const chips = document.createElement('div');
-            chips.className = 'idx-chips';
-
-            const isReached = isAfterwordInSet(vol.volume, reached);
-            const isRead = isAfterwordInSet(vol.volume, read);
-
-            const link = document.createElement('a');
-            link.className = 'idx-chip'
-                + (isReached ? ' idx-chip--reached' : '')
-                + (isRead ? ' idx-chip--read' : '');
-            link.href = withQuery(`contents/vol${pad(vol.volume)}-afterword.html`);
-
-            const labelEl = document.createElement('span');
-            labelEl.textContent = 'あとがき';
-            if (isRead) link.setAttribute('aria-label', 'あとがき 読破');
-            else if (isReached) link.setAttribute('aria-label', 'あとがき 既読');
-            link.appendChild(labelEl);
-            chips.appendChild(link);
-
-            afterwordEl.appendChild(chips);
-            body.appendChild(afterwordEl);
+            body.appendChild(_buildAfterwordBlock(vol, reached, read));
         }
 
         card.appendChild(body);
@@ -487,6 +443,136 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
         msg.textContent = '公開中のエピソードはまだありません。';
         area.appendChild(msg);
     }
+}
+
+// vol の summary 相当ヘッダ（chev / 巻見出し / 状態バッジ）を生成する。
+// 通常 vol は <details> の <summary>、予告 vol は <section> の <div> として使う。
+// タグは <summary>（<details> 用）か <div>（<section> 用）を返せば済むが、両者は用途が違うので
+// クラス名で解決する（<summary> でないと <details> の開閉ハンドラが繋がらない）。
+// pill の中身は「完結 > 予告 > 連載中」の優先順位で決める（完結と予告の併存は integrity (e) 強化で禁止）。
+function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount: number): HTMLElement {
+    const hasVolPreview = _hasEffectivePreview(vol.preview);
+    // 予告 vol は <div>、通常 vol は <summary>（<details> の toggle に必要）。同じ .idx-vol-head クラスを共有し、
+    // CSS 側で .idx-vol-card--notice > .idx-vol-head の cursor/hover を打ち消す。
+    const head = hasVolPreview && !hasAfterword
+        ? document.createElement('div')
+        : document.createElement('summary');
+    head.className = 'idx-vol-head';
+
+    const chev = document.createElement('span');
+    chev.className = 'idx-vol-chev';
+    chev.setAttribute('aria-hidden', 'true');
+    chev.textContent = '▶';
+    head.appendChild(chev);
+
+    const kEl = document.createElement('span');
+    kEl.className = 'idx-vol-k';
+    kEl.textContent = `第${vol.volume}巻`;
+    head.appendChild(kEl);
+
+    const pill = document.createElement('span');
+    pill.className = 'idx-vol-pill';
+    if (hasAfterword) {
+        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）
+        pill.textContent = `巻完結・全${visibleEpsCount}話`;
+    } else if (hasVolPreview) {
+        pill.classList.add('idx-vol-pill--notice');
+        pill.textContent = vol.preview!.text;
+    } else {
+        pill.textContent = '連載中';
+    }
+    head.appendChild(pill);
+
+    return head;
+}
+
+// ep 1個分のブロック（タイトル＋sec chip 群 or 予告テキスト）を生成する。
+// publishedSecs が空 かつ hasPreview=true の場合は ep.preview を <span class="idx-ep-notice"> で描画。
+// それ以外は従来通り sec chip 群を描画する（両者混在ケースは integrity (l) で禁止＝発生しない）。
+function _buildEpBlock(
+    ep: Episode,
+    publishedSecs: { id: number; published: boolean }[],
+    hasPreview: boolean,
+    reached: Set<string>,
+    read: Set<string>,
+): HTMLElement {
+    const epEl = document.createElement('div');
+    epEl.className = 'idx-ep';
+
+    const titleEl = document.createElement('p');
+    titleEl.className = 'idx-ep-title';
+    applyRuby(`第${ep.id}話 ${ep.title}`, titleEl);
+    epEl.appendChild(titleEl);
+
+    const chipsEl = document.createElement('div');
+    chipsEl.className = 'idx-chips';
+
+    if (publishedSecs.length === 0 && hasPreview) {
+        // 予告 ep：sec chip は生成せず、破線ボックスで予告テキストのみ出す
+        epEl.classList.add('idx-ep--preview');
+        const notice = document.createElement('span');
+        notice.className = 'idx-ep-notice';
+        notice.textContent = ep.preview!.text;
+        chipsEl.appendChild(notice);
+    } else {
+        // 通常 ep：公開 sec を chip で並べる
+        for (const sec of publishedSecs) {
+            const isReached = isSectionInSet(ep.id, sec.id, reached);
+            const isRead = isSectionInSet(ep.id, sec.id, read);
+
+            const link = document.createElement('a');
+            link.className = 'idx-chip'
+                + (isReached ? ' idx-chip--reached' : '')
+                + (isRead ? ' idx-chip--read' : '');
+            link.href = sec.id === 1
+                ? withQuery(`contents/${pad(ep.id)}-00.html`)
+                : withQuery(`contents/${pad(ep.id)}-${pad(sec.id)}.html`);
+
+            const labelEl = document.createElement('span');
+            labelEl.textContent = pad(sec.id);
+            if (isRead) link.setAttribute('aria-label', `${pad(sec.id)} 読破`);
+            else if (isReached) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
+            link.appendChild(labelEl);
+
+            chipsEl.appendChild(link);
+        }
+    }
+
+    epEl.appendChild(chipsEl);
+    return epEl;
+}
+
+// 巻末あとがきチップ（vol.afterword.published=true のときのみ呼ばれる）を生成する。
+function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>): HTMLElement {
+    const afterwordEl = document.createElement('div');
+    afterwordEl.className = 'idx-ep idx-ep--afterword';
+
+    const titleEl = document.createElement('p');
+    titleEl.className = 'idx-ep-title';
+    titleEl.textContent = `第${vol.volume}巻あとがき`;
+    afterwordEl.appendChild(titleEl);
+
+    const chips = document.createElement('div');
+    chips.className = 'idx-chips';
+
+    const isReached = isAfterwordInSet(vol.volume, reached);
+    const isRead = isAfterwordInSet(vol.volume, read);
+
+    const link = document.createElement('a');
+    link.className = 'idx-chip'
+        + (isReached ? ' idx-chip--reached' : '')
+        + (isRead ? ' idx-chip--read' : '');
+    link.href = withQuery(`contents/vol${pad(vol.volume)}-afterword.html`);
+
+    const labelEl = document.createElement('span');
+    labelEl.textContent = 'あとがき';
+    if (isRead) link.setAttribute('aria-label', 'あとがき 読破');
+    else if (isReached) link.setAttribute('aria-label', 'あとがき 既読');
+    link.appendChild(labelEl);
+    chips.appendChild(link);
+
+    afterwordEl.appendChild(chips);
+    return afterwordEl;
 }
 
 // ----- 栞 -----

@@ -32,6 +32,7 @@
         "title": "|翠昴晶《ペラティラ》さがし -後編-",
         "coverFile": "title03.avif",
         "coverPositionX": "50%",
+        "preview": { "text": "2026年7月31日より順次公開" },
         "sections": [
           { "id": 1, "published": false },
           { "id": 2, "published": false },
@@ -43,7 +44,8 @@
       },
       {
         "id": 4,
-        "title": "（未執筆）",
+        "title": "街へいこうよ",
+        "preview": { "text": "2026年9月公開予定" },
         "sections": [
           { "id": 1, "published": false },
           { "id": 2, "published": false },
@@ -57,6 +59,7 @@
     "epRange": [5, 7],
     "heroCard": { "file": "vol02.avif" },
     "afterword": { "published": false },
+    "preview": { "text": "" },
     "episodes": [
       {
         "id": 5,
@@ -92,6 +95,7 @@
     "epRange": [8, 10],
     "heroCard": { "file": "vol03.avif" },
     "afterword": { "published": false },
+    "preview": { "text": "" },
     "episodes": [
       {
         "id": 8,
@@ -128,6 +132,7 @@
     "heroCard": { "file": "vol04.avif" },
     "heroCardCompleted": { "file": "vol04-completed.avif" },
     "afterword": { "published": false },
+    "preview": { "text": "" },
     "episodes": [
       {
         "id": 11,

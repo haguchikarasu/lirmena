@@ -2,7 +2,7 @@
  * story-integrity.ts
  * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン）と
  *       runtime 時（volumes.test.ts / story.test.ts）で共有する。
- * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h)
+ * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)
  *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
  * 依存: 型のみ（StoryData / Volume）。fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
@@ -13,15 +13,29 @@
  *   (c) vol は volume 昇順で書かれる
  *   (d) 各 ep.sections は id 昇順で並び、未公開 sec は末尾にのみ配置される
  *   (e) afterword.published=true → その vol の全 ep 全 sec が published=true、かつ epRange 全域が
- *       episodes に定義されていること（未執筆 ep が残った状態での公開を防ぐ）
+ *       episodes に定義されていること（未執筆 ep が残った状態での公開を防ぐ）＋
+ *       afterword.published=true の vol は**非空** preview を持てず、その episodes も**非空** preview を
+ *       持てない（完結 vol に予告テキストが混入するのを防ぐ＝完結 > 予告 > 連載中 の優先順位を
+ *       integrity で担保。空 text preview は「preview 無扱い」なので完結 vol にも残せる）
  *   (e') vol.episodes が epRange 全域を埋めていて、かつ全 ep 全 sec が published=true →
  *        afterword.published=true（vol.episodes が epRange 全域を埋めていないうちは判定対象外）
  *   (f) 全 vol が heroCard.file を非空文字列で持つ
  *   (g) heroCardCompleted は volume 番号最大の vol のみが持つ・他 vol は持たない・最終 vol は必ず持つ
  *   (h) 全 vol・全 sec について end フィールドが書かれていない（撤廃済み検出）
  *   (i) afterword.published=true の vol は public/vol[XX]/vol[XX]-afterword.txt が実在（txt/ フォルダは切らない）
+ *   (j) preview（vol.preview / ep.preview 両方）は定義されていれば「object かつ null/配列でなく
+ *       text が string」であること（null/配列/{}/text 型不一致を弾く）。**空文字 `""` や空白のみは valid**：
+ *       事前配置テンプレ用途で未着手 vol/ep に `preview: { text: "" }` を書けるようにする。空 text は
+ *       「preview 無し」と同義扱いで (k)(l)(k')(e) の対象外（＝未着手 vol/ep に骨組みだけ置いて、公開が
+ *       近づいたら text を埋めるだけで使える）
+ *   (k) 表示可能な ep（=公開済み sec が1つ以上ある ep）を持つ vol は**非空** vol.preview を持てない
+ *       （公開が始まった vol の落とし忘れ検出。運用ルール：sec 公開時に vol.preview の text を空文字にする）
+ *   (k') **非空** vol.preview を持つ vol は episodes 内で**非空** ep.preview を持てない
+ *        （vol.preview は body 未生成なので、同じ vol の非空 ep.preview は目次で silently hidden になる。
+ *          vol と ep の予告を混在させたい運用は無い＝どちらか一方で表現する。空 text 同士は事前配置なので併存 OK）
+ *   (l) 公開済み sec が1つ以上ある ep は**非空** ep.preview を持てない（sec 公開時の落とし忘れ検出）
  *
- * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(i)" のタグ）。
+ * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(l)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
  * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
@@ -29,9 +43,37 @@
  * 記述整合（(f)(g)）のみ検査する。
  */
 
-import type { StoryData, Volume } from './types';
+import type { StoryData, Volume, PreviewSpec } from './types';
 
-// (a)〜(h) の純データ検査。fs 非依存。
+// preview フィールドの形式検査 (j)。null/配列/{}/text 型不一致を弾く。
+// **空文字（"" や空白のみ）は valid**：「preview 無し」と同義扱いにするため（事前配置テンプレ用途で
+// 未着手 vol/ep に `preview: { text: "" }` を書けるようにする。要件 06-7・content-update.md の
+// 「予告テキスト」節）。空 text は integrity (k)(l)(k')(e 強化) でも「preview 無扱い」で通す。
+// 呼び出し側は「preview が定義されている」ことを確認してから呼ぶ（optional なので undefined は正常）。
+// 戻り値：型として正しい PreviewSpec なら null、不正なら人間可読な理由文字列。
+function _validatePreviewShape(preview: unknown): string | null {
+    if (typeof preview !== 'object' || preview === null || Array.isArray(preview)) {
+        return 'preview は { text: string } 形式のオブジェクトである必要がある';
+    }
+    const p = preview as Partial<PreviewSpec>;
+    if (typeof p.text !== 'string') {
+        return 'preview.text は string である必要がある';
+    }
+    return null;
+}
+
+// 「実効的に preview が有効か」判定。preview が定義され、かつ text の trim が非空の場合のみ true。
+// (k)(l)(k')(e) の落とし忘れ検出と UI の hasPreview 判定はこの結果で分岐する。
+// 型検査は _validatePreviewShape が別途行う（形式不正は (j) で捕捉）が、_validatePreviewShape が
+// 走る前後どちらでも安全に呼べるよう、null/非オブジェクト/非 string text はすべて false を返す。
+function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
+    if (preview === undefined || preview === null) return false;
+    if (typeof preview !== 'object') return false;
+    if (typeof preview.text !== 'string') return false;
+    return preview.text.trim() !== '';
+}
+
+// (a)〜(h) + (j)(k)(k')(l) の純データ検査。fs 非依存。
 // validateStory(story: StoryData): string[]
 export function validateStory(story: StoryData): string[] {
     const errors: string[] = [];
@@ -62,6 +104,7 @@ export function validateStory(story: StoryData): string[] {
         _checkVolumeInternal(vol, errors);
         _checkVolumeHeroCard(vol, maxVolume, errors);
         _checkVolumeAfterword(vol, errors);
+        _checkVolumePreview(vol, errors);
     }
 
     return errors;
@@ -149,6 +192,7 @@ function _checkVolumeAfterword(vol: Volume, errors: string[]): void {
     }
 
     // (e) afterword.published=true → 全 ep 全 sec 公開 & epRange 全域が定義されている
+    //     ＋完結 vol は**非空** preview を持てない（空 text preview は preview 無扱いで許容）
     if (vol.afterword?.published === true) {
         if (!allEpsFilled) {
             errors.push(`(e) vol${vol.volume}: afterword.published=true だが epRange 全域 [${lo}, ${hi}] が episodes に定義されていない`);
@@ -159,6 +203,12 @@ function _checkVolumeAfterword(vol: Volume, errors: string[]): void {
                     errors.push(`(e) vol${vol.volume}: afterword.published=true だが ep${ep.id} sec${sec.id} が未公開`);
                 }
             }
+            if (_hasEffectivePreview(ep.preview)) {
+                errors.push(`(e) vol${vol.volume}: afterword.published=true だが ep${ep.id} に非空 preview が残存している（完結 vol は予告テキストを持てない）`);
+            }
+        }
+        if (_hasEffectivePreview(vol.preview)) {
+            errors.push(`(e) vol${vol.volume}: afterword.published=true だが 非空 vol.preview が残存している（完結 vol は予告テキストを持てない）`);
         }
     }
 
@@ -169,6 +219,56 @@ function _checkVolumeAfterword(vol: Volume, errors: string[]): void {
         );
         if (allPublished && vol.afterword?.published !== true) {
             errors.push(`(e') vol${vol.volume}: 全 ep 全 sec が published=true なのに afterword.published が true でない`);
+        }
+    }
+}
+
+// (j)(k)(k')(l) — preview フィールドの型検査と落とし忘れ検出
+// (j) はフィールド形式（vol.preview / ep.preview 両方）、(k)(l) は「公開が始まった vol/ep から
+// **非空** preview を落とし忘れていないか」、(k') は「非空 vol.preview と非空 ep.preview の併記禁止」。
+// **空 text preview（`{ text: "" }` 等）は「preview 無し」と同義扱い**＝(k)(l)(k') の対象外
+// （事前配置テンプレ用途を許容する）。(e) の完結 vol 側は _checkVolumeAfterword が担当する。
+function _checkVolumePreview(vol: Volume, errors: string[]): void {
+    // (j) vol.preview の型検査（空文字は valid・null/配列/型不一致のみ弾く）
+    if (vol.preview !== undefined) {
+        const reason = _validatePreviewShape(vol.preview);
+        if (reason !== null) {
+            errors.push(`(j) vol${vol.volume}: ${reason}`);
+        }
+    }
+    // (j) ep.preview の型検査
+    for (const ep of vol.episodes) {
+        if (ep.preview !== undefined) {
+            const reason = _validatePreviewShape(ep.preview);
+            if (reason !== null) {
+                errors.push(`(j) vol${vol.volume} ep${ep.id}: ${reason}`);
+            }
+        }
+    }
+
+    const volPreviewActive = _hasEffectivePreview(vol.preview);
+
+    // (k) 表示可能な ep（公開済み sec が1つ以上ある ep）を持つ vol は非空 vol.preview を持てない
+    if (volPreviewActive) {
+        const hasPublishedEp = vol.episodes.some(ep => ep.sections.some(s => s.published));
+        if (hasPublishedEp) {
+            errors.push(`(k) vol${vol.volume}: 公開済み sec を持つ ep があるのに非空 vol.preview が残存している（sec 公開時に vol.preview を空文字にするか削除すること）`);
+        }
+    }
+
+    // (k') 非空 vol.preview を持つ vol は episodes 内で非空 ep.preview を持てない（silently hidden 防止）
+    if (volPreviewActive) {
+        for (const ep of vol.episodes) {
+            if (_hasEffectivePreview(ep.preview)) {
+                errors.push(`(k') vol${vol.volume} ep${ep.id}: 非空 vol.preview と同時に非空 ep.preview を持てない（vol.preview は body 未生成のため ep.preview が目次に出ない・どちらか一方で表現する）`);
+            }
+        }
+    }
+
+    // (l) 公開済み sec が1つ以上ある ep は非空 ep.preview を持てない
+    for (const ep of vol.episodes) {
+        if (_hasEffectivePreview(ep.preview) && ep.sections.some(s => s.published)) {
+            errors.push(`(l) vol${vol.volume} ep${ep.id}: 公開済み sec があるのに非空 ep.preview が残存している（sec 公開時に ep.preview を空文字にするか削除すること）`);
         }
     }
 }

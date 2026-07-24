@@ -232,6 +232,74 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   .idx-vol-chev { transition: none; }
 }
 
+/* ===== 予告 vol / 予告 ep 用スタイル（要件 06-7・vol.preview / ep.preview） =====
+   予告 vol は <section class="idx-vol-card idx-vol-card--notice"> ＋ .idx-vol-head（<div>）で
+   開閉不可・詳細部 body 無しの見た目にする（.idx-vol-card--notice > .idx-vol-head で cursor と
+   hover を打ち消す）。予告 ep は sec chip の代わりに .idx-ep-notice を .idx-chips 内に置く。
+   優先順位は完結 > 予告 > 連載中（integrity (e) 強化で完結×予告は禁止）。 */
+
+.idx-vol-card--notice {
+  /* アクセント色は「連載中の緑」ではなくグレー寄せで「未着手・予告」を表現する */
+  border-left-color: #262626;
+}
+
+.idx-vol-card--notice > .idx-vol-head {
+  /* 開けないのでポインタ・ホバー効果を打ち消す（.idx-vol-head の cursor:pointer / hover を無効化） */
+  cursor: default;
+}
+.idx-vol-card--notice > .idx-vol-head:hover .idx-vol-k {
+  color: var(--idx-text-muted);
+}
+.idx-vol-card--notice > .idx-vol-head .idx-vol-k {
+  color: var(--idx-text-muted);
+}
+.idx-vol-card--notice > .idx-vol-head .idx-vol-chev {
+  /* 開閉不可なので回転する ▶ を隠す（占有幅は保ち、他 vol のヘッダとの水平位置を揃える） */
+  visibility: hidden;
+}
+
+/* vol summary の pill を予告テキストで置き換える形。長い予告文でモバイル幅で折り返せるよう
+   既存 .idx-vol-pill の white-space: nowrap を上書きする（.idx-vol-head 側も flex-wrap を許容）。
+   加えて .idx-vol-pill の flex-shrink: 0 も上書きして shrink 可能にする＋min-width: 0 で flex 子要素の
+   デフォルト最小幅（コンテンツ幅）を殺す。これで narrow layout で長文予告が pill 内で折り返せる
+   （上書き無しだと white-space: normal でも pill が max-content 幅を保って overflow する）。 */
+.idx-vol-pill--notice {
+  color: var(--idx-text-muted);
+  border-color: #333;
+  background: transparent;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  padding: 0.22rem 0.9rem;
+  white-space: normal;
+  text-align: right;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* vol.preview を持つ vol の head は pill が長いと折り返す想定＝flex 折り返しを許容 */
+.idx-vol-card--notice > .idx-vol-head {
+  flex-wrap: wrap;
+}
+
+/* ep タイトル直下（sec chip の位置）に置く予告テキスト。破線ボックスで「予告」を示す。 */
+.idx-ep-notice {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 13px;
+  border: 1px dashed #3a3a3a;
+  border-radius: 2px;
+  color: #9a9a9a;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  background: transparent;
+  font-family: inherit;
+}
+
+/* 予告 ep（sec 一覧なし・タイトルと予告テキストのみ）は本タイトルよりトーンを落とす */
+.idx-ep--preview .idx-ep-title {
+  color: var(--idx-text-muted);
+}
+
 /* ===== エピソード一覧 ===== */
 
 .idx-ep {

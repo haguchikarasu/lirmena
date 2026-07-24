@@ -7,12 +7,37 @@
  */
 export type EpisodeSection = { id: number; published: boolean };
 /**
+ * PreviewSpec: 目次ページで「公開前の予告テキスト」を表示するための任意フィールド。
+ * ep レベル・vol レベル両方で使う。
+ *   text … 予告テキスト。例：「2026/7/31 より順次投稿予定」／「2026年11月ごろ開始予定」
+ *          **空文字 `""` や空白のみは「preview 無し」と同義扱い**（事前配置テンプレとして未着手 vol/ep に
+ *          `preview: { text: "" }` を書ける。公開が近づいたら text を埋めるだけで使える。目次には非表示）
+ * 運用ルール（story-integrity が強制）：
+ *   - 非空 text preview は「公開 sec ゼロの vol/ep」でのみ有効（sec 公開時に text を空にする＝(k)(l)）
+ *   - 完結 vol（afterword.published=true）は非空 preview を持てない（(e) 強化）
+ *   - 非空 vol.preview と非空 ep.preview は同時に持てない（(k') silently hidden 防止）
+ *   - text は string 型必須（null / 配列 / 型不一致は build fail＝(j)）
+ */
+export type PreviewSpec = { text: string };
+
+/**
  * Episode: story.json の ep エントリ。
  * coverFile / coverPositionX は ep扉（タイトル画面）背景の指定。任意（省略時は従来挙動）。
  *   coverFile      … 扉背景のファイル名。省略時 'title.avif'。常に epNN/ 配下から解決する
  *   coverPositionX … 例 "30%"。縦長画面（スマホ）のみ background-position-x に反映。横長・未指定は中央
+ *   preview        … 目次で表示する予告テキスト（任意）。**非空** text のときのみ「予告あり」扱いで
+ *                    目次に出す（公開済み sec がゼロの ep のみ有効＝story-integrity (l)）。
+ *                    タイトルと予告テキストだけを目次に出し、sec chip は出さない（要件 06-7）。
+ *                    **空 text はテンプレとして事前配置可能・目次には出ない**（PreviewSpec の運用ルール参照）
  */
-export type Episode = { id: number; title: string; coverFile?: string; coverPositionX?: string; sections: EpisodeSection[] };
+export type Episode = {
+    id: number;
+    title: string;
+    coverFile?: string;
+    coverPositionX?: string;
+    sections: EpisodeSection[];
+    preview?: PreviewSpec;
+};
 /**
  * EpisodesData: story.json の全 vol.episodes を平坦化した Episode[]。
  * state.ts / analytics.ts / title.ts など ep 番号だけで参照したい呼び出し元向けのヘルパー型（従来互換）。
@@ -43,6 +68,11 @@ export type HeroCardSpec = { file: string };
  *                       最終 vol（= volume 番号最大）のみが持ち、他 vol は持たない（story-integrity の (g)）。
  *   afterword         … 巻末あとがきのメタ（published のみ）
  *   episodes          … その vol に属する ep 定義（未執筆 ep は末尾から欠けてよい・過剰 ep は禁止）
+ *   preview           … 目次で表示する vol 単位の予告テキスト（任意）。**非空** text のときのみ「予告あり」
+ *                       扱いで目次に出す（表示可能な ep がゼロの vol のみ有効＝story-integrity (k)）。
+ *                       非空 vol.preview を持つ vol は目次で summary 相当のヘッダのみ表示（開閉不可・詳細部 body
+ *                       なし・要件 06-7）。非空 vol.preview を持つ vol は episodes 内で非空 ep.preview を併記
+ *                       できない（silently hidden 防止・(k')）。**空 text はテンプレとして事前配置可能**。
  */
 export type Volume = {
     volume: number;
@@ -51,6 +81,7 @@ export type Volume = {
     heroCardCompleted?: HeroCardSpec;
     afterword: Afterword;
     episodes: Episode[];
+    preview?: PreviewSpec;
 };
 
 /**
