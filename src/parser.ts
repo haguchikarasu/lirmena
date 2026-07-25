@@ -28,8 +28,13 @@ export type TextNode =
 
 // 本文テキスト全体を受け取り Scene[] を返す
 // - @@BG:file@@ でシーン分割・bgFile にファイル名のみ（パスなし）を格納
-// - @@BG:file:X%@@ の第3トークン（% を含む）を bgPositionX に格納。% を含まない場合は無視
-// - @@BG@@ は bgFile: null（直前シーンの画像を引き継ぐ指示）。横位置トークンがあっても無視
+// - @@BG:file:キー=値[:キー=値…]@@ のシーンパラメータを解析する（第1トークン＝ファイル名固定、
+//   第2トークン以降がキー付き・順不同・任意個。要件 05-1）
+//     xpos → bgPositionX（"70%" のまま＝object-position へ素通しするため文字列）
+//     dim  → bgDim（0〜1 の number へ正規化＝bg.ts が加重平均の算術にかけるため）
+//   どちらも 0〜100% にクランプ。パーセント表記でない値・未知のキーは無視して既定へフォールバックし、
+//   重複キーは最初の1つを採用する。キーなしの旧記法（:70%）は非対応
+// - @@BG@@ は bgFile: null（黒背景のシーン）。パラメータは取らない（位置を決める画像がなく黒地では暗幕も見えない）
 // - タグより前のテキストは bgFile: null の先頭シーンとして格納
 // - lineCount は @@BG タグを除いた改行数
 // - タグはそれ自身の行に書かれる前提。タグに隣接する改行（直前シーン末尾＝before・
@@ -40,25 +45,35 @@ export type TextNode =
 export function parse(text: string): Scene[] {
   const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  type TagInfo = { start: number; end: number; bgFile: string | null; bgPositionX?: string };
+  type TagInfo = { start: number; end: number; bgFile: string | null; bgPositionX?: string; bgDim?: number };
   const tags: TagInfo[] = [];
   const tagRe = /@@BG(?::([^@]+))?@@/g;
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(src)) !== null) {
     let bgFile: string | null = null;
     let bgPositionX: string | undefined;
+    let bgDim: number | undefined;
     if (m[1] !== undefined) {
       const tokens = m[1].split(":");
       bgFile = tokens[0].length > 0 ? tokens[0] : null;
-      const posToken = tokens[1];
-      if (bgFile !== null && posToken !== undefined && posToken.includes("%")) {
-        bgPositionX = posToken;
+      // 黒背景シーンはパラメータを取らない（第1トークンが空＝ファイル名なし）
+      if (bgFile !== null) {
+        for (let i = 1; i < tokens.length; i++) {
+          const eq = tokens[i].indexOf("=");
+          if (eq <= 0) continue;                                  // "=" なし（旧記法 70%）・キー名が空
+          const key = tokens[i].slice(0, eq).trim();
+          const pct = parsePercent(tokens[i].slice(eq + 1));
+          if (pct === null) continue;                             // パーセント表記でない値
+          if (key === "xpos" && bgPositionX === undefined) bgPositionX = `${pct}%`;
+          else if (key === "dim" && bgDim === undefined) bgDim = pct / 100;
+          // 未知のキー・重複キー（2つ目以降）は無視する
+        }
       }
     }
-    tags.push({ start: m.index, end: m.index + m[0].length, bgFile, bgPositionX });
+    tags.push({ start: m.index, end: m.index + m[0].length, bgFile, bgPositionX, bgDim });
   }
 
-  const segments: Array<{ bgFile: string | null; bgPositionX?: string; raw: string }> = [];
+  const segments: Array<{ bgFile: string | null; bgPositionX?: string; bgDim?: number; raw: string }> = [];
 
   if (tags.length === 0) {
     segments.push({ bgFile: null, raw: src });
@@ -85,15 +100,25 @@ export function parse(text: string): Scene[] {
       }
       raw = "\n".repeat(Math.max(before + after - 1, 0)) + raw.slice(after);
 
-      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, raw });
+      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, bgDim: tags[i].bgDim, raw });
     }
   }
 
-  return segments.map(({ bgFile, bgPositionX, raw }) => {
+  return segments.map(({ bgFile, bgPositionX, bgDim, raw }) => {
     const content = tokenize(raw);
     const lineCount = content.reduce((acc, n) => acc + (n.type === "br" ? 1 : n.type === "blank" ? 2 : 0), 0);
-    return { bgFile, bgPositionX, lineCount, content };
+    return { bgFile, bgPositionX, bgDim, lineCount, content };
   });
+}
+
+// シーンパラメータの値（パーセント表記）を 0〜100 の数値に解析する。
+// 表記が不正（% なし・数値でない・前後に余分な文字）なら null を返し、呼び出し側が既定へフォールバックする。
+// 範囲外は 0〜100 にクランプする（著者の意図が明らかなので落とさない。落とすと既定へ戻り「まったく違う見た目」になる）。
+// parsePercent(raw: string): number | null
+function parsePercent(raw: string): number | null {
+  const m = /^(-?\d+(?:\.\d+)?)%$/.exec(raw.trim());
+  if (m === null) return null;
+  return Math.min(100, Math.max(0, parseFloat(m[1])));
 }
 
 // raw テキストを TextNode[] に変換する

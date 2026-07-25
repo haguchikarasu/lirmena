@@ -2,10 +2,10 @@
  * bg.ts
  * 責務: sec / あとがき 内の全シーン背景を #bg-stack 内の N 枚 .bg-layer（<img>）として構築し、スクロールに連動して
  *       隣接レイヤー間を連続クロスフェードする。あわせて現在シーンと本文領域基準の連続進捗を導出し、結果をコールバックで通知する。
- * export: init(), subscribe(), buildBgUrl() ＋ テスト用純関数（computeP / layerOpacities / deriveCurrentScene / computeProgress）
+ * export: init(), subscribe(), buildBgUrl() ＋ テスト用純関数（computeP / layerOpacities / blendDim / deriveCurrentScene / computeProgress）
  * 依存: axis.ts（書字方向の進行軸解決。bg は本来リーフだが、横書き対応で axis のみ例外的に依存する＝両者ともリーフ
  *       同士なので疎結合は維持。design/module-responsibilities.md の依存マトリクスに bg→axis を明示）。
- *       他モジュールは import しない。読書点は CSS 変数 --reading-anchor を読むのみ。
+ *       他モジュールは import しない。CSS 変数は読書点 --reading-anchor を読み、暗幕 --bg-dim を #bg-stack へ書くのみ。
  *       現在シーン・既読・進捗・オートセーブの利用は通知を受けた reader.ts 側で行う）
  *
  * クロスフェード（台形プラトー方式・要件 06-3）:
@@ -27,14 +27,18 @@
  *     フェードアップし、読書点が本文の読み始め辺（leadEdge）に到達した時点で全表示になる（＝「読み進める」の
  *     移動完了とともに先頭背景が出そろう）。窓は接近距離に収め CROSSFADE_PX を上限とする（leadEdge と
  *     leadWindow を layerOpacities へ渡して実現。静止した開幕 scrollLeft 0 では必ず黒のまま）
- *   - bgPositionX は縦長画面（innerWidth < innerHeight）のときのみ object-position: X% center を適用
+ *   - bgPositionX（@@BG の xpos）は縦長画面（innerWidth < innerHeight）のときのみ object-position: X% center を適用
+ *   - bgDim（@@BG の dim・未指定は DIM_DEFAULT）は各レイヤーの不透明度を重みに加重平均し（blendDim・重み和で正規化）、
+ *     CSS 変数 --bg-dim として #bg-stack へ rAF ごとに書く（差分更新）。暗幕の実体は CSS の #bg-stack::after 1枚で、
+ *     bg は数値を渡すだけ。重み和 0（静止した開幕の黒余白）とシーン 0 枚は DIM_DEFAULT
  *   - 画像ロードは現在シーン ±PRIORITY_RADIUS を優先、空き時間に残りをプリフェッチ（二重ロードは防ぐ）
  *   - 画像 URL の解決先は BgSource で分岐する（要件 06-3 / 03）：
  *       kind: 'ep'        → public/vol[XX]/ep[YY]/img/{ファイル名}（本文モード）
  *       kind: 'afterword' → public/vol[XX]/{ファイル名}（あとがきモード＝ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有）
  *
  * CONFIG: CROSSFADE_PX（クロスフェード窓の幅(px)・狭めると境界の切替が鋭い）/ CROSSFADE_BOUNDARY（境界基準：
- *   シーン境界辺=BGタグ位置 / 隣接中心の中点）/ ANCHOR（--reading-anchor 取得失敗時のデフォルト比率）。
+ *   シーン境界辺=BGタグ位置 / 隣接中心の中点）/ ANCHOR（--reading-anchor 取得失敗時のデフォルト比率）/
+ *   DIM_DEFAULT（暗幕の既定の濃さ 0〜1・CSS の var(--bg-dim, 0.5) と一致させる）。
  *   書字方向（進行軸・読み進め向き）は axis が解決するため bg 固有の方向定数は持たない。
  */
 
@@ -49,9 +53,13 @@ const CROSSFADE_PX = 32*3;          // クロスフェード窓の幅(px)。境�
 const CROSSFADE_BOUNDARY: 'scene-edge' | 'center-midpoint' = 'scene-edge';
 const ANCHOR = 0.45;              // --reading-anchor が読めないときのフォールバック比率（0〜1）
 const PRIORITY_RADIUS = 2;        // 現在シーン ±この数を優先ロード
+const DIM_DEFAULT = 0.5;          // 暗幕の既定の濃さ（0=暗幕なし・1=真っ黒）。dim 未指定シーンに適用。
+                                  // CSS の var(--bg-dim, 0.5) フォールバックと同じ値に保つこと
 
 let _specs: BgLayerSpec[] = [];
 let _layers: HTMLImageElement[] = [];
+let _stack: HTMLElement | null = null;   // #bg-stack（--bg-dim の書き込み先。毎フレームの getElementById を避ける）
+let _dimWritten = -1;                    // 直近に書いた --bg-dim。差分更新用（init で -1 に戻し初回書き込みを保証）
 let _source: BgSource = { kind: 'ep', vol: 1, ep: 1 };
 let _loaded = new Set<number>();
 let _idleScheduled = false;
@@ -72,8 +80,10 @@ export function init(layers: BgLayerSpec[], source: BgSource): void {
   _source = source;
   _loaded = new Set();
   _idleScheduled = false;
+  _dimWritten = -1;
 
   const stack = document.getElementById('bg-stack');
+  _stack = stack;
   if (!stack) return;
   stack.replaceChildren();
 
@@ -117,6 +127,7 @@ function _emit(container: HTMLElement): void {
 
   let currentScene = 1;
   let progress = 0;
+  let dim = DIM_DEFAULT;   // シーン 0 枚（未 init・空ページ）のフォールバック
   if (n > 0) {
     // 純関数の reverse 引数：進行に対し座標が降順なら false（vertical-rl の水平 x）、昇順なら true（horizontal-tb の垂直 y）。
     // axis.isReverse()（vertical=true）とは逆の意味になるため反転して渡す。
@@ -152,11 +163,14 @@ function _emit(container: HTMLElement): void {
     for (let k = 0; k < _layers.length; k++) {
       _layers[k].style.opacity = String(k < opacities.length ? opacities[k] : 0);
     }
+    // 暗幕は #bg-stack::after の1枚だけなので、見えているレイヤーの dim を不透明度で加重平均して1つの値にする。
+    dim = blendDim(_specs.map((s) => s.bgDim ?? DIM_DEFAULT), opacities, DIM_DEFAULT);
     currentScene = deriveCurrentScene(computeP(centers, anchor, reverse), n);
     // 進捗は本文領域（全シーンの外接区間 [textStart, textEnd]）を読書点が走る割合。前後の空白余白では 0/1 に固定。
     progress = computeProgress(textStart, textEnd, anchor, reverse);
     _prefetchAround(currentScene - 1);
   }
+  _writeDim(dim);
 
   const forward = axis.getProgress(container);      // forward 進行 px（0 起点・正値）
   const range = axis.getProgressRange(container);   // 進行軸の可動域（0〜range）
@@ -168,6 +182,16 @@ function _emit(container: HTMLElement): void {
     currentScene,
     progress,
   });
+}
+
+// 暗幕の濃さを #bg-stack の CSS 変数 --bg-dim へ書く（値が変わったときだけ＝差分更新）。
+// 実際に暗くするのは CSS 側（#bg-stack::after の rgba(0,0,0,var(--bg-dim,0.5))）。bg は数値を渡すだけ。
+function _writeDim(dim: number): void {
+  if (!_stack) return;
+  const v = Math.round(dim * 1000) / 1000; // α の 0.001 未満は知覚できない＝無駄なスタイル再計算を落とす
+  if (v === _dimWritten) return;
+  _dimWritten = v;
+  _stack.style.setProperty('--bg-dim', String(v));
 }
 
 // --reading-anchor（"45%" など）を 0〜1 の比率に解析する。読めなければ ANCHOR を返す。
@@ -298,6 +322,28 @@ export function layerOpacities(centers: number[], anchorX: number, windowPx: num
     out.push(Math.min(fadeIn, fadeOut));
   }
   return out;
+}
+
+// 各シーンの暗幕の濃さ dims（0〜1）を、そのレイヤーの不透明度 opacities を重みにして加重平均する。
+// 暗幕は #bg-stack::after の1枚に集約されているため、クロスフェード中の2枚ぶんを1つの値へ畳む必要がある（要件 06-3）。
+// 重み和で正規化するので、結果は必ず寄与レイヤーの dim の最小〜最大に収まる（どのシーンより濃くも薄くもならない）。
+//   → 正規化しないと、シーン幅がクロスフェード窓より狭い縮退（layerOpacities の和が 1 未満）や開幕の
+//      フェードアップ区間で暗幕が fallback へ引っ張られ、本文中に濃さのチラつきが出る。
+// 重み和が 0（どのレイヤーも出ていない＝静止した開幕の黒余白）のときは fallback を返す。
+// この区間の画面は #bg-stack の黒地そのもので、黒の上の黒い暗幕は見えないため値は見た目に影響しない。
+// dims と opacities の長さが違うときは短いほうまでを見る。
+// blendDim(dims: number[], opacities: number[], fallback: number): number
+export function blendDim(dims: number[], opacities: number[], fallback: number): number {
+  const n = Math.min(dims.length, opacities.length);
+  let sum = 0, acc = 0;
+  for (let k = 0; k < n; k++) {
+    const w = opacities[k];
+    if (!(w > 0)) continue;
+    sum += w;
+    acc += w * dims[k];
+  }
+  if (sum <= 0) return fallback;
+  return acc / sum;
 }
 
 // 現在シーン（1-indexed）= clamp(round(P) + 1, 1, N)。

@@ -62,7 +62,7 @@ import * as feedback from './feedback';
 import * as analytics from './analytics';
 import { computeStoryStage } from './volumes';
 import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
-import type { Scene, EpisodesData, CharactersData, StoryData, SecAddress } from './types';
+import type { Scene, BgLayerSpec, EpisodesData, CharactersData, StoryData, SecAddress } from './types';
 
 const WHEEL_SCROLL_MULTIPLIER = 1;
 
@@ -188,7 +188,7 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
 
     renderer.renderScenes(scenes);
     const currentVol = state.getCurrentVolume()?.volume ?? 1;
-    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), { kind: 'ep', vol: currentVol, ep });
+    bg.init(_toBgLayerSpecs(scenes), { kind: 'ep', vol: currentVol, ep });
 
     _restoreInitialScroll(mainContainer, { ep, sec });
 
@@ -273,7 +273,7 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     renderer.renderScenes(scenes);
     // あとがきモードでも @@BG@@ が使える。画像 URL は BgSource で分岐し、あとがきは public/vol[XX]/{ファイル名} 直下から解決する
     // （ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有する。要件 06-3 / 03）。
-    bg.init(scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX })), { kind: 'afterword', vol });
+    bg.init(_toBgLayerSpecs(scenes), { kind: 'afterword', vol });
 
     _restoreInitialScrollAfterword(mainContainer, vol);
 
@@ -290,6 +290,15 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;
+}
+
+/**
+ * Scene[] から bg.ts が要るフィールドだけを取り出す（Scene 全体は渡さない＝content を bg へ漏らさない）。
+ * BgLayerSpec は Pick なのでフィールドを落としても型エラーにならず、本文モード／あとがきモードの片方だけ
+ * 取りこぼしても静かに機能が抜ける。それを防ぐため変換はこの1箇所に集約する（両モードから呼ぶ）。
+ */
+function _toBgLayerSpecs(scenes: Scene[]): BgLayerSpec[] {
+    return scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX, bgDim: s.bgDim }));
 }
 
 /** #main-container を取得し、wheel/pan/immersive の共通結線を行う（両モード共通） */

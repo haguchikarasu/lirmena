@@ -172,10 +172,11 @@ export type ScrollNotification = { scrollLeft: number; ratio: number; scrollWidt
 
 /**
  * BgLayerSpec: bg.ts が #bg-stack に1枚ずつ .bg-layer を構築するための背景指定。
- * main.ts が Scene[] から bgFile / bgPositionX のみを取り出して bg.init() に渡す（Scene 全体は渡さない）。
+ * main.ts が Scene[] から背景に要るフィールドのみを取り出して bg.init() に渡す（Scene 全体は渡さない）。
  * bgFile === null は黒背景レイヤー（@@BG@@・先頭テキスト）。
+ * Pick なのでフィールドを落としても型エラーにならない。取りこぼしを防ぐため変換は main.ts の _toBgLayerSpecs に集約する。
  */
-export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX'>;
+export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX' | 'bgDim'>;
 
 /**
  * BgSource: bg.ts の画像 URL 解決先を示す discriminated union。main.ts が bg.init に渡す。
@@ -208,7 +209,12 @@ export type ChangelogEntry = { version: string; date: string; change: string; sh
  */
 export type Scene = {
     bgFile: string | null;
-    bgPositionX?: string;  // 例: "30%"。@@BG:file:X%@@ で指定。縦長画面のみ有効
+    bgPositionX?: string;  // 例: "70%"。@@BG:file:xpos=X%@@ で指定。縦長画面のみ有効
+    bgDim?: number;        // 暗幕の濃さ 0〜1（0=暗幕なし・1=真っ黒）。@@BG:file:dim=X%@@ を正規化。未指定は bg.ts の DIM_DEFAULT
     lineCount: number;
     content: unknown;
 };
+// bgPositionX が文字列・bgDim が数値なのは意図的（揃えないこと）。
+//   bgPositionX … bg.ts が `${bgPositionX} center` として object-position へ素通しするだけなので文字列が最短経路
+//   bgDim       … bg.ts が blendDim() の加重平均にかける値。文字列で持つと bg 側が parseFloat を持つことになり、
+//                 「タグ記法はパーセント表記」という parser の知識が外へ漏れる

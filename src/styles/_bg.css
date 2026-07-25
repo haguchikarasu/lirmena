@@ -47,13 +47,15 @@
   pointer-events: none;
 }
 
-/* 全レイヤーをまとめて薄く暗くする暗幕（本文の可読性確保。1枚に集約）。
-   背景鑑賞モード（html.is-immersive）では opacity を 0 にフェードし、背景本来の色を見せる。 */
+/* 全レイヤーをまとめて暗くする暗幕（本文の可読性確保。1枚に集約）。
+   濃さはシーンごとの dim（@@BG:file:dim=X%@@）を bg.ts が加重平均して CSS 変数 --bg-dim（0〜1）へ毎フレーム書く。
+   フォールバック 0.5 は bg.ts の DIM_DEFAULT と一致させること（JS 未実行時も従来の見え方になる）。
+   opacity は背景鑑賞モード（html.is-immersive）のフェード専用に温存する（濃さ＝background・出し入れ＝opacity で役割を分ける）。 */
 #bg-stack::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, var(--bg-dim, 0.5));
   opacity: 1;
   transition: opacity var(--immersive-fade) ease;
   pointer-events: none;

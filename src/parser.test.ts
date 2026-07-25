@@ -19,6 +19,13 @@ function nodesOf(text: string): TextNode[] {
   return scenes[0].content as TextNode[];
 }
 
+// 背景遷移タグ1つだけの本文を parse し、そのタグが作るシーンを返す
+function sceneOf(tag: string) {
+  const scenes = parse(`${tag}\n本文`);
+  expect(scenes).toHaveLength(1);
+  return scenes[0];
+}
+
 describe("parser 傍点（emphasis）", () => {
   it("《《対象》》 を emphasis ノードにする", () => {
     expect(nodesOf("《《対象》》")).toEqual([{ type: "emphasis", value: "対象" }]);
@@ -102,5 +109,92 @@ describe("parser @@BG@@ 境界の改行（タグを跨ぐ空行）", () => {
     const withBlank = parse("本文1\n@@BG@@\n\n本文2");
     const sum = withBlank.reduce((a, s) => a + s.lineCount, 0);
     expect(sum).toBe(2); // blank = 2（= もとの n1 + n3 相当）
+  });
+});
+
+describe("parser @@BG@@ タグのシーンパラメータ（キー=値）", () => {
+  // 期待値の出典: design/requirements/05-1-tags.md「シーンパラメータ（キー=値）」節。
+  //   第1トークン＝ファイル名固定、第2トークン以降が キー=値（: 区切り・順不同・任意個）。
+  //   値はパーセント表記のみ有効・0〜100% にクランプ・未知のキーは無視・重複キーは先勝ち・旧記法は非対応。
+
+  it("パラメータなしはファイル名だけを取り、両フィールドとも未指定", () => {
+    const s = sceneOf("@@BG:a.avif@@");
+    expect(s.bgFile).toBe("a.avif");
+    expect(s.bgPositionX).toBeUndefined();
+    expect(s.bgDim).toBeUndefined();
+  });
+
+  it("xpos は % 込みの文字列で格納する（object-position へ素通しするため）", () => {
+    expect(sceneOf("@@BG:a.avif:xpos=70%@@").bgPositionX).toBe("70%");
+  });
+
+  it("dim は 0〜1 の number へ正規化する", () => {
+    expect(sceneOf("@@BG:a.avif:dim=35%@@").bgDim).toBeCloseTo(0.35);
+  });
+
+  it("並び順は結果に影響しない（順不同）", () => {
+    const a = sceneOf("@@BG:a.avif:xpos=70%:dim=35%@@");
+    const b = sceneOf("@@BG:a.avif:dim=35%:xpos=70%@@");
+    expect(a.bgPositionX).toBe(b.bgPositionX);
+    expect(a.bgDim).toBe(b.bgDim);
+    expect(a.bgPositionX).toBe("70%");
+    expect(a.bgDim).toBeCloseTo(0.35);
+  });
+
+  it("dim=0% は 0 として保持される（falsy で欠落しない）", () => {
+    expect(sceneOf("@@BG:a.avif:dim=0%@@").bgDim).toBe(0);
+  });
+
+  it("dim=100% は 1（真っ黒）", () => {
+    expect(sceneOf("@@BG:a.avif:dim=100%@@").bgDim).toBe(1);
+  });
+
+  it("0〜100% の範囲外はクランプする（既定へ落とさない）", () => {
+    expect(sceneOf("@@BG:a.avif:dim=150%@@").bgDim).toBe(1);
+    expect(sceneOf("@@BG:a.avif:dim=-20%@@").bgDim).toBe(0);
+    expect(sceneOf("@@BG:a.avif:xpos=120%@@").bgPositionX).toBe("100%");
+  });
+
+  it("小数のパーセントを受け付ける", () => {
+    expect(sceneOf("@@BG:a.avif:dim=12.5%@@").bgDim).toBeCloseTo(0.125);
+  });
+
+  it("パーセント表記でない値は無視する（% なし・数値でない）", () => {
+    expect(sceneOf("@@BG:a.avif:dim=35@@").bgDim).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:dim=abc%@@").bgDim).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:xpos=70px@@").bgPositionX).toBeUndefined();
+  });
+
+  it("未知のキーは無視し、他のキーには影響しない", () => {
+    const s = sceneOf("@@BG:a.avif:foo=1%:dim=20%@@");
+    expect(s.bgDim).toBeCloseTo(0.2);
+    expect(s.bgPositionX).toBeUndefined();
+  });
+
+  it("同じキーが複数あるときは最初の1つを採用する（先勝ち）", () => {
+    expect(sceneOf("@@BG:a.avif:dim=20%:dim=80%@@").bgDim).toBeCloseTo(0.2);
+  });
+
+  it("キーなしの旧記法（:70%）は非対応＝無視される", () => {
+    const s = sceneOf("@@BG:a.avif:70%@@");
+    expect(s.bgFile).toBe("a.avif");
+    expect(s.bgPositionX).toBeUndefined();
+  });
+
+  it("黒背景シーン（@@BG@@）はパラメータを取らない", () => {
+    const plain = sceneOf("@@BG@@");
+    expect(plain.bgFile).toBeNull();
+    expect(plain.bgPositionX).toBeUndefined();
+    expect(plain.bgDim).toBeUndefined();
+    // ファイル名スロットを空にしてパラメータだけ書いても取らない
+    const empty = sceneOf("@@BG::dim=20%@@");
+    expect(empty.bgFile).toBeNull();
+    expect(empty.bgDim).toBeUndefined();
+  });
+
+  it("パラメータの有無はシーン分割に影響しない（第1トークン＝ファイル名固定）", () => {
+    const scenes = parse("@@BG:a.avif:xpos=70%:dim=35%@@\n本文1\n@@BG:b.avif@@\n本文2");
+    expect(scenes).toHaveLength(2);
+    expect(scenes.map(s => s.bgFile)).toEqual(["a.avif", "b.avif"]);
   });
 });

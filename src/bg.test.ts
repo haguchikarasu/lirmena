@@ -3,13 +3,15 @@
  * 対象: bg.ts の DOM 非依存な純関数（クロスフェード算出の数学）
  *   - computeP: 中心列 + 読書点 → 連続値 P（線形補間・両端クランプ・方向反転）
  *   - layerOpacities: 台形プラトー。中央は不透明度1、境界±windowPx/2 の窓だけで線形クロスフェード（境界で 0.5・和=1）
+ *   - blendDim: 各シーンの暗幕 dim を不透明度で加重平均（重み和で正規化・和 0 なら fallback）
  *   - deriveCurrentScene: clamp(round(P)+1, 1, N)
  *   - computeProgress: 本文領域 [textLeft, textRight] を読書点が読み始め端→読み終わり端へ走る割合 0〜1（両端クランプ・方向反転）
  * 方針: 期待値は実装ではなく要件 06-3（台形プラトー方式の式）／06-6（本文前後の恒久余白で読書点が両端へ届く）から導出する（仕様駆動）。
- *   getBoundingClientRect / scroll に依存する _emit・init・subscribe は jsdom 不安定のため自動化しない（CLAUDE.md §7）。
+ *   getBoundingClientRect / scroll に依存する _emit・init・subscribe（--bg-dim の DOM への書き込みを含む）は
+ *   jsdom 不安定のため自動化しない（CLAUDE.md §7）。
  */
 import { describe, expect, it } from 'vitest';
-import { computeP, layerOpacities, deriveCurrentScene, sceneEdges, computeProgress, buildBgUrl } from './bg';
+import { computeP, layerOpacities, blendDim, deriveCurrentScene, sceneEdges, computeProgress, buildBgUrl } from './bg';
 
 describe('computeP（読書点 → 連続値 P）', () => {
     // vertical-rl RTL：中心列は x 降順（scene0 が右＝最大 x）。reverse=false。
@@ -267,6 +269,56 @@ describe('buildBgUrl（BgSource ごとに vol/ep 直下を切替）', () => {
         const url = buildBgUrl({ kind: 'ep', vol: 1, ep: 1 }, 'a.avif');
         expect(url.startsWith('/')).toBe(false);
         expect(url.startsWith('vol')).toBe(true);
+    });
+});
+
+describe('blendDim（暗幕 α の加重平均・重み和で正規化）', () => {
+    // 期待値の出典: 要件 06-3「背景表示ルール」の暗幕の項。
+    //   暗幕は #bg-stack::after の1枚に集約されるため、各シーンの dim を不透明度で加重平均して1つの値に畳む。
+    //   重み和で正規化するので結果は寄与レイヤーの dim の最小〜最大に収まり、重み和 0 のときだけ fallback。
+    const FB = 0.5;
+
+    it('1枚だけ出ているときはそのシーンの dim をそのまま返す', () => {
+        expect(blendDim([0.2, 0.6], [1, 0], FB)).toBeCloseTo(0.2);
+        expect(blendDim([0.2, 0.6], [0, 1], FB)).toBeCloseTo(0.6);
+    });
+
+    it('境界（両側 0.5）では2枚の中間になる', () => {
+        expect(blendDim([0.2, 0.6], [0.5, 0.5], FB)).toBeCloseTo(0.4);
+    });
+
+    it('重みに対して線形に補間する', () => {
+        expect(blendDim([0.2, 0.6], [0.75, 0.25], FB)).toBeCloseTo(0.3);
+        expect(blendDim([0.2, 0.6], [0.25, 0.75], FB)).toBeCloseTo(0.5);
+    });
+
+    it('開幕のフェードアップ（重み和 < 1）でも fallback に引っ張られない', () => {
+        // 先頭レイヤーが 0→1 に立ち上がる途中。出ているのは1枚だけなのでその dim になる。
+        expect(blendDim([0.2, 0.6], [0.4, 0], FB)).toBeCloseTo(0.2);
+    });
+
+    it('シーン幅が窓より狭い縮退（重み和 < 1）でも寄与2枚の平均になる', () => {
+        // 正規化しないと fallback 側へ寄って本文中に濃さのチラつきが出る。
+        expect(blendDim([0.2, 0.6, 0.4], [0.3, 0.3, 0], FB)).toBeCloseTo(0.4);
+    });
+
+    it('どのレイヤーも出ていない（重み和 0）ときは fallback', () => {
+        expect(blendDim([0.2], [0], FB)).toBe(FB);
+        expect(blendDim([], [], FB)).toBe(FB);
+    });
+
+    it('dims と opacities の長さが違うときは短いほうまでを見る', () => {
+        expect(blendDim([0.2, 0.6, 0.4, 0.9], [1, 0], FB)).toBeCloseTo(0.2);
+        expect(blendDim([0.2, 0.6], [0.5, 0.5, 1, 1], FB)).toBeCloseTo(0.4);
+    });
+
+    it('結果は必ず寄与シーンの dim の最小〜最大に収まる', () => {
+        const dims = [0.1, 0.9, 0.4];
+        for (const ops of [[1, 0, 0], [0.5, 0.5, 0], [0.2, 0.3, 0.5], [0.1, 0.1, 0.1]]) {
+            const v = blendDim(dims, ops, FB);
+            expect(v).toBeGreaterThanOrEqual(0.1);
+            expect(v).toBeLessThanOrEqual(0.9);
+        }
     });
 });
 
