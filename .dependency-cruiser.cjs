@@ -30,7 +30,7 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ・design/module-matrix.md L50。stage 判定と栞スキーマ移行を二重管理しないため）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ・design/module-matrix.md の「index.ts は原則 src/ 内の他モジュールを import しない」の項。stage 判定と栞スキーマ移行を二重管理しないため）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
@@ -44,7 +44,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 14 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md L44）',
+      comment: 'リーフ 14 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md の「他モジュールを import しない（列のみに出現）」の項）',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',
