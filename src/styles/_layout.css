@@ -172,7 +172,7 @@ html.is-selecting #main-container {
 }
 
 /* 日本語テキストラベル（「次へ」「目次へ戻る」「Ｘでポスト」「マシュマロを送る」）：縦書きは縦組み・小さめフォント
-   inline-size（縦組みでは物理 height）は基底の指定に委ねる（SNS は 9rem、次へは calc(2×9rem+8px)＝18.5rem 相当） */
+   inline-size（縦組みでは物理 height）は基底の指定に委ねる（値は上の #btn-next / #btn-share-* の定義が持つ＝ここに再掲しない） */
 #btn-next.is-text-label,
 #btn-afterword.is-text-label,
 #btn-share-x.is-text-label,

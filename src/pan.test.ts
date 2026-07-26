@@ -7,7 +7,7 @@
  * 方針: 期待値は実装ではなく pan.ts の IF コメント／要件 06-6（左ボタン＋修飾キー無し＋マウス限定でのみパン、
  *   Shift で選択へ譲る、forward＝読み進め方向の正値・進行軸ポインタ移動に対し forward は -sign 倍、離脱速度から
  *   摩擦で自然減速する慣性）から導出する（仕様駆動）。pointerdown 登録・setPointerCapture・rAF・closest 等の
- *   DOM/タイマ依存は jsdom 不安定のため自動化しない（CLAUDE.md §7）。慣性も数式（純関数）のみテストし、rAF ループ自体は手動スモークで担保する。
+ *   DOM/タイマ依存は jsdom 不安定のため自動化しない（`ops/local-checks.md`「Vitest」）。慣性も数式（純関数）のみテストし、rAF ループ自体は手動スモークで担保する。
  */
 import { describe, expect, it } from 'vitest';
 import {

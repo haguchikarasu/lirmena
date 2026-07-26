@@ -4,7 +4,7 @@
  *   - shouldToggleFromTap: 押下→離しの移動量・時間から「その場の軽いタップ」＝トグル発火かを判定する
  * 方針: 期待値は実装ではなく immersive.ts の IF コメント／要件 06-3（移動が小さく短い操作だけをトグルとみなし、
  *   移動の大きいスワイプ／ドラッグや長押しは無視してスクロール・選択へ委ねる）から導出する（仕様駆動）。
- *   pointer 購読・closest・クラス読み取り等の DOM 依存は jsdom 不安定のため自動化しない（CLAUDE.md §7）。
+ *   pointer 購読・closest・クラス読み取り等の DOM 依存は jsdom 不安定のため自動化しない（`ops/local-checks.md`「Vitest」）。
  */
 import { describe, expect, it } from 'vitest';
 import { shouldToggleFromTap } from './immersive';

@@ -36,7 +36,7 @@
  *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
  *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
- *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md §3 単一要素は id セレクタ）
+ *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
  *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts の inline 複製）
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する

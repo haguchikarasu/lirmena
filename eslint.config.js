@@ -1,4 +1,4 @@
-// 汎用コード品質の機械化（規約 §3 のうち TS lint で拾える分）。
+// 汎用コード品質の機械化（CLAUDE.md の AI 駆動開発ルールのうち TS lint で拾える分）。
 // 運用：公開ブロックしない（CI では continue-on-error）。赤アノテーションで気づけるが公開は止めない。
 // 対象：src/*.ts（テストと生成物は除外）。tsconfig の exclude と合わせるため *.test.ts は lint 対象外。
 import js from '@eslint/js';

@@ -42,7 +42,7 @@
 
 import type { StoryData, Volume, SecKey } from './types';
 
-// 物語進行段階の型。1〜5 の有限値のみ返る（CLAUDE.md §3 汎用型回避）。
+// 物語進行段階の型。1〜5 の有限値のみ返る（CLAUDE.md「汎用型（any など）を避ける」）。
 export type StoryStage = 1 | 2 | 3 | 4 | 5;
 
 // 本文 sec キーの正規表現。あとがきキー "vol01-af"（^vol\d{2}-af$）と区別する。

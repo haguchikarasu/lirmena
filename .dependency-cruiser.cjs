@@ -1,5 +1,8 @@
 // 依存グラフの許可リスト・循環禁止・orphan 検出。
-// 許可リストは design/module-matrix.md と同期する（matrix を更新したら本ファイルも同じ単位で更新）。
+// **本ファイルの allowed が依存グラフの真実源**。design/module-matrix.md は手書きの依存表を持たない
+// （手書きは実装とずれるため廃止）。新しい依存を足すときはここを直す。
+// 設計意図と、依存辺に現れない結線（コールバック注入・複製・story-integrity の呼び出し元）は
+// design/module-matrix.md 側が持つ。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
 const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics)';
@@ -30,7 +33,7 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ・design/module-matrix.md の「index.ts は原則 src/ 内の他モジュールを import しない」の項。stage 判定と栞スキーマ移行を二重管理しないため）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ。stage 判定と栞スキーマ移行を二重管理しないための例外＝理由は design/module-matrix.md「index.ts の独立方針と 2 本の例外」）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
@@ -44,7 +47,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 14 モジュールは src/ 内の他モジュールを import しない（types のみ許可・design/module-matrix.md の「他モジュールを import しない（列のみに出現）」の項）',
+      comment: 'リーフ 14 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',

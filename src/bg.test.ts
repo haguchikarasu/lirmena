@@ -8,7 +8,7 @@
  *   - computeProgress: 本文領域 [textLeft, textRight] を読書点が読み始め端→読み終わり端へ走る割合 0〜1（両端クランプ・方向反転）
  * 方針: 期待値は実装ではなく要件 06-3（台形プラトー方式の式）／06-6（本文前後の恒久余白で読書点が両端へ届く）から導出する（仕様駆動）。
  *   getBoundingClientRect / scroll に依存する _emit・init・subscribe（--bg-dim の DOM への書き込みを含む）は
- *   jsdom 不安定のため自動化しない（CLAUDE.md §7）。
+ *   jsdom 不安定のため自動化しない（`ops/local-checks.md`「Vitest」＝UI 層は手動スモークに残す）。
  */
 import { describe, expect, it } from 'vitest';
 import { computeP, layerOpacities, blendDim, deriveCurrentScene, sceneEdges, computeProgress, buildBgUrl } from './bg';
