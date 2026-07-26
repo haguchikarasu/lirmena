@@ -17,7 +17,7 @@
  *   computeStoryStage() の戻り値をそのまま渡せる。
  *
  * 送信するイベント：reader_snapshot（GA4 カスタムイベント）。パラメータは snake_case で1回にまとめて送る。
- *   font_size / font_family / line_gap / writing_mode … 表示設定4種
+ *   font_size / font_family / line_gap / writing_mode / font_weight … 表示設定5種
  *   story_stage                                       … 1〜5（呼び出し側が計算済みの値をそのまま渡す）
  *   read_ratio                                         … 0〜100 の整数。読了 sec 数 ÷ 全公開 sec 数を四捨五入。
  *                                                         分子は公開済み sec の通し番号 Map に実在する read キーのみを
@@ -39,6 +39,7 @@ type SettingsSnapshot = {
     fontSize: 'large' | 'medium' | 'small';
     fontFamily: 'serif' | 'sans';
     lineGap: 'on' | 'off';
+    fontWeight: 'normal' | 'bold';
     writingMode: 'vertical' | 'horizontal';
 };
 
@@ -70,6 +71,7 @@ export function send(
         font_family: settings.fontFamily,
         line_gap: settings.lineGap,
         writing_mode: settings.writingMode,
+        font_weight: settings.fontWeight,
         story_stage: storyStage,
         read_ratio: readRatio,
         furthest_reached_position: furthestReached,

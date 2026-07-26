@@ -1,23 +1,25 @@
 /*
  * settings.ts
- * 責務: フォントサイズ・フォント・段落間マージン・書字方向・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
+ * 責務: 書字方向・段落間マージン・フォント・文字サイズ・文字の太さ・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
  * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings()
  * 依存: なし（栞・既読・読破のクリア・書字方向変更後の処理のコールバックは main.ts から注入）
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
  *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
  *   3つのクリアボタン（栞をクリア／既読をクリア／読破状況をクリア）は window.confirm() で承認を取ってから callback を呼ぶ。
- *   getSettings(): Settings は現在の表示設定（フォントサイズ・フォント・段落間空行・書字方向）のコピーを返す。
+ *   getSettings(): Settings は現在の表示設定（書字方向・段落間空行・フォント・文字サイズ・文字の太さ）のコピーを返す。
  *   main.ts が analytics.send() への引数として使う（表示設定は settings.ts が単一の源として所有）。
  *
- * 設定項目とデフォルト値（定数で定義）:
- *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
- *   fontFamily:   "serif" | "sans"               デフォルト "serif"
- *   lineGap:      "on" | "off"                   デフォルト "on"
+ * 設定項目とデフォルト値（定数で定義）。以下は**設定パネルの行順**（＝要件 06-4 の設定項目表の順）で並べてある。
+ * 下の Settings / DEFAULTS / LS_KEYS / _load() の宣言順とは独立（_saveAll / _refreshOpts は Object.keys 走査で順序非依存）:
  *   writingMode:  "vertical" | "horizontal"      デフォルト "horizontal"（CSS変数でなく <html data-writing-mode> 属性へ反映）
+ *   lineGap:      "on" | "off"                   デフォルト "on"
+ *   fontFamily:   "serif" | "sans"               デフォルト "serif"
+ *   fontSize:     "large" | "medium" | "small"   デフォルト "medium"
+ *   fontWeight:   "normal" | "bold"              デフォルト "normal"（通常=400 / 太字=700。本文段落にのみ効く）
  *   readingAnchor: 連続 %（本文表示幅基準）       デフォルト READING_ANCHOR_DEFAULT（中央〜やや読み終わり側）
  *
  * CSS変数:
- *   --font-size, --font-family, --paragraph-margin（値は CSS 変数定義ファイルで管理）
+ *   --font-size, --font-family, --paragraph-margin, --font-weight（値は CSS 変数定義ファイルで管理）
  *   --reading-anchor: 読書点（基準点）の連続 % 値。settings.ts が単一の源として所有・永続化する。
  *     tutorial.ts のドラッグが setReadingAnchor() を呼んで更新し、bg.ts は CSS 変数を読むのみ（要件 06-4 / 06-12）。
  *
@@ -29,6 +31,7 @@
 type FontSize = 'large' | 'medium' | 'small';
 type FontFamily = 'serif' | 'sans';
 type LineGap = 'on' | 'off';
+type FontWeight = 'normal' | 'bold';
 // axis.ts の WritingMode と同値。両者は import で結ばず <html data-writing-mode> 属性＝DOM 契約で疎結合に保つ。
 type WritingMode = 'vertical' | 'horizontal';
 
@@ -36,6 +39,7 @@ export interface Settings {
     fontSize: FontSize;
     fontFamily: FontFamily;
     lineGap: LineGap;
+    fontWeight: FontWeight;
     writingMode: WritingMode;
 }
 
@@ -43,6 +47,7 @@ const DEFAULTS: Settings = {
     fontSize: 'medium',
     fontFamily: 'serif',
     lineGap: 'on',
+    fontWeight: 'normal',
     writingMode: 'horizontal',
 };
 
@@ -50,6 +55,7 @@ const LS_KEYS: Record<keyof Settings, string> = {
     fontSize: 'lirmena.fontSize',
     fontFamily: 'lirmena.fontFamily',
     lineGap: 'lirmena.lineGap',
+    fontWeight: 'lirmena.fontWeight',
     writingMode: 'lirmena.writingMode',
 };
 
@@ -62,7 +68,8 @@ const CSS_VARS = {
     fontSize: { large: 'var(--font-size-lg)', medium: 'var(--font-size-md)', small: 'var(--font-size-sm)' },
     fontFamily: { serif: 'var(--font-family-serif)', sans: 'var(--font-family-sans)' },
     lineGap: { on: 'var(--paragraph-margin-on)', off: 'var(--paragraph-margin-off)' },
-} satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string> };
+    fontWeight: { normal: 'var(--font-weight-normal)', bold: 'var(--font-weight-bold)' },
+} satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string>; fontWeight: Record<FontWeight, string> };
 
 let _current: Settings = { ...DEFAULTS };
 let _callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void } = {
@@ -138,6 +145,7 @@ function _load(): Settings {
         fontSize: _readEnum(LS_KEYS.fontSize, ['large', 'medium', 'small'] as const, DEFAULTS.fontSize),
         fontFamily: _readEnum(LS_KEYS.fontFamily, ['serif', 'sans'] as const, DEFAULTS.fontFamily),
         lineGap: _readEnum(LS_KEYS.lineGap, ['on', 'off'] as const, DEFAULTS.lineGap),
+        fontWeight: _readEnum(LS_KEYS.fontWeight, ['normal', 'bold'] as const, DEFAULTS.fontWeight),
         writingMode: _readEnum(LS_KEYS.writingMode, ['vertical', 'horizontal'] as const, DEFAULTS.writingMode),
     };
 }
@@ -157,6 +165,7 @@ function _applyAll(): void {
     root.style.setProperty('--font-size', CSS_VARS.fontSize[_current.fontSize]);
     root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
     root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+    root.style.setProperty('--font-weight', CSS_VARS.fontWeight[_current.fontWeight]);
     root.setAttribute('data-writing-mode', _current.writingMode);
 }
 
@@ -171,6 +180,8 @@ function _applySetting(key: keyof Settings): void {
         root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
     } else if (key === 'lineGap') {
         root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+    } else if (key === 'fontWeight') {
+        root.style.setProperty('--font-weight', CSS_VARS.fontWeight[_current.fontWeight]);
     } else {
         // writingMode: CSS 変数でなく属性へ。axis.ts がこの属性を読む。
         root.setAttribute('data-writing-mode', _current.writingMode);
@@ -187,6 +198,11 @@ function _saveAll(): void {
 
 // #settings-popup 内に設定パネルを DOM 生成し、各種イベントを登録する。
 // パネル外クリック・ESC キーで閉じる挙動もここで設定する。
+// 設定行の並びは要件 06-4 の設定項目表の順（書字方向→段落間の空行→フォント→文字サイズ→文字の太さ）。
+// 目次ページ src/index.ts の buildSettingsPopup() が同じ markup・同じ localStorage キーで**同じ並び**を
+// 手で揃えた二重実装になっている（index.ts は settings.ts を import しない＝リーフ間非依存を保つため）。
+// 行を足す・並びを変えるときは index.ts 側も同時に直すこと（向こうは行定義・refreshRows の defs・
+// リセットの removeItem・IF コメントが別々なので追従漏れが起きやすい）。ズレは e2e/settings-order.spec.ts が検出する。
 // 依存: #settings-popup（DOM）
 // _buildPopup(): void
 function _buildPopup(): void {
@@ -201,22 +217,26 @@ function _buildPopup(): void {
     titleEl.textContent = '表示設定';
     panel.appendChild(titleEl);
 
-    panel.appendChild(_buildRow('文字サイズ', 'fontSize', [
-        { value: 'small', label: '小' },
-        { value: 'medium', label: '中' },
-        { value: 'large', label: '大' },
-    ]));
-    panel.appendChild(_buildRow('フォント', 'fontFamily', [
-        { value: 'serif', label: '明朝体' },
-        { value: 'sans', label: 'ゴシック体' },
+    panel.appendChild(_buildRow('書字方向', 'writingMode', [
+        { value: 'vertical', label: '縦書き' },
+        { value: 'horizontal', label: '横書き' },
     ]));
     panel.appendChild(_buildRow('段落間の空行', 'lineGap', [
         { value: 'on', label: 'あり' },
         { value: 'off', label: 'なし' },
     ]));
-    panel.appendChild(_buildRow('書字方向', 'writingMode', [
-        { value: 'vertical', label: '縦書き' },
-        { value: 'horizontal', label: '横書き' },
+    panel.appendChild(_buildRow('フォント', 'fontFamily', [
+        { value: 'serif', label: '明朝体' },
+        { value: 'sans', label: 'ゴシック体' },
+    ]));
+    panel.appendChild(_buildRow('文字サイズ', 'fontSize', [
+        { value: 'small', label: '小' },
+        { value: 'medium', label: '中' },
+        { value: 'large', label: '大' },
+    ]));
+    panel.appendChild(_buildRow('文字の太さ', 'fontWeight', [
+        { value: 'normal', label: '通常' },
+        { value: 'bold', label: '太字' },
     ]));
 
     const divider = document.createElement('div');

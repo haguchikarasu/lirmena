@@ -2,7 +2,7 @@
 
 /* ===================================================
    CSS 変数
-   --font-size / --font-family / --paragraph-margin は
+   --font-size / --font-family / --paragraph-margin / --font-weight は
    settings.ts が document.documentElement.style.setProperty() で切り替える。
    --font-size-sm/md/lg・--line-length・--body-margin は「解決層」の変数。
    PC/スマホ×書字方向の組合せに応じて下の 4 組セレクタが「プリセット層」の生値を流し込む。
@@ -58,6 +58,18 @@
   --paragraph-margin-on: 1em;
   --paragraph-margin-off: 0em;
   --paragraph-margin: var(--paragraph-margin-on);
+
+  /* 文字の太さ（settings.ts が --font-weight を切り替える）。適用先は本文段落のみ（_layout.css の #scene-content p）。
+     Web フォントを使わないので実際の字面は OS 搭載フォントのウェイト解決に依存する。
+     700（＝キーワード bold と等価）を使う理由：日本語フォントは Regular(400)/Bold(700) の2段しか持たない
+     ものが多く、600 は CSS のフォントマッチング上 700 へ繰り上がる建前だが、実機（スマホ）では繰り上がらず
+     400 のまま見えるケースがあったため、最初から 700 を指定して確実に太字側を掴ませる。
+     該当ウェイトを持たない環境ではブラウザの合成太字になる。font-synthesis-weight: none は指定しない
+     （指定するとその環境で「太字を選んでも見た目が変わらない」＝設定が壊れて見えるため。要件 06-4）。
+     見え方の再調整はこの2定数だけで行う。 */
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+  --font-weight: var(--font-weight-normal);
 
   /* レイアウト（開発者が調整する定数） */
   --story-padding: 5vh;          /* 本文エリアの天地余白 */

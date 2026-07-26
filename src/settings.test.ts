@@ -1,10 +1,11 @@
 /*
  * settings.test.ts
- * 対象: settings.ts の読書点（readingAnchor）ロジック
+ * 対象: settings.ts の読書点（readingAnchor）ロジック／書字方向／文字の太さ／設定行の並び／3クリアの callback
  *   - 既定値・不正値フォールバック・[0,100] クランプ
- *   - localStorage 保存と CSS 変数 --reading-anchor 反映
+ *   - localStorage 保存と CSS 変数 --reading-anchor / --font-weight 反映
  * 方針: 期待値は要件 06-4（連続 % 値・localStorage 保存・リセットで既定へ）と IF コメントから導出する（仕様駆動）。
- * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup は無いので _buildPopup は早期 return する。
+ * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup が無い describe では _buildPopup が
+ *   早期 return する（＝init だけを見る）。パネル操作を要する describe は beforeEach で #settings-popup を生成し afterEach で撤去する。
  *   各テストは localStorage.clear() ＋ init() で module 内 state（_readingAnchor）を再構築して隔離する。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -66,6 +67,7 @@ describe('getSettings（現在値のスナップショット取得）', () => {
             fontSize: 'medium',
             fontFamily: 'serif',
             lineGap: 'on',
+            fontWeight: 'normal',
             writingMode: 'horizontal',
         });
     });
@@ -153,8 +155,94 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
             init({ ...NOOP, onWritingModeChange: () => { calls++; } });
             findByText('.settings-opt', 'ゴシック体')?.click(); // フォント変更
             findByText('.settings-opt', '大')?.click();         // 文字サイズ変更
+            findByText('.settings-opt', '太字')?.click();       // 文字の太さ変更
             expect(calls).toBe(0);
         });
+    });
+});
+
+// 仕様（要件 06-4）：文字の太さは CSS 変数 --font-weight へ反映する（通常＝--font-weight-normal / 太字＝--font-weight-bold。
+// 実値 400/600 は CSS 側で定義するので、ここでは「どの変数を指すか」だけを検証する）。
+// 既定は通常、不正値は通常へフォールバック、リセットで通常へ戻る。
+describe('文字の太さ（fontWeight → CSS 変数 --font-weight）', () => {
+    const weightVar = () => document.documentElement.style.getPropertyValue('--font-weight');
+
+    describe('読み込み・反映（init）', () => {
+        it('未設定なら既定の通常を CSS 変数へ反映する', () => {
+            init(NOOP);
+            expect(weightVar()).toBe('var(--font-weight-normal)');
+        });
+
+        it('保存済み bold を復元して CSS 変数へ反映する', () => {
+            localStorage.setItem('lirmena.fontWeight', 'bold');
+            init(NOOP);
+            expect(weightVar()).toBe('var(--font-weight-bold)');
+        });
+
+        it('不正値は通常へフォールバックする', () => {
+            localStorage.setItem('lirmena.fontWeight', 'heavy');
+            init(NOOP);
+            expect(weightVar()).toBe('var(--font-weight-normal)');
+        });
+    });
+
+    describe('トグル操作・リセット（#settings-popup 経由）', () => {
+        beforeEach(() => {
+            const popup = document.createElement('section');
+            popup.id = 'settings-popup';
+            document.body.appendChild(popup);
+        });
+        afterEach(() => {
+            document.getElementById('settings-popup')?.remove();
+        });
+
+        const findByText = (selector: string, text: string) =>
+            [...document.querySelectorAll<HTMLButtonElement>(selector)].find((b) => b.textContent === text);
+
+        // ボタン操作は _applySetting()（単一項目のみ反映）を通る。init 経由の _applyAll() とは別経路なので、
+        // 「保存はできるのに本文へ反映されない」取りこぼしをここで捕まえる。
+        it('「太字」を選ぶと localStorage 保存＋CSS 変数反映する', () => {
+            init(NOOP);
+            findByText('.settings-opt', '太字')?.click();
+            expect(localStorage.getItem('lirmena.fontWeight')).toBe('bold');
+            expect(weightVar()).toBe('var(--font-weight-bold)');
+        });
+
+        it('「通常」を選ぶと既定値へ戻して保存・反映する', () => {
+            localStorage.setItem('lirmena.fontWeight', 'bold');
+            init(NOOP);
+            findByText('.settings-opt', '通常')?.click();
+            expect(localStorage.getItem('lirmena.fontWeight')).toBe('normal');
+            expect(weightVar()).toBe('var(--font-weight-normal)');
+        });
+
+        it('設定リセットで通常へ戻る', () => {
+            localStorage.setItem('lirmena.fontWeight', 'bold');
+            init(NOOP);
+            expect(weightVar()).toBe('var(--font-weight-bold)');
+            findByText('.settings-action', '設定をリセット')?.click();
+            expect(weightVar()).toBe('var(--font-weight-normal)');
+            expect(localStorage.getItem('lirmena.fontWeight')).toBe('normal');
+        });
+    });
+});
+
+// 仕様（要件 06-4）：表示設定の行は「書字方向 → 段落間の空行 → フォント → 文字サイズ → 文字の太さ」の順に表示する。
+// 目次ページ（index.ts）は同じ並びを別実装で持つ。両ページの一致は e2e/settings-order.spec.ts が担保する。
+describe('表示設定の行順（要件 06-4）', () => {
+    beforeEach(() => {
+        const popup = document.createElement('section');
+        popup.id = 'settings-popup';
+        document.body.appendChild(popup);
+    });
+    afterEach(() => {
+        document.getElementById('settings-popup')?.remove();
+    });
+
+    it('書字方向→段落間の空行→フォント→文字サイズ→文字の太さ の順に並ぶ', () => {
+        init(NOOP);
+        const labels = [...document.querySelectorAll('.settings-row__label')].map((el) => el.textContent);
+        expect(labels).toEqual(['書字方向', '段落間の空行', 'フォント', '文字サイズ', '文字の太さ']);
     });
 });
 

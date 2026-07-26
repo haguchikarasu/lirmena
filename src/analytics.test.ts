@@ -130,7 +130,7 @@ describe('computeFurthestPosition', () => {
 });
 
 describe('send（window.gtag への結線）', () => {
-    const SETTINGS = { fontSize: 'medium' as const, fontFamily: 'serif' as const, lineGap: 'on' as const, writingMode: 'horizontal' as const };
+    const SETTINGS = { fontSize: 'medium' as const, fontFamily: 'serif' as const, lineGap: 'on' as const, fontWeight: 'normal' as const, writingMode: 'horizontal' as const };
 
     beforeEach(() => {
         window.gtag = undefined;
@@ -151,6 +151,7 @@ describe('send（window.gtag への結線）', () => {
             font_family: 'serif',
             line_gap: 'on',
             writing_mode: 'horizontal',
+            font_weight: 'normal',
             story_stage: 2,
             read_ratio: 33, // 1/3 の四捨五入
             furthest_reached_position: 1, // '01-02' の通し番号

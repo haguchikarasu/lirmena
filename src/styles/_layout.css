@@ -252,8 +252,12 @@ html[data-writing-mode="vertical"] #btn-share-heading {
 /* ===================================================
    本文テキスト（renderer.ts が生成するクラス）
 =================================================== */
+/* 本文段落。font-weight は読者設定「文字の太さ」（settings.ts が --font-weight を切り替える。要件 06-4）。
+   明るい背景画像の上で明朝の細い横画が飛ぶ問題への対策で、text-shadow と併用する。
+   ルビ・傍点・縦中横は子孫なので継承で追従する（個別指定は置かない）。 */
 #scene-content p {
   line-height: 1.8;
+  font-weight: var(--font-weight);
   margin-block-end: var(--paragraph-margin);
   text-align: justify;
   text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 14px rgba(0,0,0,0.5);

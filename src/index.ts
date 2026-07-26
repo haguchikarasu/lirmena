@@ -50,7 +50,7 @@
  *   "pendingJump"          : { ep, sec, scene, ratio }     本編ジャンプ受け渡し
  *   "pendingJumpAfterword" : { vol, ratio }                あとがきジャンプ受け渡し
  *   "sceneRead"            : string[]         旧 "ep-sec-scene" 形式（移行前フォールバック）
- *   "lirmena.*"            : 表示設定（fontSize/fontFamily/lineGap/writingMode）
+ *   "lirmena.*"            : 表示設定（writingMode/lineGap/fontFamily/fontSize/fontWeight）
  */
 
 import './styles/toc.css';
@@ -121,9 +121,10 @@ const LS_SCENE_READ            = 'sceneRead';
 const LS_FONT_SIZE             = 'lirmena.fontSize';
 const LS_FONT_FAMILY           = 'lirmena.fontFamily';
 const LS_LINE_GAP              = 'lirmena.lineGap';
+const LS_FONT_WEIGHT           = 'lirmena.fontWeight';
 const LS_WRITING_MODE          = 'lirmena.writingMode';
 
-const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', writingMode: 'horizontal' } as const;
+const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', fontWeight: 'normal', writingMode: 'horizontal' } as const;
 
 function clearAllBookmarkSlots(): void {
     localStorage.removeItem(LS_BOOKMARKS);
@@ -753,6 +754,15 @@ function renderBookmarks(): void {
 
 // ----- 設定ポップアップ -----
 
+// 本文ページ src/settings.ts の _buildPopup() と同じ markup・同じ localStorage キーを手で揃えた二重実装
+// （index.ts は settings.ts を import しない＝リーフ間非依存を保つため。依存マトリクス参照）。
+// **行の並びは両ページで一致させること**（要件 06-4 の設定項目表の順）。
+// 設定行を足す・並びを変えるときは settings.ts 側と、このファイル内の次の5箇所を同時に直す：
+//   1) LS_* 定数  2) DEFAULTS  3) buildRow の呼び出し順  4) refreshRows() の defs  5) 「設定をリセット」の removeItem
+// （さらにファイル冒頭 IF コメントの localStorage キー一覧）。並びのズレは e2e/settings-order.spec.ts が検出する。
+// 目次ページは本文を持たないので CSS 変数へは反映せず、localStorage 保存と .active トグルだけを行う。
+// なお読書点（lirmena.readingAnchor）は上記の「同時に直す5箇所」に**含めない**：本文側のリセットは
+// setReadingAnchor(既定) まで戻すが、目次には読書点マーカーが無いのでここでは触らない（意図的な非対称）。
 function buildSettingsPopup(story: StoryVolume[]): void {
     const popup = document.getElementById('settings-popup');
     if (!popup) return;
@@ -814,10 +824,11 @@ function buildSettingsPopup(story: StoryVolume[]): void {
 
     function refreshRows(): void {
         const defs: [string, string][] = [
-            [LS_FONT_SIZE,    DEFAULTS.fontSize],
-            [LS_FONT_FAMILY,  DEFAULTS.fontFamily],
-            [LS_LINE_GAP,     DEFAULTS.lineGap],
             [LS_WRITING_MODE, DEFAULTS.writingMode],
+            [LS_LINE_GAP,     DEFAULTS.lineGap],
+            [LS_FONT_FAMILY,  DEFAULTS.fontFamily],
+            [LS_FONT_SIZE,    DEFAULTS.fontSize],
+            [LS_FONT_WEIGHT,  DEFAULTS.fontWeight],
         ];
         for (const [key, def] of defs) {
             const current = readSetting(key, def);
@@ -835,22 +846,26 @@ function buildSettingsPopup(story: StoryVolume[]): void {
     titleEl.textContent = '表示設定';
     panel.appendChild(titleEl);
 
-    panel.appendChild(buildRow('文字サイズ', LS_FONT_SIZE, DEFAULTS.fontSize, [
-        { value: 'small',  label: '小' },
-        { value: 'medium', label: '中' },
-        { value: 'large',  label: '大' },
-    ]));
-    panel.appendChild(buildRow('フォント', LS_FONT_FAMILY, DEFAULTS.fontFamily, [
-        { value: 'serif', label: '明朝体' },
-        { value: 'sans',  label: 'ゴシック体' },
+    panel.appendChild(buildRow('書字方向', LS_WRITING_MODE, DEFAULTS.writingMode, [
+        { value: 'vertical',   label: '縦書き' },
+        { value: 'horizontal', label: '横書き' },
     ]));
     panel.appendChild(buildRow('段落間の空行', LS_LINE_GAP, DEFAULTS.lineGap, [
         { value: 'on',  label: 'あり' },
         { value: 'off', label: 'なし' },
     ]));
-    panel.appendChild(buildRow('書字方向', LS_WRITING_MODE, DEFAULTS.writingMode, [
-        { value: 'vertical',   label: '縦書き' },
-        { value: 'horizontal', label: '横書き' },
+    panel.appendChild(buildRow('フォント', LS_FONT_FAMILY, DEFAULTS.fontFamily, [
+        { value: 'serif', label: '明朝体' },
+        { value: 'sans',  label: 'ゴシック体' },
+    ]));
+    panel.appendChild(buildRow('文字サイズ', LS_FONT_SIZE, DEFAULTS.fontSize, [
+        { value: 'small',  label: '小' },
+        { value: 'medium', label: '中' },
+        { value: 'large',  label: '大' },
+    ]));
+    panel.appendChild(buildRow('文字の太さ', LS_FONT_WEIGHT, DEFAULTS.fontWeight, [
+        { value: 'normal', label: '通常' },
+        { value: 'bold',   label: '太字' },
     ]));
 
     const divider = document.createElement('div');
@@ -877,10 +892,11 @@ function buildSettingsPopup(story: StoryVolume[]): void {
         });
     }));
     panel.appendChild(buildAction('設定をリセット', () => {
-        localStorage.removeItem(LS_FONT_SIZE);
-        localStorage.removeItem(LS_FONT_FAMILY);
-        localStorage.removeItem(LS_LINE_GAP);
         localStorage.removeItem(LS_WRITING_MODE);
+        localStorage.removeItem(LS_LINE_GAP);
+        localStorage.removeItem(LS_FONT_FAMILY);
+        localStorage.removeItem(LS_FONT_SIZE);
+        localStorage.removeItem(LS_FONT_WEIGHT);
         refreshRows();
     }));
 
