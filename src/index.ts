@@ -4,7 +4,9 @@
  *       チップを描画し、栞・オートセーブ（本編／あとがき独立）を並べ、stage に応じてヒーローカード画像を
  *       差し替える。設定ポップアップ／共有／FAB／変更履歴は既存流用。
  * export: なし（script type="module" としてロードされるエントリポイント）
- * 依存: bookmark.ts（getRead で stage 判定材料を取る＋スキーマ移行 init）、
+ * 依存: bookmark.ts（スキーマ移行 init() のみ。read セットは loadReadKeys() で localStorage を直読みする
+ *       ＝目次内で「読破状況をクリア」した直後に bookmark 側のメモリキャッシュが古いままになるのを避けるため。
+ *       applyStoryStage 参照）、
  *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）。
  *       src/ 内はこの2本のみ例外 import（目次の独立方針の緩和：判定ロジックを二重化しない・二重管理を避ける）。
  *
@@ -18,7 +20,7 @@
  *     storyStage === story.length + 1（物語完結）のときは全 vol 閉じる。開閉状態は永続化しない。
  *   - **vol.preview（要件 06-7 予告 vol）**：vol.preview を持つ vol は <details> ではなく
  *     <section class="idx-vol-card idx-vol-card--notice"> を生成し、summary 相当の
- *     <div class="idx-vol-head"> だけを入れる（詳細部 body は生成しない・開閉不可）。
+ *     <header class="idx-vol-head"> だけを入れる（詳細部 body は生成しない・開閉不可）。
  *     状態バッジは「連載中」の代わりに vol.preview.text を pill として表示。
  *     優先順位は完結 > 予告 > 連載中（完結と予告の併存は story-integrity (e) 強化で禁止）。
  *   - **ep.preview（要件 06-7 予告 ep）**：公開済み sec がゼロの ep で ep.preview があれば、
@@ -51,6 +53,7 @@
  *   "pendingJumpAfterword" : { vol, ratio }                あとがきジャンプ受け渡し
  *   "sceneRead"            : string[]         旧 "ep-sec-scene" 形式（移行前フォールバック）
  *   "lirmena.*"            : 表示設定（writingMode/lineGap/fontFamily/fontSize/fontWeight）
+ *   "lirmena.readingAnchor": 読書点の位置（settings.ts が所有。目次は表示に使わず「設定をリセット」で消すだけ）
  */
 
 import './styles/toc.css';
@@ -63,7 +66,9 @@ import { computeStoryStage } from './volumes';
 // 目次では sec chip の代わりにタイトル＋予告テキストを出す（ep）／summary 相当のヘッダのみ出す（vol）。
 type Preview = { text: string };
 // preview が定義されかつ text の trim が非空なら true。renderStory の描画分岐に使う。
-// story-integrity.ts の _hasEffectivePreview と同一ロジック（独立方針で複製）。
+// **src/story-integrity.ts の同名関数と対の複製**（独立方針で import しない）。向こうはビルドを止める判定・
+// こちらは目次に描くかの判定なので、ズレると build は通るのに目次だけ壊れる（vol が丸ごと消える等）。
+// 片方を直したら必ず両方直すこと。
 // 実データは build 時 (j) 検査を通っているが、null/非オブジェクト/非 string text にも防御的に false を返す。
 function _hasEffectivePreview(preview: Preview | undefined): boolean {
     if (preview === undefined || preview === null) return false;
@@ -123,6 +128,9 @@ const LS_FONT_FAMILY           = 'lirmena.fontFamily';
 const LS_LINE_GAP              = 'lirmena.lineGap';
 const LS_FONT_WEIGHT           = 'lirmena.fontWeight';
 const LS_WRITING_MODE          = 'lirmena.writingMode';
+// 読書点。目次は調整 UI も表示反映も持たないが「設定をリセット」の対象には入る（要件 06-4）。
+// そのため設定行の DEFAULTS / buildRow / refreshRows には現れず、リセットの removeItem にだけ現れる。
+const LS_READING_ANCHOR        = 'lirmena.readingAnchor';
 
 const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', fontWeight: 'normal', writingMode: 'horizontal' } as const;
 
@@ -451,16 +459,18 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
 }
 
 // vol の summary 相当ヘッダ（chev / 巻見出し / 状態バッジ）を生成する。
-// 通常 vol は <details> の <summary>、予告 vol は <section> の <div> として使う。
+// 通常 vol は <details> の <summary>、予告 vol は <section> の <header> として使う。
 // タグは <summary>（<details> 用）か <div>（<section> 用）を返せば済むが、両者は用途が違うので
 // クラス名で解決する（<summary> でないと <details> の開閉ハンドラが繋がらない）。
 // pill の中身は「完結 > 予告 > 連載中」の優先順位で決める（完結と予告の併存は integrity (e) 強化で禁止）。
 function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount: number): HTMLElement {
     const hasVolPreview = _hasEffectivePreview(vol.preview);
-    // 予告 vol は <div>、通常 vol は <summary>（<details> の toggle に必要）。同じ .idx-vol-head クラスを共有し、
+    // 予告 vol は <header>、通常 vol は <summary>（<details> の toggle に必要）。同じ .idx-vol-head クラスを共有し、
     // CSS 側で .idx-vol-card--notice > .idx-vol-head の cursor/hover を打ち消す。
+    // <header> は必ず <section class="idx-vol-card--notice"> の内側に置くこと：セクショニング要素の外に出すと
+    // ARIA ロールが banner にマップされ、ページに2つ目のランドマークが静かに生える。
     const head = hasVolPreview && !hasAfterword
-        ? document.createElement('div')
+        ? document.createElement('header')
         : document.createElement('summary');
     head.className = 'idx-vol-head';
 
@@ -761,8 +771,11 @@ function renderBookmarks(): void {
 //   1) LS_* 定数  2) DEFAULTS  3) buildRow の呼び出し順  4) refreshRows() の defs  5) 「設定をリセット」の removeItem
 // （さらにファイル冒頭 IF コメントの localStorage キー一覧）。並びのズレは e2e/settings-order.spec.ts が検出する。
 // 目次ページは本文を持たないので CSS 変数へは反映せず、localStorage 保存と .active トグルだけを行う。
-// なお読書点（lirmena.readingAnchor）は上記の「同時に直す5箇所」に**含めない**：本文側のリセットは
-// setReadingAnchor(既定) まで戻すが、目次には読書点マーカーが無いのでここでは触らない（意図的な非対称）。
+// なお読書点（lirmena.readingAnchor）は設定「行」を持たないので上記 1)〜4) には現れないが、
+// **5) のリセットには含める**：「設定をリセット」はグローバルな初期化であって表示設定だけの初期化ではない
+// （要件 06-4）。目次には読書点マーカーが無いため効果は次に本文ページを開いたときに現れる。
+// 本文側は setReadingAnchor(既定) ＝ setItem('45')、目次側は removeItem という非対称だが、
+// settings.ts の _loadReadingAnchor() が null を既定値 45 へ倒すので読み手にとっては同値。
 function buildSettingsPopup(story: StoryVolume[]): void {
     const popup = document.getElementById('settings-popup');
     if (!popup) return;
@@ -897,6 +910,8 @@ function buildSettingsPopup(story: StoryVolume[]): void {
         localStorage.removeItem(LS_FONT_FAMILY);
         localStorage.removeItem(LS_FONT_SIZE);
         localStorage.removeItem(LS_FONT_WEIGHT);
+        // 表示設定の行を持たないが対象に含める（要件 06-4「設定をリセットでデフォルトに戻す」）。
+        localStorage.removeItem(LS_READING_ANCHOR);
         refreshRows();
     }));
 

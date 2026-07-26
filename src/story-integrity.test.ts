@@ -5,10 +5,10 @@
  *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
  *
  * 網羅する観点：
- *   - 実データ（public/story.json）が全整合ルール (a)〜(l) を満たす
+ *   - 実データ（public/story.json）が validateStory の全ルール（(i) 以外）を満たす
  *   - 意図的に壊した story.json 断片で各違反 (a)〜(l) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
- *   - preview を持つ未執筆 vol/ep が (a)〜(i) を壊さない正常系
+ *   - preview を持つ未執筆 vol/ep が (a)〜(l) を壊さない正常系
  *   - 純関数の非破壊性（引数を破壊しない）
  */
 
@@ -83,7 +83,7 @@ function _baseStory(): StoryData {
 }
 
 describe('validateStory — 実データ整合', () => {
-    it('public/story.json は全ルール (a)〜(h) を満たす（実データ回帰）', () => {
+    it('public/story.json は validateStory の全ルール（(a)〜(h) + (e\') + (j)(k)(k\')(l)。(i) は validateStoryFiles 側）を満たす（実データ回帰）', () => {
         const story = _loadRealStory();
         const errors = validateStory(story);
         expect(errors, `違反: ${errors.join(' / ')}`).toEqual([]);

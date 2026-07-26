@@ -59,6 +59,35 @@ describe('setReadingAnchor（永続化＋CSS 変数反映）', () => {
     });
 });
 
+// 仕様（要件 06-4）：読書点の値は localStorage に保存し「設定をリセット」でデフォルトへ戻す。
+// 読書点は設定パネルに行を持たない（調整は画面上のマーカーのドラッグ）ため、表示設定5項目の
+// リセットとは別経路（_saveAll ではなく setReadingAnchor(READING_ANCHOR_DEFAULT)）を通る＝取りこぼしやすい。
+describe('設定をリセット（読書点・要件 06-4）', () => {
+    beforeEach(() => {
+        const popup = document.createElement('section');
+        popup.id = 'settings-popup';
+        document.body.appendChild(popup);
+    });
+    afterEach(() => {
+        document.getElementById('settings-popup')?.remove();
+    });
+
+    it('リセットで読書点が既定（45）へ戻り localStorage と CSS 変数にも反映される', () => {
+        localStorage.setItem('lirmena.readingAnchor', '70');
+        init(NOOP);
+        expect(getReadingAnchor()).toBe(70);
+        expect(cssVar()).toBe('70%');
+
+        [...document.querySelectorAll<HTMLButtonElement>('.settings-action')]
+            .find((b) => b.textContent === '設定をリセット')
+            ?.click();
+
+        expect(getReadingAnchor()).toBe(45);
+        expect(cssVar()).toBe('45%');
+        expect(localStorage.getItem('lirmena.readingAnchor')).toBe('45');
+    });
+});
+
 // 仕様（IF コメント）：getSettings() は現在の設定項目のコピーを返し、呼び出し側が書き換えても内部状態に影響しない。
 describe('getSettings（現在値のスナップショット取得）', () => {
     it('init 直後はデフォルト値のコピーを返す', () => {

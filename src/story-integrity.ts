@@ -1,7 +1,8 @@
 /*
  * story-integrity.ts
- * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン）と
- *       runtime 時（volumes.test.ts / story.test.ts）で共有する。
+ * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン。
+ *       config() フックなので build / dev / preview の全経路でブロッキング）と
+ *       test 時（src/story-integrity.test.ts）で同じ関数を共有する。
  * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)
  *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
  * 依存: 型のみ（StoryData / Volume）。fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
@@ -66,6 +67,9 @@ function _validatePreviewShape(preview: unknown): string | null {
 // (k)(l)(k')(e) の落とし忘れ検出と UI の hasPreview 判定はこの結果で分岐する。
 // 型検査は _validatePreviewShape が別途行う（形式不正は (j) で捕捉）が、_validatePreviewShape が
 // 走る前後どちらでも安全に呼べるよう、null/非オブジェクト/非 string text はすべて false を返す。
+// **src/index.ts の同名関数と対の複製**（目次は src/ を import しない独立方針のため）。こちらは
+// ビルドを止める判定・向こうは目次に描くかの判定なので、ズレると build は通るのに目次だけ壊れる
+// （vol が丸ごと消える等）。片方を直したら必ず両方直すこと。
 function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
     if (preview === undefined || preview === null) return false;
     if (typeof preview !== 'object') return false;

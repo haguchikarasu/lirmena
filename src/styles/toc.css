@@ -235,7 +235,7 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
 }
 
 /* ===== 予告 vol / 予告 ep 用スタイル（要件 06-7・vol.preview / ep.preview） =====
-   予告 vol は <section class="idx-vol-card idx-vol-card--notice"> ＋ .idx-vol-head（<div>）で
+   予告 vol は <section class="idx-vol-card idx-vol-card--notice"> ＋ .idx-vol-head（<header>）で
    開閉不可・詳細部 body 無しの見た目にする（.idx-vol-card--notice > .idx-vol-head で cursor と
    hover を打ち消す）。予告 ep は sec chip の代わりに .idx-ep-notice を .idx-chips 内に置く。
    優先順位は完結 > 予告 > 連載中（integrity (e) 強化で完結×予告は禁止）。 */
