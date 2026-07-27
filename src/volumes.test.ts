@@ -2,6 +2,7 @@
  * volumes.test.ts
  * volumes.ts の仕様駆動テスト。
  * IF: type StoryStage = 1|2|3|4|5
+ *     MAX_STORY_STAGE: StoryStage
  *     computeStoryStage(read: SecKey[], story: StoryData): StoryStage
  * 期待値は IF コメント／要件 06-5-bookmark「進捗バーの色（物語進行段階：5段階）」から導出する（実装をなぞらない）。
  *
@@ -12,12 +13,13 @@
  *   - あとがきキー "vol01-af" は判定に影響しない
  *   - 未公開 sec の残 read キー（過去データ）で maxReadPos が公開範囲を超えない
  *   - 4vol 完読で stage 5（次巻無し・動的クランプ）
+ *   - vol5 を足しても MAX_STORY_STAGE を超えない（型範囲外の値を返さない）
  *   - 純関数の非破壊性
  *   - 不正入力・境界の耐性
  */
 
 import { describe, expect, it } from 'vitest';
-import { computeStoryStage } from './volumes';
+import { computeStoryStage, MAX_STORY_STAGE } from './volumes';
 import type { StoryData } from './types';
 
 // 本番相当の 4vol 構成（全 sec published=true にして最大読破位置の計算をシンプルにする）
@@ -235,6 +237,33 @@ describe('computeStoryStage — 最大読破位置＋次巻冒頭公開の判定
         it('volume 順不同の story を渡しても volume 昇順で判定される（引数順序に非依存）', () => {
             const shuffled: StoryData = [STORY[3], STORY[0], STORY[2], STORY[1]];
             expect(computeStoryStage([VOL1_LAST], shuffled)).toBe(2);
+        });
+    });
+
+    // 型 StoryStage を広げる前に vol5 を足してしまった状態を再現する。実行時に型範囲外の値
+    // （as StoryStage が嘘になる 6）を返さないことが要点で、代わりに stage が頭打ちになる。
+    // 「頭打ちのまま気付かない」ほうは story-integrity の (m) が build で止める（責務分離）。
+    describe('stage 上限 MAX_STORY_STAGE でのクランプ', () => {
+        const VOL5_LAST = '15-01';
+        const FIVE_VOLS: StoryData = [
+            ...STORY,
+            {
+                volume: 5,
+                epRange: [15, 15],
+                heroCard: { file: 'vol05.avif' },
+                afterword: { published: false },
+                episodes: [
+                    { id: 15, title: 'ep15', sections: [{ id: 1, published: true }] },
+                ],
+            },
+        ];
+
+        it('vol4 末尾 read → stage 5（vol5 冒頭が公開済みなので通常どおり上がる）', () => {
+            expect(computeStoryStage([VOL4_LAST], FIVE_VOLS)).toBe(5);
+        });
+
+        it('vol5（最終）末尾 read → 本来 stage 6 だが MAX_STORY_STAGE でクランプされる', () => {
+            expect(computeStoryStage([VOL5_LAST], FIVE_VOLS)).toBe(MAX_STORY_STAGE);
         });
     });
 });

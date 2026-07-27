@@ -1,8 +1,8 @@
 // 依存グラフの許可リスト・循環禁止・orphan 検出。
-// **本ファイルの allowed が依存グラフの真実源**。design/module-matrix.md は手書きの依存表を持たない
+// **本ファイルの allowed が依存グラフの真実源**。design/architecture.md は手書きの依存表を持たない
 // （手書きは実装とずれるため廃止）。新しい依存を足すときはここを直す。
 // 設計意図と、依存辺に現れない結線（コールバック注入・複製・story-integrity の呼び出し元）は
-// design/module-matrix.md 側が持つ。
+// design/architecture.md「依存グラフに現れない結線」が持つ。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
 const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics)';
@@ -33,7 +33,7 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ。stage 判定と栞スキーマ移行を二重管理しないための例外＝理由は design/module-matrix.md「index.ts の独立方針と 2 本の例外」）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes のみ。stage 判定と栞スキーマ移行を二重管理しないための例外＝理由は design/modules/index.md「なぜ src/ から独立しているか」）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
@@ -71,6 +71,9 @@ module.exports = {
     { from: { path: '(^|/)src/bg\\.ts$' },       to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/pan\\.ts$' },      to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/feedback\\.ts$' }, to: { path: '(^|/)src/state\\.ts$' } },
+    // story-integrity → volumes は stage 上限 MAX_STORY_STAGE の二重管理を避けるための 1 本（検査 (m)）。
+    // story-integrity は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。
+    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
   ],
   allowedSeverity: 'error',
   options: {

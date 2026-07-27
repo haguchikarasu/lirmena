@@ -3,9 +3,10 @@
  * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン。
  *       config() フックなので build / dev / preview の全経路でブロッキング）と
  *       test 時（src/story-integrity.test.ts）で同じ関数を共有する。
- * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)
+ * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)
  *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
- * 依存: 型のみ（StoryData / Volume）。fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
+ * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE のみ（(m) で参照）。
+ *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
  * 検査項目：
  *   (a) 各 vol.epRange 内の ep.id のみ vol.episodes に含める。範囲内は epRange[0] から連続で
@@ -35,8 +36,12 @@
  *        （vol.preview は body 未生成なので、同じ vol の非空 ep.preview は目次で silently hidden になる。
  *          vol と ep の予告を混在させたい運用は無い＝どちらか一方で表現する。空 text 同士は事前配置なので併存 OK）
  *   (l) 公開済み sec が1つ以上ある ep は**非空** ep.preview を持てない（sec 公開時の落とし忘れ検出）
+ *   (m) vol 数 + 1 が volumes.ts の MAX_STORY_STAGE を超えない。computeStoryStage は上限でクランプするので
+ *       vol を足しても実行時エラーにはならず、**stage が 1 段低いまま頭打ちになって静かに間違う**。
+ *       型 StoryStage・MAX_STORY_STAGE・CSS の --stage-N-hue の追加漏れをここで止める
+ *       （追加手順は design/modules/volumes.md「vol5 以降を追加するときの手順」）
  *
- * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(l)" のタグ）。
+ * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(m)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
  * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
@@ -45,6 +50,7 @@
  */
 
 import type { StoryData, Volume, PreviewSpec } from './types';
+import { MAX_STORY_STAGE } from './volumes';
 
 // preview フィールドの形式検査 (j)。null/配列/{}/text 型不一致を弾く。
 // **空文字（"" や空白のみ）は valid**：「preview 無し」と同義扱いにするため（事前配置テンプレ用途で
@@ -81,6 +87,15 @@ function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
 // validateStory(story: StoryData): string[]
 export function validateStory(story: StoryData): string[] {
     const errors: string[] = [];
+
+    // (m) vol 数に対して stage の上限が足りているか（読破 stage の分 +1 する）
+    if (story.length + 1 > MAX_STORY_STAGE) {
+        errors.push(
+            `(m) vol ${story.length} 巻に対し stage 上限 ${MAX_STORY_STAGE} が不足：` +
+            `volumes.ts の StoryStage 型と MAX_STORY_STAGE、src/styles/_base.css と src/styles/toc.css の ` +
+            `--stage-${story.length + 1}-hue を追加すること`
+        );
+    }
 
     // (c) vol は volume 昇順
     for (let i = 1; i < story.length; i++) {

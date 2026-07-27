@@ -4,7 +4,7 @@
  *       隣接レイヤー間を連続クロスフェードする。あわせて現在シーンと本文領域基準の連続進捗を導出し、結果をコールバックで通知する。
  * export: init(), subscribe(), buildBgUrl() ＋ テスト用純関数（computeP / layerOpacities / blendDim / deriveCurrentScene / computeProgress）
  * 依存: axis.ts（書字方向の進行軸解決。bg は本来リーフだが、横書き対応で axis のみ例外的に依存する＝両者ともリーフ
- *       同士なので疎結合は維持。design/module-responsibilities.md の依存マトリクスに bg→axis を明示）。
+ *       同士なので疎結合は維持。bg→axis の許可は .dependency-cruiser.cjs の allowed が持つ＝依存の真実源）。
  *       他モジュールは import しない。CSS 変数は読書点 --reading-anchor を読み、暗幕 --bg-dim を #bg-stack へ書くのみ。
  *       現在シーン・既読・進捗・オートセーブの利用は通知を受けた reader.ts 側で行う）
  *

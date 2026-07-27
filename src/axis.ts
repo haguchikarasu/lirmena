@@ -19,8 +19,9 @@
  *
  * 依存: なし（DOM 読取と <html data-writing-mode> 属性のみ。他モジュール非依存のリーフ）。
  * 結線: settings.ts が <html data-writing-mode> を切替え、本ファイルが唯一の読み手として参照する。
- *       各モジュール（main/nav/opening/bg/pan/tutorial/bookmark/reader）からの配線は後続コミットで行う
- *       （本コミットは未配線の純関数のみ＝既存挙動に影響しない）。
+ *       利用側は main / bg / nav / menu / opening / tutorial / pan の 7 本（bookmark・reader は不使用）。
+ *       この列挙は用途を掴むための参考で、真実源は .dependency-cruiser.cjs の allowed
+ *       （順引きは 1 行で読めるが逆引きは全スキャンが要るため、断ったうえで併記する）。
  */
 
 export type WritingMode = 'vertical' | 'horizontal';

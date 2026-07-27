@@ -2,6 +2,7 @@
  * volumes.ts
  * 責務: 読者の read セットと story.json 定義から、物語進行段階（stage 1〜5）を算出する純関数を提供する。
  * export: type StoryStage = 1 | 2 | 3 | 4 | 5
+ *         MAX_STORY_STAGE: StoryStage                                    … stage の上限値（型の最大値と同値）
  *         computeStoryStage(read: SecKey[], story: StoryData): StoryStage
  * 依存: 型のみ（StoryData / Volume / SecKey）。DOM・localStorage・fetch 非依存。純関数（引数を破壊しない）。
  *
@@ -21,7 +22,8 @@
  *      ・当 vol の最終公開 sec が存在しない or maxReadPos がそれ未満 → break（未到達）
  *      ・次巻がある場合、次巻の epRange[0] の sec1 が未公開 → break（次巻公開待ち）
  *      ・次巻がない（最終 vol）→ stage は volume + 1
- *   4. 上限 Math.min(stage, story.length + 1) as StoryStage で 4vol → 5, 5vol → 6 のように動的化する。
+ *   4. 上限 Math.min(stage, story.length + 1, MAX_STORY_STAGE) as StoryStage でクランプする。
+ *      vol 数から動的化しつつ（4vol → 5）、型 StoryStage の範囲外へは出ない。
  *
  * 順読要求は撤廃：
  *   maxReadPos は read セット内の最大 index。手動 localStorage 編集や内部遷移で先取り read された sec の
@@ -34,16 +36,22 @@
  *   recordRead を抑止するため、当関数は read セットを素直に見る（責務分離・要件 06-5）。
  *
  * 型の運用：
- *   StoryStage = 1 | 2 | 3 | 4 | 5 は現行 4vol 固定前提の型。将来 vol5 追加時は story.length + 1 = 6 が
- *   返り得るため、型の 6 追加＋_base.css の --stage-6-hue 定数追加＋末尾セレクタ html[data-story-stage="6"]
- *   { --stage-hue: var(--stage-6-hue); } 追加＋設計正典（design/module-responsibilities.md /
- *   design/requirements/06-5-bookmark.md）の追記が同時に必要。
+ *   StoryStage = 1 | 2 | 3 | 4 | 5 は現行 4vol 前提の型。MAX_STORY_STAGE はその最大値を値として持つ定数で、
+ *   `MAX_STORY_STAGE: StoryStage` の型注釈により**型を広げずに定数だけ上げると tsc が落ちる**（片側更新の検出）。
+ *   computeStoryStage は MAX_STORY_STAGE でもクランプするので、型範囲外の値は実行時にも返らない＝末尾の
+ *   as StoryStage が嘘にならない。代わりに vol を増やすと stage が頭打ちになる（＝静かに 1 段低い色で止まる）ため、
+ *   その検出は story-integrity の (m) が build / dev / preview の全経路で止める。
+ *   vol5 を足すときに手で直す一覧は design/modules/volumes.md「vol5 以降を追加するときの手順」。
  */
 
 import type { StoryData, Volume, SecKey } from './types';
 
 // 物語進行段階の型。1〜5 の有限値のみ返る（CLAUDE.md「汎用型（any など）を避ける」）。
 export type StoryStage = 1 | 2 | 3 | 4 | 5;
+
+// stage の上限。型 StoryStage の最大値と同値であることを型注釈が保証する
+// （型に 6 を足さずにここだけ 6 にすると tsc が落ちる）。story-integrity (m) が vol 数との整合を検査する。
+export const MAX_STORY_STAGE: StoryStage = 5;
 
 // 本文 sec キーの正規表現。あとがきキー "vol01-af"（^vol\d{2}-af$）と区別する。
 const SEC_KEY_RE = /^\d{2}-\d{2}$/;
@@ -93,8 +101,8 @@ export function computeStoryStage(read: SecKey[], story: StoryData): StoryStage 
         stage = vols[i].volume + 1;
     }
 
-    // vol 数から動的に上限クランプ（4vol → 5, 5vol → 6）
-    return Math.min(stage, story.length + 1) as StoryStage;
+    // vol 数から動的に上限クランプ（4vol → 5）。MAX_STORY_STAGE も掛けることで型範囲外の値を返さない
+    return Math.min(stage, story.length + 1, MAX_STORY_STAGE) as StoryStage;
 }
 
 // vol 内で最後の公開 sec の通し番号を返す。無ければ null。

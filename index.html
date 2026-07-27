@@ -60,35 +60,36 @@
     }
   </script>
 </head>
-<body class="idx-page">
-  <!-- ヒーローエリア -->
-  <div class="idx-hero">
-    <div class="idx-hero-card">
+<body>
+  <!-- ヒーローエリア。body 直下の <header> なので ARIA ランドマーク banner はこれ 1 つだけ
+       （vol カード側の <header> は必ず <section> の内側に置く＝index.ts の _buildVolHead 参照） -->
+  <header id="idx-hero">
+    <figure id="idx-hero-card">
       <img id="idx-hero-img" src="public/vol01/vol01.avif" alt="タイトル" />
-    </div>
-    <div class="idx-version-badges">
+    </figure>
+    <p id="idx-version-badges">
       <span id="badge-content-version" class="idx-version-badge"></span>
       <span id="badge-site-version" class="idx-version-badge"></span>
-    </div>
-  </div>
+    </p>
+  </header>
 
   <!-- 続きから読む（オートセーブがある時だけ index.ts が hidden を外す） -->
-  <button id="idx-resume" class="idx-resume" type="button" hidden>続きから読む</button>
+  <button id="idx-resume" type="button" hidden>続きから読む</button>
 
-  <!-- ep・sec 一覧エリア（index.ts が動的生成） -->
-  <section class="idx-body" aria-label="エピソード一覧">
-    <div id="episodes-area" class="idx-ep-list">
+  <!-- ep・sec 一覧エリア（本文への導線＝nav。中身は index.ts が動的生成） -->
+  <nav class="idx-body" aria-label="エピソード一覧">
+    <section id="episodes-area">
       <p class="loading-text">読み込み中…</p>
-    </div>
-  </section>
+    </section>
+  </nav>
 
-  <!-- 栞エリア（index.ts が動的生成） -->
-  <section class="idx-body idx-bm-section" aria-label="栞">
+  <!-- 栞エリア（保存位置への導線＝nav。中身は index.ts が動的生成） -->
+  <nav id="idx-bm-section" class="idx-body" aria-label="栞">
     <p class="idx-sec-label">栞</p>
-    <div id="bookmark-slots">
+    <section id="bookmark-slots">
       <!-- index.ts が動的生成 -->
-    </div>
-  </section>
+    </section>
+  </nav>
 
   <!-- 更新履歴エリア（index.ts が動的生成） -->
   <section id="content-changelog" class="idx-body">
@@ -100,12 +101,12 @@
   </section>
 
   <!-- 右下 FAB メニュー（index.ts が操作） -->
-  <div id="fab-container">
+  <nav id="fab-container" aria-label="ページメニュー">
     <ul id="fab-panel" hidden role="menu" aria-label="メニュー">
       <!-- index.ts が動的生成 -->
     </ul>
-    <button id="fab-toggle" class="idx-fab" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
-  </div>
+    <button id="fab-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
+  </nav>
 
   <!-- 設定ポップアップ（index.ts が操作。templates/reader.html と同じ「空の器＋動的生成」方式）
        aria-modal は付けない：フォーカストラップを実装していないので、付けると「支援技術には背景を隠す

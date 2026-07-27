@@ -62,7 +62,7 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
 
 /* ===== ベース ===== */
 
-.idx-page {
+body {
   background: var(--idx-bg);
   color: var(--idx-text-body);
   font-family: serif;
@@ -71,12 +71,12 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
 
 /* ===== ヒーローエリア ===== */
 
-.idx-hero {
+#idx-hero {
   margin-top: 1rem;
   line-height: 0;
 }
 
-.idx-hero-card {
+#idx-hero-card {
   position: relative;
   max-width: 600px;
   margin: 0 auto;
@@ -88,7 +88,7 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   height: auto;
 }
 
-.idx-version-badges {
+#idx-version-badges {
   max-width: 600px;
   margin: 0 auto;
   display: flex;
@@ -108,7 +108,7 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
 
 /* ===== 続きから読む（ヒーロー下・オートセーブがある時だけ表示） ===== */
 
-.idx-resume {
+#idx-resume {
   display: block;
   margin: 1.2rem auto 0;
   padding: 0.7rem 2.4rem;
@@ -123,8 +123,8 @@ html[data-story-stage="5"] { --stage-hue: var(--stage-5-hue); --idx-accent-l: 70
   transition: background 0.15s, color 0.15s;
 }
 
-.idx-resume:hover,
-.idx-resume:focus {
+#idx-resume:hover,
+#idx-resume:focus {
   background: hsl(var(--stage-hue) 91% 57% / 0.08);
   outline: none;
 }
@@ -388,7 +388,7 @@ ruby rt {
 
 /* ===== 栞エリア ===== */
 
-.idx-bm-section {
+#idx-bm-section {
   margin-top: 2.8rem;
 }
 
@@ -480,7 +480,7 @@ ruby rt {
   gap: 0.5rem;
 }
 
-.idx-fab {
+#fab-toggle {
   width: 46px;
   height: 46px;
   border-radius: 50%;
@@ -706,14 +706,20 @@ a.cl-version:hover {
 
 .cl-ep-link {
   font-size: 0.75rem;
-  color: var(--idx-accent);
+  color: var(--idx-text-body);
   text-decoration: none;
   border: 1px solid var(--idx-border-accent);
   padding: 0.1rem 0.5rem;
   border-radius: 3px;
 }
 
-.cl-ep-link:hover {
+/* コミットへ飛べるのは短縮 sha が揃っているときだけで、欠けていれば index.ts が span で出す。
+   アクセント色と hover は「押せる」印なので a に限定する。 */
+a.cl-ep-link {
+  color: var(--idx-accent);
+}
+
+a.cl-ep-link:hover {
   background: var(--idx-border-accent);
 }
 

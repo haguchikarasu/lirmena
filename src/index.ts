@@ -139,6 +139,9 @@ function clearAllBookmarkSlots(): void {
 }
 
 const GITHUB_REPO = 'haguchikarasu/lirmena';
+// 短縮 sha の形。content-changelog.json の sha は「本体コミット確定後に手で入れる」運用なので、
+// 未確定プレースホルダや欠損のまま公開され得る。その状態で commit/undefined を指すリンクを作らない判定。
+const SHORT_SHA_RE = /^[0-9a-f]{7,40}$/;
 
 let _episodes: Episode[] = [];
 const CHANGELOG_INITIAL_COUNT = 3;
@@ -520,7 +523,7 @@ function _buildEpBlock(
     reached: Set<string>,
     read: Set<string>,
 ): HTMLElement {
-    const epEl = document.createElement('div');
+    const epEl = document.createElement('article');
     epEl.className = 'idx-ep';
 
     const titleEl = document.createElement('p');
@@ -595,7 +598,7 @@ function _buildEpBlock(
 // 未読／既読／読破の 3 分岐すべてで常時セット）。本文ページ側 `#btn-afterword` の「第◯巻あとがき」表記
 // とは意図的に非対称（要件 06-7）。
 function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>): HTMLElement {
-    const afterwordEl = document.createElement('div');
+    const afterwordEl = document.createElement('article');
     afterwordEl.className = 'idx-ep idx-ep--afterword';
 
     const titleEl = document.createElement('p');
@@ -765,7 +768,8 @@ function renderBookmarks(): void {
 // ----- 設定ポップアップ -----
 
 // 本文ページ src/settings.ts の _buildPopup() と同じ markup・同じ localStorage キーを手で揃えた二重実装
-// （index.ts は settings.ts を import しない＝リーフ間非依存を保つため。依存マトリクス参照）。
+// （index.ts は settings.ts を import しない＝リーフ間非依存を保つため。.dependency-cruiser.cjs の
+//   index-src-isolation ルールが機械的に強制する。理由は design/modules/index.md）。
 // **行の並びは両ページで一致させること**（要件 06-4 の設定項目表の順）。
 // 設定行を足す・並びを変えるときは settings.ts 側と、このファイル内の次の5箇所を同時に直す：
 //   1) LS_* 定数  2) DEFAULTS  3) buildRow の呼び出し順  4) refreshRows() の defs  5) 「設定をリセット」の removeItem
@@ -1120,13 +1124,23 @@ function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
             const epLinks = document.createElement('div');
             epLinks.className = 'cl-ep-links';
             entry.ep.forEach((epNum, j) => {
-                const link = document.createElement('a');
-                link.href = `https://github.com/${GITHUB_REPO}/commit/${entry.sha[j]}`;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.className = 'cl-ep-link';
-                link.textContent = `第${epNum}話`;
-                epLinks.appendChild(link);
+                // sha 配列は ep 配列と同じ長さ・同じ並びである前提だが、正のソースの epNN-changelog.json
+                // は手書きで sha が後入れなので揃わない状態が起こり得る。揃っていなければリンクにせず
+                // ラベルだけ出す（生成側の対応ズレは tool/changelog/convert.mjs が検出する）。
+                const sha = entry.sha?.[j] ?? '';
+                let chip: HTMLElement;
+                if (SHORT_SHA_RE.test(sha)) {
+                    const link = document.createElement('a');
+                    link.href   = `https://github.com/${GITHUB_REPO}/commit/${sha}`;
+                    link.target = '_blank';
+                    link.rel    = 'noopener noreferrer';
+                    chip = link;
+                } else {
+                    chip = document.createElement('span');
+                }
+                chip.className   = 'cl-ep-link';
+                chip.textContent = `第${epNum}話`;
+                epLinks.appendChild(chip);
             });
             li.appendChild(epLinks);
         }

@@ -33,8 +33,8 @@
  *   volumes  : computeStoryStage(read, story): StoryStage（本文 sec キーのみで判定・あとがきキー vol[XX]-af は除外）
  *   analytics: send(settings, storyStage, read, reached, episodes): void
  * 【被依存】なし
- * 【注意】あとがきモードでは外部流入抑止判定を省略し、常に到達を記録する（あとがきに迷い込むケースは
- *         実運用で稀・内部遷移限定と割り切る）。オートセーブは reader.ts が state.getMode で本文／あとがき
+ * 【注意】あとがきモードは外部流入抑止の対象外で、到達・オートセーブとも常に記録する
+ *         （理由は要件 06-5-bookmark.md「あとがき（vol[XX]-af）のキー」）。オートセーブは reader.ts が state.getMode で本文／あとがき
  *         の saveAutoSave / saveAutoSaveAfterword を呼び分ける。「続きから読む」の復元は本文モードなら
  *         autosave、あとがきモードなら autosaveAfterword を参照する（保存キーは独立）。
  */
@@ -210,7 +210,7 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
  * あとがき本文（public/vol[XX]/txt/vol[XX]-afterword.txt）をパースして描画する。
  * オートセーブ／pendingJump は独立キー（autosaveAfterword / pendingJumpAfterword）を使い、
  * 「戻る」は自 vol の巻末公開 sec 本文末へ、「次へ」は次巻タイトルページへ遷移する（nav 側でモード分岐）。
- * 外部流入抑止判定は行わず常に到達を記録する（あとがきに迷い込むケースは実運用で稀と割り切る）。
+ * 外部流入抑止判定は行わず常に到達を記録する（対象外である理由は要件 06-5-bookmark.md）。
  */
 async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void> {
     const target = story.find(v => v.volume === vol);

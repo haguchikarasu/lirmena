@@ -25,7 +25,7 @@
  *
  * 書字方向の契約: writingMode だけは CSS 変数でなく <html data-writing-mode> 属性へ反映する。
  *   axis.ts がこの属性を唯一の真実源として読む。settings→axis の import は張らず、DOM 属性＋localStorage キーで疎結合に保つ
- *   （依存マトリクスに settings→axis は無い）。
+ *   （.dependency-cruiser.cjs の allowed に settings→axis は無い＝依存を張らないことが機械で守られている）。
  */
 
 type FontSize = 'large' | 'medium' | 'small';

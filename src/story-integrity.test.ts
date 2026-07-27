@@ -1,14 +1,15 @@
 /*
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
- * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)
+ * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)
  *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
  *
  * 網羅する観点：
  *   - 実データ（public/story.json）が validateStory の全ルール（(i) 以外）を満たす
- *   - 意図的に壊した story.json 断片で各違反 (a)〜(l) がメッセージに出る（回帰）
+ *   - 意図的に壊した story.json 断片で各違反 (a)〜(m) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
  *   - preview を持つ未執筆 vol/ep が (a)〜(l) を壊さない正常系
+ *   - (m) は vol 数の境界（上限ちょうど／超過）で判定が切り替わる
  *   - 純関数の非破壊性（引数を破壊しない）
  */
 
@@ -16,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateStory, validateStoryFiles } from './story-integrity';
+import { MAX_STORY_STAGE } from './volumes';
 import type { StoryData, Volume } from './types';
 
 const STORY_JSON_PATH = resolve(__dirname, '../public/story.json');
@@ -80,6 +82,28 @@ function _baseStory(): StoryData {
             ],
         },
     ];
+}
+
+// vol 数だけを変えた story を作る（(m) の境界テスト用）。各 vol は ep 2 本・全 sec 公開・
+// epRange は隙間なく連続。最終 vol だけが heroCardCompleted を持つ（(b)(c)(f)(g) を巻き込まない形）。
+function _storyOfVolumes(count: number): StoryData {
+    return Array.from({ length: count }, (_, i): Volume => {
+        const v = i + 1;
+        const firstEp = i * 2 + 1;
+        const pad = String(v).padStart(2, '0');
+        const vol: Volume = {
+            volume: v,
+            epRange: [firstEp, firstEp + 1],
+            heroCard: { file: `vol${pad}.avif` },
+            afterword: { published: false },
+            episodes: [
+                { id: firstEp,     title: `ep${firstEp}`,     sections: [{ id: 1, published: true }] },
+                { id: firstEp + 1, title: `ep${firstEp + 1}`, sections: [{ id: 1, published: true }] },
+            ],
+        };
+        if (v === count) vol.heroCardCompleted = { file: `vol${pad}-fin.avif` };
+        return vol;
+    });
 }
 
 describe('validateStory — 実データ整合', () => {
@@ -203,6 +227,18 @@ describe('validateStory — 壊したパターンで各違反が検出される'
         (story[0].episodes[0].sections[0] as unknown as Record<string, unknown>).end = false;
         const errors = validateStory(story);
         expect(errors.some(e => e.startsWith('(h)'))).toBe(true);
+    });
+
+    // (m) は「vol を足したのに StoryStage 型・MAX_STORY_STAGE・CSS の --stage-N-hue を足していない」の検出。
+    // 上限ちょうど（読破 stage の分だけ余っている）で通り、1 vol 増えた瞬間に落ちることを境界で押さえる。
+    it('(m) vol 数 + 1 が stage 上限 MAX_STORY_STAGE を超える → (m) エラー', () => {
+        const errors = validateStory(_storyOfVolumes(MAX_STORY_STAGE));
+        expect(errors.some(e => e.startsWith('(m)'))).toBe(true);
+    });
+
+    it('(m) vol 数 + 1 が上限ちょうど（現行 4vol）なら (m) は出ない', () => {
+        const errors = validateStory(_storyOfVolumes(MAX_STORY_STAGE - 1));
+        expect(errors.some(e => e.startsWith('(m)'))).toBe(false);
     });
 });
 
