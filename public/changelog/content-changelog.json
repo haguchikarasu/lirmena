@@ -3,8 +3,8 @@
     "version": "1.6.3",
     "date": "2026/07/26",
     "change": "暗い絵の暗幕を薄く変更",
-    "ep": [1, 2, 3],
-    "sha": ["bcfd4ef", "a2adb0f", "6ffc169"]
+    "ep": [1, 2],
+    "sha": ["bcfd4ef", "a2adb0f"]
   },
   {
     "version": "1.6.2",
