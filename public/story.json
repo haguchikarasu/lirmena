@@ -32,9 +32,9 @@
         "title": "|翠昴晶《ペラティラ》さがし -後編-",
         "coverFile": "title03.avif",
         "coverPositionX": "50%",
-        "preview": { "text": "2026年7月31日より順次公開" },
+        "preview": { "text": "" },
         "sections": [
-          { "id": 1, "published": false },
+          { "id": 1, "published": true },
           { "id": 2, "published": false },
           { "id": 3, "published": false },
           { "id": 4, "published": false },
