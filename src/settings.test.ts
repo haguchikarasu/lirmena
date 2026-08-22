@@ -1,8 +1,10 @@
 /*
  * settings.test.ts
- * 対象: settings.ts の読書点（readingAnchor）ロジック／書字方向／文字の太さ／設定行の並び／3クリアの callback
+ * 対象: settings.ts の読書点（readingAnchor）ロジック／書字方向／段落の区切り／文字の太さ／設定行の並び／3クリアの callback
  *   - 既定値・不正値フォールバック・[0,100] クランプ
  *   - localStorage 保存と CSS 変数 --reading-anchor / --font-weight 反映
+ *   - lineGap は --paragraph-margin と --paragraph-indent を**セットで**駆動する（空行と字下げの排他。
+ *     片方だけ書くと両方効いて二重の段落区切りに戻る。3者にまたがり depcruise では守れないのでここで検査する）
  * 方針: 期待値は要件 06-4（連続 % 値・localStorage 保存・リセットで既定へ）と IF コメントから導出する（仕様駆動）。
  * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup が無い describe では _buildPopup が
  *   早期 return する（＝init だけを見る）。パネル操作を要する describe は beforeEach で #settings-popup を生成し afterEach で撤去する。
@@ -252,6 +254,78 @@ describe('文字の太さ（fontWeight → CSS 変数 --font-weight）', () => {
             findByText('.settings-action', '設定をリセット')?.click();
             expect(weightVar()).toBe('var(--font-weight-normal)');
             expect(localStorage.getItem('lirmena.fontWeight')).toBe('normal');
+        });
+    });
+});
+
+// 仕様（要件 06-4）：段落の区切りは空行か字下げのどちらか一方で表す。lineGap は CSS 変数を 2 本
+// （--paragraph-margin / --paragraph-indent）**セットで**駆動し、片方だけ書くと両方効いて二重の区切りに戻る。
+// この排他は settings / renderer / CSS の 3 者にまたがり import 辺が無いため depcruise では原理的に守れない
+// （architecture.md「段落の区切りの所在」）。init・ボタン操作・リセットの 3 経路すべてで両方の変数を検証する。
+describe('段落の区切り（lineGap → CSS 変数 --paragraph-margin / --paragraph-indent）', () => {
+    const pair = () => [
+        document.documentElement.style.getPropertyValue('--paragraph-margin'),
+        document.documentElement.style.getPropertyValue('--paragraph-indent'),
+    ];
+    const 空行あり = ['var(--paragraph-margin-on)', 'var(--paragraph-indent-on)'];
+    const 空行なし = ['var(--paragraph-margin-off)', 'var(--paragraph-indent-off)'];
+
+    describe('読み込み・反映（init）', () => {
+        it('未設定なら既定の「あり」＝空行 1em・字下げ 0 を反映する', () => {
+            init(NOOP);
+            expect(pair()).toEqual(空行あり);
+        });
+
+        it('保存済み off を復元して 空行 0・字下げ 1em を反映する', () => {
+            localStorage.setItem('lirmena.lineGap', 'off');
+            init(NOOP);
+            expect(pair()).toEqual(空行なし);
+        });
+
+        it('不正値は「あり」へフォールバックする', () => {
+            localStorage.setItem('lirmena.lineGap', 'both');
+            init(NOOP);
+            expect(pair()).toEqual(空行あり);
+        });
+    });
+
+    describe('トグル操作・リセット（#settings-popup 経由）', () => {
+        beforeEach(() => {
+            const popup = document.createElement('section');
+            popup.id = 'settings-popup';
+            document.body.appendChild(popup);
+        });
+        afterEach(() => {
+            document.getElementById('settings-popup')?.remove();
+        });
+
+        const findByText = (selector: string, text: string) =>
+            [...document.querySelectorAll<HTMLButtonElement>(selector)].find((b) => b.textContent === text);
+
+        // ボタン操作は _applySetting()（単一項目のみ反映）を通る。init 経由の _applyAll() とは別経路なので、
+        // 「片方の変数だけ書いた」取りこぼしをここで捕まえる。
+        it('「なし」を選ぶと 空行 0・字下げ 1em を保存＋反映する', () => {
+            init(NOOP);
+            findByText('.settings-opt', 'なし')?.click();
+            expect(localStorage.getItem('lirmena.lineGap')).toBe('off');
+            expect(pair()).toEqual(空行なし);
+        });
+
+        it('「あり」を選ぶと 空行 1em・字下げ 0 へ戻して保存＋反映する', () => {
+            localStorage.setItem('lirmena.lineGap', 'off');
+            init(NOOP);
+            findByText('.settings-opt', 'あり')?.click();
+            expect(localStorage.getItem('lirmena.lineGap')).toBe('on');
+            expect(pair()).toEqual(空行あり);
+        });
+
+        it('設定リセットで「あり」へ戻り、2 本とも書き換わる', () => {
+            localStorage.setItem('lirmena.lineGap', 'off');
+            init(NOOP);
+            expect(pair()).toEqual(空行なし);
+            findByText('.settings-action', '設定をリセット')?.click();
+            expect(pair()).toEqual(空行あり);
+            expect(localStorage.getItem('lirmena.lineGap')).toBe('on');
         });
     });
 });

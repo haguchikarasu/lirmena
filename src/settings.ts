@@ -1,6 +1,6 @@
 /*
  * settings.ts
- * 責務: 書字方向・段落間マージン・フォント・文字サイズ・文字の太さ・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
+ * 責務: 書字方向・段落の区切り（空行／字下げ）・フォント・文字サイズ・文字の太さ・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
  * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings()
  * 依存: なし（栞・既読・読破のクリア・書字方向変更後の処理のコールバックは main.ts から注入）
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
@@ -19,7 +19,11 @@
  *   readingAnchor: 連続 %（本文表示幅基準）       デフォルト READING_ANCHOR_DEFAULT（中央〜やや読み終わり側）
  *
  * CSS変数:
- *   --font-size, --font-family, --paragraph-margin, --font-weight（値は CSS 変数定義ファイルで管理）
+ *   --font-size, --font-family, --paragraph-margin, --paragraph-indent, --font-weight（値は CSS 変数定義ファイルで管理）
+ *   lineGap だけは CSS 変数を2本（--paragraph-margin と --paragraph-indent）**必ずセットで**駆動する。
+ *     段落の区切りは空行か字下げのどちらか一方で表すため（要件 06-4）。あり＝マージン 1em・字下げ 0、
+ *     なし＝マージン 0・字下げ 1em。片方だけ書くと両方効いて二重の段落区切りに戻る。
+ *     字下げの適用先は renderer が .indent を付けた段落だけ（行頭が全角スペース／始め括弧類なら付かない・要件 05-4）。
  *   --reading-anchor: 読書点（基準点）の連続 % 値。settings.ts が単一の源として所有・永続化する。
  *     tutorial.ts のドラッグが setReadingAnchor() を呼んで更新し、bg.ts は CSS 変数を読むのみ（要件 06-4 / 06-12）。
  *
@@ -70,6 +74,13 @@ const CSS_VARS = {
     lineGap: { on: 'var(--paragraph-margin-on)', off: 'var(--paragraph-margin-off)' },
     fontWeight: { normal: 'var(--font-weight-normal)', bold: 'var(--font-weight-bold)' },
 } satisfies { fontSize: Record<FontSize, string>; fontFamily: Record<FontFamily, string>; lineGap: Record<LineGap, string>; fontWeight: Record<FontWeight, string> };
+
+// lineGap が駆動するもう1本の CSS 変数（CSS_VARS は Settings のキーに縛られているので別に持つ）。
+// 値の向きに注意：キーは設定「段落間の空行」の値であって字下げの有無ではない（空行あり→字下げ 0em）。
+const PARAGRAPH_INDENT: Record<LineGap, string> = {
+    on: 'var(--paragraph-indent-on)',
+    off: 'var(--paragraph-indent-off)',
+};
 
 let _current: Settings = { ...DEFAULTS };
 let _callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void } = {
@@ -165,6 +176,7 @@ function _applyAll(): void {
     root.style.setProperty('--font-size', CSS_VARS.fontSize[_current.fontSize]);
     root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
     root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+    root.style.setProperty('--paragraph-indent', PARAGRAPH_INDENT[_current.lineGap]);
     root.style.setProperty('--font-weight', CSS_VARS.fontWeight[_current.fontWeight]);
     root.setAttribute('data-writing-mode', _current.writingMode);
 }
@@ -179,7 +191,9 @@ function _applySetting(key: keyof Settings): void {
     } else if (key === 'fontFamily') {
         root.style.setProperty('--font-family', CSS_VARS.fontFamily[_current.fontFamily]);
     } else if (key === 'lineGap') {
+        // 段落間マージンと字下げは排他。2本セットで書く（片方だけだと二重の段落区切りに戻る）。
         root.style.setProperty('--paragraph-margin', CSS_VARS.lineGap[_current.lineGap]);
+        root.style.setProperty('--paragraph-indent', PARAGRAPH_INDENT[_current.lineGap]);
     } else if (key === 'fontWeight') {
         root.style.setProperty('--font-weight', CSS_VARS.fontWeight[_current.fontWeight]);
     } else {

@@ -21,7 +21,7 @@
   -ms-overflow-style: auto;
   /* .fading 除去時（明け）に適用される duration */
   transition: opacity var(--fade-in-duration-main) ease;
-  letter-spacing: 10%;
+  letter-spacing: var(--body-letter-spacing);
   padding-top: 1em;
   padding-bottom: 1em;
   /* 既定＝手のひらツール（pan.ts）：ドラッグ＝スクロールなのでテキスト選択は無効・カーソルは grab。
@@ -237,6 +237,9 @@ html[data-writing-mode="vertical"] #btn-share-heading {
   writing-mode: var(--writing-mode);
   height: 100%;
   font-size: var(--font-size);
+  /* 字間は本文の font-size を基準に解決させる（親 #main-container で解決すると既定 16px 基準の値が
+     そのまま継承され、--font-size 基準で計算される字下げ（p.indent の text-indent）と 1 文字分が食い違う）。 */
+  letter-spacing: var(--body-letter-spacing);
   /* 本文表示エリア（本文 + 行長方向マージン）は親 #main-container の max-inline-size（--line-length + 2×--body-margin）で頭打ち。
      ここでは #scene-content 自体を親フル（inline-size:100%）に伸ばし、内側の padding-inline で**常時**マージンを確保する。
      本文コンテンツは inline-size - 2×padding で解決＝ウィンドウが max 未満なら本文が縮み、マージンは常に見える（読書点アンカー余白として機能）。
@@ -261,6 +264,13 @@ html[data-writing-mode="vertical"] #btn-share-heading {
   margin-block-end: var(--paragraph-margin);
   text-align: justify;
   text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 14px rgba(0,0,0,0.5);
+}
+
+/* 地の文の字下げ（renderer.ts が .indent を付与）。行頭が全角スペース／始め括弧類の段落には付かない（要件 05-4）。
+   段落間マージンとは排他で、空行ありなら 0em・空行なしなら 1em（要件 06-4）。
+   縦書きでは text-indent が行の進行方向（上端）へ効くので、縦横どちらでも 1 文字分下がる。 */
+#scene-content p.indent {
+  text-indent: var(--paragraph-indent);
 }
 
 /* 縦中横（renderer.ts が .tcy を付与） */

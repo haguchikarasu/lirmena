@@ -2,6 +2,8 @@
  * renderer.ts
  * 責務: Scene[] → 本文 DOM 生成（エリアC）。現在 sec の全シーンを連続レイアウトで一括描画する。
  * export: renderScenes(scenes: Scene[]): void
+ *         buildNodes(nodes: TextNode[]): Node[]（テスト用に公開。DOM 取得を伴わない純粋な組み立て）
+ *         shouldIndent(first: string | undefined): boolean（テスト用に公開）
  * 依存: parser.ts（TextNode 型）、types.ts（Scene 型）
  *
  * Scene.content は TextNode[] として実装する（types.ts 側は unknown のまま。本モジュールでキャスト）。
@@ -20,12 +22,20 @@
  *       { type: "tcy"      }  → <span class="tcy">value</span>（text-combine-upright）
  *       { type: "br"       }  → <p> の境界（\n 1つ → </p><p>）
  *       { type: "blank"    }  → <p> の境界＋空行（\n\n → </p><br><p>）
+ *   - 各 <p> は先頭文字を見て字下げクラス .indent を付ける（要件 05-4）。字下げは本文テキストに
+ *     書かず、CSS の text-indent（--paragraph-indent）が与える。段落間の空行と排他で切り替わる
+ *     ため、settings が --paragraph-margin と --paragraph-indent を必ずセットで駆動する（要件 06-4）
  *
  * タイトル画面の描画は担当しない（title.ts の責務）。初期スクロール位置の決定も担当しない（main.ts の責務）。
  */
 
 import type { Scene } from "./types";
 import type { TextNode } from "./parser";
+
+// 字下げしない段落の先頭文字（要件 05-4）。意味（地の文か会話文か）ではなく形（行頭の文字）で決める。
+//   U+3000     … 原稿が自前でインデント済みの段落（ブロック引用）。表示側で重ねない
+//   始め括弧類 … 行頭が始め括弧なら、地の文か会話文かを問わず字下げしない
+const NO_INDENT_HEADS = new Set(['　', '「', '『', '（', '〈', '《', '【', '〔', '［', '｛', '(']);
 
 const mainContainerEl = document.querySelector<HTMLElement>('#main-container')!;
 const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
@@ -46,15 +56,31 @@ export function renderScenes(scenes: Scene[]): void {
     sceneContentEl.hidden = false;
 }
 
+// 段落の先頭文字から字下げの要否を返す。空段落（first === undefined）は字下げしない。
+// 呼び出し側はコードユニットではなく1文字を渡すこと（サロゲートペアで孤立片を渡さないため）。
+// shouldIndent(first: string | undefined): boolean
+export function shouldIndent(first: string | undefined): boolean {
+    return first !== undefined && !NO_INDENT_HEADS.has(first);
+}
+
 // TextNode[] を <p> ベースの DOM Node[] に変換する
 // - br は <p> の境界、blank は <p> の境界＋<br>
+// - <p> は seal() を通してから result に積む（字下げクラスの付与点を1箇所に保つ）
 // buildNodes(nodes: TextNode[]): Node[]
-function buildNodes(nodes: TextNode[]): Node[] {
+export function buildNodes(nodes: TextNode[]): Node[] {
     const result: Node[] = [];
     let p = document.createElement('p');
 
+    // 段落を確定する唯一の出口。字下げ判定はここでだけ行う。
+    // ループ末尾の push もここを通すこと（通さないと各シーンの最終段落が判定を素通りする。
+    // parser がタグ直前シーンの末尾改行を剥がすため、最終 <p> は空とは限らない）。
+    function seal(el: HTMLParagraphElement): HTMLParagraphElement {
+        if (shouldIndent([...el.textContent ?? ''][0])) el.classList.add('indent');
+        return el;
+    }
+
     function flushPara(): void {
-        result.push(p);
+        result.push(seal(p));
         p = document.createElement('p');
     }
 
@@ -104,6 +130,6 @@ function buildNodes(nodes: TextNode[]): Node[] {
                 break;
         }
     }
-    result.push(p);
+    result.push(seal(p));
     return result;
 }

@@ -2,8 +2,9 @@
 
 /* ===================================================
    CSS 変数
-   --font-size / --font-family / --paragraph-margin / --font-weight は
+   --font-size / --font-family / --paragraph-margin / --paragraph-indent / --font-weight は
    settings.ts が document.documentElement.style.setProperty() で切り替える。
+   （--paragraph-margin と --paragraph-indent は排他なので必ずセットで書かれる）
    --font-size-sm/md/lg・--line-length・--body-margin は「解決層」の変数。
    PC/スマホ×書字方向の組合せに応じて下の 4 組セレクタが「プリセット層」の生値を流し込む。
    端末カテゴリの真実源は <html data-device>（device.ts が反映）。書字方向は <html data-writing-mode>（settings.ts が反映）。
@@ -58,6 +59,20 @@
   --paragraph-margin-on: 1em;
   --paragraph-margin-off: 0em;
   --paragraph-margin: var(--paragraph-margin-on);
+
+  /* 本文の字間（_layout.css の #main-container が使う）。字下げ量の計算にも入るので変数で共有する。
+     length で持つこと：letter-spacing の百分率指定（旧 `10%`）は CSS Text 4 のドラフトから外れた非標準で、
+     Chrome は解釈するが他エンジンは無視しうる＝ブラウザ間で字間と字下げがずれる。 */
+  --body-letter-spacing: 0.1em;
+
+  /* 段落の字下げ（settings.ts が --paragraph-margin と必ずセットで切り替える）。
+     on/off は設定「段落間の空行」の値であって字下げの有無ではない：空行ありなら字下げなし・
+     空行なしなら字下げあり＝段落の区切りは空行か字下げのどちらか一方で表す（要件 06-4）。
+     字下げ量は「1文字分の送り」＝ 字幅（1em）＋ 字間。字間を足さないと 1 文字分に足りず、
+     全角スペースで字下げしていた頃と比べて字間ぶん浅くなる。適用先は #scene-content p.indent（_layout.css）。 */
+  --paragraph-indent-on: 0em;
+  --paragraph-indent-off: calc(1em + var(--body-letter-spacing));
+  --paragraph-indent: var(--paragraph-indent-on);
 
   /* 文字の太さ（settings.ts が --font-weight を切り替える）。適用先は本文段落のみ（_layout.css の #scene-content p）。
      Web フォントを使わないので実際の字面は OS 搭載フォントのウェイト解決に依存する。
