@@ -1,8 +1,9 @@
 /*
  * index.css — 本文/タイトルページ用 CSS の集約エントリ（cascade 順に @import）。
  * main.ts / title.ts が import './styles/index.css' で取り込む。本番は Vite が 1 枚のハッシュ名 CSS へ
- * バンドルして各ページに <link> を自動注入、dev はブラウザが @import を辿って 9 ファイルを直接ロードする。
- * cascade 順は責務の依存方向に合わせて固定：base → layout → bg → progress → title → ui → characters → tutorial → misc
+ * バンドルして各ページに <link> を自動注入、dev はブラウザが @import を辿って 10 ファイルを直接ロードする。
+ * cascade 順は責務の依存方向に合わせて固定：base → layout → bg → progress → title → ui → characters → firstrun → tutorial → misc
+ * （firstrun と tutorial は初回導線の 2 枚で、この順に画面へ出るので隣接させてある）
  */
 @import './_base.css';
 @import './_layout.css';
@@ -11,5 +12,6 @@
 @import './_title.css';
 @import './_ui.css';
 @import './_characters.css';
+@import './_firstrun.css';
 @import './_tutorial.css';
 @import './_misc.css';

@@ -103,13 +103,17 @@
    ビューポート高を超えたら中身をスクロールさせる（表示設定が5行あり、スマホ横向きのような
    低い画面では「設定をリセット」「閉じる」が画面外に出て操作不能になるため）。
    overflow-x は hidden のまま＝角丸で子要素をクリップする役目を残す。目次側（toc.css の
-   .settings-panel）も max-height + overflow-y: auto で同じ扱い。 */
+   .settings-panel）も max-height + overflow-y: auto で同じ扱い。
+   高さの単位は vh ではなく dvh。vh は「ブラウザ UI（アドレスバー・ツールバー）が隠れた状態の高さ」を
+   指すため、バーが出ている間は 90vh がバーの下まで伸び、パネルの底（＝「閉じる」）がバーに隠れて
+   押せなくなる（iPhone SE で 55px、スマホ横向きで 25px のかぶりを実測）。_tutorial.css の
+   .tutorial-card が calc(100dvh - 48px) を使っているのと同じ扱い。 */
 .settings-panel {
   width: min(88vw, 21rem);
   background: rgba(12, 12, 12, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 12px;
-  max-height: 90vh;
+  max-height: 90dvh;
   overflow-x: hidden;
   overflow-y: auto;
   writing-mode: horizontal-tb; /* 縦書きコンテキストから切り離す */
@@ -121,6 +125,62 @@
   letter-spacing: 0.12em;
   color: #aaa;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* プリセット（settings.ts の _buildPresets が生成）。表示設定の「行」ではなく、5行の上に置く独立したカード。
+   同じ見た目を目次側 toc.css にも書く（同名クラスの二重定義。片方だけだと片側が無スタイルになる）。 */
+.settings-subtitle {
+  padding: 0.75rem 1.2rem 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: #6f6a62;
+}
+
+.settings-preset {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+}
+
+.settings-preset__btn {
+  flex: 1;
+  padding: 0.55rem 0.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #b8b4ac;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.settings-preset__btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.settings-preset__btn.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #eeece8;
+}
+
+.settings-preset__name {
+  display: block;
+  font-size: 0.84rem;
+}
+
+/* 内訳（「横書き・空行あり / ゴシック体」）。値は settings.ts の Preset.desc が持つ。 */
+.settings-preset__desc {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: #7e7970;
+}
+
+.settings-preset__btn.active .settings-preset__desc {
+  color: #a8a49c;
 }
 
 .settings-row {

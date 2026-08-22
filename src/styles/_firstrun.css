@@ -1,0 +1,153 @@
+/* _firstrun.css — 初回の読み方選択ダイアログ（firstrun.ts が操作）
+   本文ページ・あとがきページの初回に出て、閉じるとチュートリアル（_tutorial.css）が続く。
+   目次ページには出ないので toc.css には対応する定義を置かない（設定パネルの .settings-* とは扱いが違う）。 */
+
+#firstrun-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  writing-mode: horizontal-tb;            /* 本文が縦書きでも質問は横書き */
+  font-family: var(--font-family-sans);   /* UI テキストは sans（本文の serif を継承しない） */
+}
+
+/* display: grid が [hidden] の UA スタイルを上書きしてしまうので明示的に消す（_tutorial.css と同じ理由）。
+   これが無いと hidden にしてもオーバーレイが残り、本文のクリックを吸い続ける。 */
+#firstrun-popup[hidden] { display: none; }
+
+/* 高さは dvh。vh だとブラウザ UI の下まで伸びて「あとで決める」が押せなくなる（.settings-panel と同じ）。 */
+.firstrun-panel {
+  width: min(88vw, 22rem);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  padding: 1.3rem 1.2rem 1rem;
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+}
+
+.firstrun-title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #e8e0d0;
+}
+
+.firstrun-lead {
+  margin-top: 0.5rem;
+  font-size: 0.76rem;
+  line-height: 1.8;
+  color: #857f76;
+}
+
+.firstrun-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.firstrun-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #b8b4ac;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.firstrun-choice:hover,
+.firstrun-choice:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.firstrun-choice__name {
+  display: block;
+  font-size: 0.9rem;
+}
+
+/* 内訳（「横書き・空行あり / ゴシック体」）。値は settings.ts の Preset.desc が持つ。 */
+.firstrun-choice__desc {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: #7e7970;
+}
+
+.firstrun-skip {
+  display: block;
+  margin: 0.9rem auto 0;
+  padding: 0.4rem 0.8rem;
+  background: none;
+  border: none;
+  color: #6f6a62;
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.firstrun-skip:hover {
+  color: #a8a49c;
+}
+
+/* 縦書き／横書きを示すミニ図（画像を持たず CSS だけで描く）。
+   i が 1 行、.is-head が段落の先頭。横書きは先頭の前に空きを作り（＝段落間の空行）、
+   縦書きは先頭の頭を下げる（＝字下げ）。書字方向と段落の区切りが一目で分かるようにするため。 */
+.firstrun-mini {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.firstrun-mini i {
+  display: block;
+  background: #8d8880;
+}
+
+.firstrun-mini--h {
+  display: flex;
+  flex-direction: column;
+}
+
+.firstrun-mini--h i {
+  height: 2px;
+  margin-bottom: 3px;
+}
+
+.firstrun-mini--h i.is-head {
+  margin-top: 4px;
+}
+
+.firstrun-mini--v {
+  display: flex;
+  flex-direction: row-reverse;   /* 縦書きは右から左へ進む */
+  gap: 3px;
+}
+
+.firstrun-mini--v i {
+  width: 2px;
+  height: 100%;
+}
+
+.firstrun-mini--v i.is-head {
+  height: 78%;
+  align-self: flex-start;
+}

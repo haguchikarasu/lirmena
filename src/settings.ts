@@ -1,10 +1,12 @@
 /*
  * settings.ts
  * 責務: 書字方向・段落の区切り（空行／字下げ）・フォント・文字サイズ・文字の太さ・読書点位置の localStorage 保存・反映（CSS変数 or 属性）・ポップアップ開閉
- * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings()
+ * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings(),
+ *         getPresets(), getActivePreset(), applyPreset(), isAllDefault()
  * 依存: なし（栞・既読・読破のクリア・書字方向変更後の処理のコールバックは main.ts から注入）
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
  *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
+ *   ただし applyPreset() だけは書字方向が変わらなくても必ず呼ぶ（理由は下の「プリセット」節）。
  *   3つのクリアボタン（栞をクリア／既読をクリア／読破状況をクリア）は window.confirm() で承認を取ってから callback を呼ぶ。
  *   getSettings(): Settings は現在の表示設定（書字方向・段落間空行・フォント・文字サイズ・文字の太さ）のコピーを返す。
  *   main.ts が analytics.send() への引数として使う（表示設定は settings.ts が単一の源として所有）。
@@ -26,6 +28,20 @@
  *     字下げの適用先は renderer が .indent を付けた段落だけ（行頭が全角スペース／始め括弧類なら付かない・要件 05-4）。
  *   --reading-anchor: 読書点（基準点）の連続 % 値。settings.ts が単一の源として所有・永続化する。
  *     tutorial.ts のドラッグが setReadingAnchor() を呼んで更新し、bg.ts は CSS 変数を読むのみ（要件 06-4 / 06-12）。
+ *
+ * プリセット: 表示設定5項目の名前付きの組み合わせ（ウェブ小説風／書籍風）。定義はこのモジュールが単一の源として持ち、
+ *   firstrun.ts が getPresets() でカードを生成する。目次ページ（index.ts）は settings.ts を import できないため
+ *   （.dependency-cruiser.cjs の index-src-isolation）**定義を複製している**。ズレは e2e/settings-preset.spec.ts が
+ *   両ページの表示文字列と localStorage の値マップを突き合わせて機械検出する。
+ *   Preset.values は Partial<Settings> ではなく Settings（全キー必須）にしてある＝**6つ目の設定項目を足したとき、
+ *   プリセット側の定義漏れが tsc で落ちる**（複製の片方だけは型で守れる）。
+ *   選択状態は永続化しない派生状態：現在値が定義と完全一致するときだけカードが .active になり（getActivePreset）、
+ *   個別行を1つでも変えれば自動的に外れる（＝カスタム）。DEFAULTS はどちらのプリセットとも一致しない。
+ *   applyPreset() は書字方向が変わったかに関わらず**常に** onWritingModeChange() を呼ぶ。このコールバックの実体
+ *   （main.ts の _onWritingModeChange）は「読書位置の復元→マーカー再配置→scroll 再発火」で、書字方向専用ではなく
+ *   レイアウト変更後の位置復元だから（_onDeviceChange も同じ中身）。プリセットは最大5項目を一度に変え、特に lineGap は
+ *   全段落から段落間マージンを抜いて文書長を大きく変えるため、単一行の変更で許容してきたズレとはスケールが違う。
+ *   **「実際に変わったときだけ呼ぶ」という他の経路の規律から意図的に外れている箇所なので、戻さないこと。**
  *
  * 書字方向の契約: writingMode だけは CSS 変数でなく <html data-writing-mode> 属性へ反映する。
  *   axis.ts がこの属性を唯一の真実源として読む。settings→axis の import は張らず、DOM 属性＋localStorage キーで疎結合に保つ
@@ -54,6 +70,35 @@ const DEFAULTS: Settings = {
     fontWeight: 'normal',
     writingMode: 'horizontal',
 };
+
+export type PresetId = 'web' | 'book';
+
+// プリセット1件。values は Partial<Settings> にしない＝設定項目が増えたとき定義漏れが tsc で落ちる。
+// desc はカードに出す内訳で、values から導ける文字列（書字方向・段落の区切り / フォント）を手で書いたもの。
+// 両者の食い違いは settings.test.ts が導出ルールで突き合わせて検出する。
+export interface Preset {
+    id: PresetId;
+    name: string;
+    desc: string;
+    values: Settings;
+}
+
+// 定義の単一の源。目次側（index.ts）は import できないため複製を持ち、ズレは e2e/settings-preset.spec.ts が検出する。
+// **どちらの values も DEFAULTS とは一致しない**（初回に読み方を質問する導線の前提。settings.test.ts が固定している）。
+const PRESETS: readonly Preset[] = [
+    {
+        id: 'web',
+        name: 'ウェブ小説風',
+        desc: '横書き・空行あり / ゴシック体',
+        values: { writingMode: 'horizontal', lineGap: 'on', fontFamily: 'sans', fontSize: 'medium', fontWeight: 'normal' },
+    },
+    {
+        id: 'book',
+        name: '書籍風',
+        desc: '縦書き・字下げ / 明朝体',
+        values: { writingMode: 'vertical', lineGap: 'off', fontFamily: 'serif', fontSize: 'medium', fontWeight: 'normal' },
+    },
+];
 
 const LS_KEYS: Record<keyof Settings, string> = {
     fontSize: 'lirmena.fontSize',
@@ -91,6 +136,8 @@ let _callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onCl
 };
 let _popup: HTMLElement | null = null;
 const _optEntries = new Map<keyof Settings, Array<{ btn: HTMLButtonElement; value: string }>>();
+// プリセットカードのレジストリ。選択状態は永続化せず、_refreshPresets() が現在値との一致から毎回導く。
+const _presetEntries: Array<{ btn: HTMLButtonElement; id: PresetId }> = [];
 
 // 設定を localStorage から復元し CSS 変数に反映する。
 // callbacks.onClearBookmarks / onClearReached / onClearRead を設定画面の3クリアボタン（栞・既読・読破状況）に、
@@ -122,6 +169,53 @@ export function getReadingAnchor(): number {
 // getSettings(): Settings
 export function getSettings(): Settings {
     return { ..._current };
+}
+
+// プリセット定義のコピーを返す（values まで複製するので呼び出し側の変更が内部に及ばない）。
+// firstrun.ts が初回ダイアログのカード生成に使う。
+// getPresets(): Preset[]
+export function getPresets(): Preset[] {
+    return PRESETS.map((p) => ({ ...p, values: { ...p.values } }));
+}
+
+// 現在値が完全一致するプリセットの id を返す。一致しなければ null（＝カスタム）。
+// 永続化しない派生状態＝個別行を1つでも変えれば自動的に null になる。DEFAULTS はどちらとも一致しない。
+// getActivePreset(): PresetId | null
+export function getActivePreset(): PresetId | null {
+    const hit = PRESETS.find((p) => _sameSettings(p.values, _current));
+    return hit ? hit.id : null;
+}
+
+// プリセットを適用する（5項目を一括で差し替え・保存・反映し、選択表示を更新する）。
+// **書字方向が変わったかに関わらず常に onWritingModeChange() を呼ぶ**（読書位置の復元。理由は冒頭の「プリセット」節）。
+// 順序が契約：_applyAll（属性反映）より後でないと axis.ts が旧方向で読む。
+// applyPreset(id: PresetId): void
+export function applyPreset(id: PresetId): void {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    const changed = !_sameSettings(preset.values, _current);
+    _current = { ...preset.values };
+    _saveAll();
+    _applyAll();
+    _refreshOpts();
+    _refreshPresets();
+    // 5項目のどれかが実際に変わったときだけ位置を復元する。根拠が「レイアウトが変わったから」なので、
+    // 既に当たっているカードの再タップでスクロール再計算を走らせるのは筋が通らない。
+    if (changed) _callbacks.onWritingModeChange();
+}
+
+// 表示設定5項目がすべて DEFAULTS と同値か（＝一度も設定を変えていないと見なせるか）。
+// firstrun.ts が初回ダイアログを出すかの判定に使う。読書点（readingAnchor）は見ない。
+// キーの有無ではなく**値**で判定するので、「設定をリセット」した読者も true に戻る。
+// isAllDefault(): boolean
+export function isAllDefault(): boolean {
+    return _sameSettings(DEFAULTS, _current);
+}
+
+// 表示設定2組が全項目同値か。Object.keys(DEFAULTS) 走査なので設定項目が増えても自動追従する。
+// _sameSettings(a: Settings, b: Settings): boolean
+function _sameSettings(a: Settings, b: Settings): boolean {
+    return (Object.keys(DEFAULTS) as Array<keyof Settings>).every((k) => a[k] === b[k]);
 }
 
 // 読書点を % で設定し、localStorage 保存＋ CSS 変数 --reading-anchor へ反映する。[0,100] にクランプ。
@@ -231,6 +325,12 @@ function _buildPopup(): void {
     titleEl.textContent = '表示設定';
     panel.appendChild(titleEl);
 
+    panel.appendChild(_buildPresets());
+
+    const presetDivider = document.createElement('div');
+    presetDivider.className = 'settings-divider';
+    panel.appendChild(presetDivider);
+
     panel.appendChild(_buildRow('書字方向', 'writingMode', [
         { value: 'vertical', label: '縦書き' },
         { value: 'horizontal', label: '横書き' },
@@ -273,6 +373,8 @@ function _buildPopup(): void {
         _applyAll();
         setReadingAnchor(READING_ANCHOR_DEFAULT);
         _refreshOpts();
+        // 既定値はどちらのプリセットとも一致しないので、リセット後は両カードとも非 active になるのが正。
+        _refreshPresets();
         // リセットで書字方向が変わったら（縦書き→既定の横書き）切替前位置を復元する（A-4）。
         if (modeChanged) _callbacks.onWritingModeChange();
     }));
@@ -293,6 +395,66 @@ function _buildPopup(): void {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && _popup && !_popup.hidden) _popup.hidden = true;
     });
+}
+
+// プリセットの小見出しとカード2枚を生成して返し、生成したボタンを _presetEntries に登録する。
+// **カードは設定の「行」ではない**（.settings-row / .settings-row__label を使わない）＝行順を検査する
+// e2e/settings-order.spec.ts と settings.test.ts の対象外に保つ。要件 06-4 の「表示設定の行」は5つのまま。
+// 小見出しは h3 にせず div のまま（パネル内に見出し階層が無く .settings-panel__title も div のため）、
+// 代わりに id を振って section から aria-labelledby で参照する（名前のない sectioning element を作らない）。
+// _buildPresets(): DocumentFragment
+function _buildPresets(): DocumentFragment {
+    // 再入（init を呼び直すテスト等）で古いボタンが溜まらないよう作り直す。_optEntries は Map.set なので同じ性質。
+    _presetEntries.length = 0;
+    const frag = document.createDocumentFragment();
+
+    const label = document.createElement('div');
+    label.className = 'settings-subtitle';
+    label.id = 'settings-preset-label';
+    label.textContent = 'プリセット';
+    frag.appendChild(label);
+
+    const box = document.createElement('section');
+    box.className = 'settings-preset';
+    box.setAttribute('aria-labelledby', 'settings-preset-label');
+
+    for (const preset of PRESETS) {
+        const btn = document.createElement('button');
+        btn.className = 'settings-preset__btn';
+        btn.type = 'button';
+
+        const name = document.createElement('span');
+        name.className = 'settings-preset__name';
+        name.textContent = preset.name;
+        btn.appendChild(name);
+
+        const desc = document.createElement('span');
+        desc.className = 'settings-preset__desc';
+        desc.textContent = preset.desc;
+        btn.appendChild(desc);
+
+        btn.addEventListener('click', () => { applyPreset(preset.id); });
+        box.appendChild(btn);
+        _presetEntries.push({ btn, id: preset.id });
+    }
+
+    frag.appendChild(box);
+    _refreshPresets();
+    return frag;
+}
+
+// プリセットカードの .active を現在値との一致（getActivePreset）に合わせて更新する。
+// 永続化しない派生状態なので、個別行の変更・設定のリセット・プリセット適用のすべてから呼ぶ。
+// _refreshPresets(): void
+function _refreshPresets(): void {
+    const active = getActivePreset();
+    for (const { btn, id } of _presetEntries) {
+        const on = id === active;
+        btn.classList.toggle('active', on);
+        // .active はクラス＝見た目だけなので、選択状態を支援技術にも伝える。
+        // 2枚のうち1枚が選ばれる排他選択だが radiogroup にはしない（矢印キー操作の実装が要るため）。
+        btn.setAttribute('aria-pressed', String(on));
+    }
 }
 
 // 設定1項目分の行要素（ラベル＋選択ボタン群）を生成して返す。
@@ -327,6 +489,8 @@ function _buildRow(
             localStorage.setItem(LS_KEYS[key], opt.value);
             _applySetting(key);
             _refreshRow(key);
+            // 単一行の変更でプリセットとの一致が成立・崩壊するのでカードも更新する（永続化しない派生状態）。
+            _refreshPresets();
             // 書字方向を実際に切り替えたときだけ、main.ts に切替前位置の復元・マーカー再配置を依頼する（A-4）。
             if (key === 'writingMode' && changed) _callbacks.onWritingModeChange();
         });

@@ -1,6 +1,7 @@
 /*
  * settings.test.ts
  * 対象: settings.ts の読書点（readingAnchor）ロジック／書字方向／段落の区切り／文字の太さ／設定行の並び／3クリアの callback
+ *   ／プリセット（定義・適用・派生する選択表示）
  *   - 既定値・不正値フォールバック・[0,100] クランプ
  *   - localStorage 保存と CSS 変数 --reading-anchor / --font-weight 反映
  *   - lineGap は --paragraph-margin と --paragraph-indent を**セットで**駆動する（空行と字下げの排他。
@@ -11,7 +12,7 @@
  *   各テストは localStorage.clear() ＋ init() で module 内 state（_readingAnchor）を再構築して隔離する。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { init, getReadingAnchor, setReadingAnchor, getSettings } from './settings';
+import { init, getReadingAnchor, setReadingAnchor, getSettings, getPresets, getActivePreset, applyPreset, isAllDefault } from './settings';
 
 const NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
@@ -404,5 +405,140 @@ describe('クリアボタンの3系統 callback ルーティング＋confirm 承
         findByText('.settings-action', '既読をクリア')?.click();
         findByText('.settings-action', '読破状況をクリア')?.click();
         expect(calls).toEqual({ bookmarks: 0, reached: 0, read: 0 });
+    });
+});
+
+// 仕様（要件 06-4）：プリセットは表示設定5項目の名前付きの組み合わせ（ウェブ小説風／書籍風）。
+// 定義は settings.ts が単一の源として持ち、目次側（index.ts）の複製とのズレは e2e/settings-preset.spec.ts が見る。
+describe('プリセットの定義（要件 06-4）', () => {
+    // desc（カードの内訳）を values から導くための表。desc を手で書き換えたときに気づけるようにする。
+    const LABEL = {
+        writingMode: { vertical: '縦書き', horizontal: '横書き' },
+        lineGap: { on: '空行あり', off: '字下げ' },
+        fontFamily: { serif: '明朝体', sans: 'ゴシック体' },
+    } as const;
+
+    it('ウェブ小説風・書籍風の2件を要件どおりの値で持つ', () => {
+        init(NOOP);
+        expect(getPresets()).toEqual([
+            {
+                id: 'web', name: 'ウェブ小説風', desc: '横書き・空行あり / ゴシック体',
+                values: { writingMode: 'horizontal', lineGap: 'on', fontFamily: 'sans', fontSize: 'medium', fontWeight: 'normal' },
+            },
+            {
+                id: 'book', name: '書籍風', desc: '縦書き・字下げ / 明朝体',
+                values: { writingMode: 'vertical', lineGap: 'off', fontFamily: 'serif', fontSize: 'medium', fontWeight: 'normal' },
+            },
+        ]);
+    });
+
+    it('カードの内訳（desc）が values から導ける文字列と一致する', () => {
+        init(NOOP);
+        for (const p of getPresets()) {
+            const expected = `${LABEL.writingMode[p.values.writingMode]}・${LABEL.lineGap[p.values.lineGap]} / ${LABEL.fontFamily[p.values.fontFamily]}`;
+            expect(p.desc).toBe(expected);
+        }
+    });
+
+    it('getPresets() は複製を返す（呼び出し側が書き換えても内部定義は変わらない）', () => {
+        init(NOOP);
+        getPresets()[0].values.writingMode = 'vertical';
+        expect(getPresets()[0].values.writingMode).toBe('horizontal');
+    });
+
+    // この前提が崩れると「初回に読み方を質問する」導線の存在理由と、リセット後にカードが非 active になる仕様が
+    // 静かに壊れる。DEFAULTS をいじったときにここで気づけるようにしておく。
+    it('既定値はどちらのプリセットとも一致しない', () => {
+        init(NOOP);
+        expect(getActivePreset()).toBeNull();
+    });
+
+    it('isAllDefault() は init 直後 true、プリセットを当てると false', () => {
+        init(NOOP);
+        expect(isAllDefault()).toBe(true);
+        applyPreset('book');
+        expect(isAllDefault()).toBe(false);
+    });
+});
+
+// 仕様（要件 06-4）：プリセットの選択状態は永続化しない派生状態。現在値が定義と完全一致するときだけ .active。
+// 適用は5項目を一括で反映し、**書字方向が変わらなくても**読書位置の復元コールバックを呼ぶ。
+describe('プリセットの適用と選択表示（要件 06-4）', () => {
+    beforeEach(() => {
+        const popup = document.createElement('section');
+        popup.id = 'settings-popup';
+        document.body.appendChild(popup);
+    });
+    afterEach(() => {
+        document.getElementById('settings-popup')?.remove();
+    });
+
+    const activeCards = () =>
+        [...document.querySelectorAll('.settings-preset__btn.active .settings-preset__name')].map((el) => el.textContent);
+    const activeRowValues = () =>
+        [...document.querySelectorAll('.settings-row')].map((row) => row.querySelector('.settings-opt.active')?.textContent ?? null);
+    const clickOpt = (text: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>('.settings-opt')].find((b) => b.textContent === text)?.click();
+
+    it('書籍風を当てると5項目が保存され、書字方向属性と段落の CSS 変数2本が切り替わる', () => {
+        init(NOOP);
+        applyPreset('book');
+        expect(localStorage.getItem('lirmena.writingMode')).toBe('vertical');
+        expect(localStorage.getItem('lirmena.lineGap')).toBe('off');
+        expect(localStorage.getItem('lirmena.fontFamily')).toBe('serif');
+        expect(localStorage.getItem('lirmena.fontSize')).toBe('medium');
+        expect(localStorage.getItem('lirmena.fontWeight')).toBe('normal');
+        expect(document.documentElement.getAttribute('data-writing-mode')).toBe('vertical');
+        // 空行と字下げは排他。片方だけ書くと二重の段落区切りに戻るので、2本セットで見る。
+        expect(document.documentElement.style.getPropertyValue('--paragraph-margin')).toBe('var(--paragraph-margin-off)');
+        expect(document.documentElement.style.getPropertyValue('--paragraph-indent')).toBe('var(--paragraph-indent-off)');
+    });
+
+    // 単一行の変更は「実際に変わったときだけ」呼ぶが、プリセットは最大5項目を一度に変えて文書長も動く（lineGap）。
+    // ここが 0 回になっていると、横書きの読者がウェブ小説風を当てただけで読書位置を失う。
+    it('書字方向が変わらないプリセットでも onWritingModeChange を呼ぶ', () => {
+        let calls = 0;
+        init({ ...NOOP, onWritingModeChange: () => { calls++; } });
+        applyPreset('web');   // 既定 horizontal → web も horizontal
+        expect(calls).toBe(1);
+    });
+
+    it('プリセットを当てると5行の選択表示も追従する', () => {
+        init(NOOP);
+        applyPreset('book');
+        expect(activeRowValues()).toEqual(['縦書き', 'なし', '明朝体', '中', '通常']);
+    });
+
+    it('当てたプリセットのカードだけが .active になる', () => {
+        init(NOOP);
+        applyPreset('book');
+        expect(activeCards()).toEqual(['書籍風']);
+        applyPreset('web');
+        expect(activeCards()).toEqual(['ウェブ小説風']);
+    });
+
+    it('個別の行を変えるとカードの .active が外れる（＝カスタム）', () => {
+        init(NOOP);
+        applyPreset('book');
+        clickOpt('大');
+        expect(getActivePreset()).toBeNull();
+        expect(activeCards()).toEqual([]);
+    });
+
+    it('設定をリセットするとどちらのカードも .active でなくなる', () => {
+        init(NOOP);
+        applyPreset('book');
+        [...document.querySelectorAll<HTMLButtonElement>('.settings-action')].find((b) => b.textContent === '設定をリセット')?.click();
+        expect(isAllDefault()).toBe(true);
+        expect(activeCards()).toEqual([]);
+    });
+
+    it('プリセットは表示設定の行より前に置かれる', () => {
+        init(NOOP);
+        const preset = document.querySelector('.settings-preset');
+        const firstRow = document.querySelector('.settings-row');
+        expect(preset).not.toBeNull();
+        expect(firstRow).not.toBeNull();
+        expect(preset!.compareDocumentPosition(firstRow!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

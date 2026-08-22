@@ -61,13 +61,16 @@ module.exports = {
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
     { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/(bookmark|volumes)\\.ts$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
-    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
+    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
     { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|ruby)\\.ts$' } },
     { from: { path: '(^|/)src/reader\\.ts$' },   to: { path: '(^|/)src/(state|progress|opening|bookmark)\\.ts$' } },
     { from: { path: '(^|/)src/opening\\.ts$' },  to: { path: '(^|/)src/(axis|state|nav)\\.ts$' } },
     { from: { path: '(^|/)src/renderer\\.ts$' }, to: { path: '(^|/)src/parser\\.ts$' } },
     { from: { path: '(^|/)src/tutorial\\.ts$' }, to: { path: '(^|/)src/(axis|settings)\\.ts$' } },
+    // firstrun → settings はプリセット定義・適用・既定判定の所有者を読むための 1 本（tutorial → settings と同型）。
+    // firstrun は tutorial を import しない：閉じた後に何を出すかは main.ts が onDone 注入で決める。
+    { from: { path: '(^|/)src/firstrun\\.ts$' }, to: { path: '(^|/)src/settings\\.ts$' } },
     { from: { path: '(^|/)src/bg\\.ts$' },       to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/pan\\.ts$' },      to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/feedback\\.ts$' }, to: { path: '(^|/)src/state\\.ts$' } },

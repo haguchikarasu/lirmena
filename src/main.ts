@@ -24,7 +24,8 @@
  *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除）
  *   settings : init(callbacks): void / getSettings(): Settings
  *   device   : init(callbacks?: { onDeviceChange?: (d: 'pc' | 'sp') => void }): void
- *   tutorial : init(): void
+ *   tutorial : init(): void / openIfFirstVisit(): boolean（初回ガイドは init では出ない。順序はここが決める）
+ *   firstrun : init(callbacks: { onDone: () => void }): void（初回の読み方選択。出す/出さないに関わらず onDone を1回呼ぶ）
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void
  *   immersive: init(): void
@@ -52,6 +53,7 @@ import * as transition from './transition';
 import * as menu from './menu';
 import * as settings from './settings';
 import * as tutorial from './tutorial';
+import * as firstrun from './firstrun';
 import * as opening from './opening';
 import * as pan from './pan';
 import * as immersive from './immersive';
@@ -203,6 +205,25 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;
+
+    _initFirstRun();
+}
+
+/**
+ * 初回導線：読み方の選択（firstrun）→ 閉じたら読書点チュートリアル（tutorial）。
+ * onDone は「出す条件を満たさなかった」場合も呼ばれるので、呼び出し側に分岐は要らない。
+ *
+ * **呼ぶ位置に 2 つの制約がある**（本文モード・あとがきモードとも bootstrap の末尾に置く理由）：
+ *   1. bg.subscribe() より後。reader.init() が _lastRatio を 0 に戻し、埋まるのは bg.subscribe() が
+ *      登録直後に同期で走らせる _emit → reader.handleScroll の 1 回目。それより前にプリセットが適用されると
+ *      onWritingModeChange が ratio=0 で復元して**本文先頭へ飛ぶ**（オートセーブで途中から開いた読者が
+ *      「書籍風」を押した瞬間に場所を失う）。
+ *   2. tutorial.init() より後。firstrun の Escape ハンドラが tutorial のものより後に登録される必要がある
+ *      ——ただし firstrun 側が onDone をマイクロタスクに載せて構造的に守っているので、これは二重の保険
+ *      （詳細は firstrun.ts の IF コメント）。
+ */
+function _initFirstRun(): void {
+    firstrun.init({ onDone: () => { tutorial.openIfFirstVisit(); } });
 }
 
 /**
@@ -290,6 +311,11 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
 
     const loadingEl = document.querySelector<HTMLElement>('#loading');
     if (loadingEl) loadingEl.hidden = true;
+
+    // あとがきも本文シェル（reader.html）を流用する読書ページなので、本文モードと同じ初回導線を通す。
+    // ここに置かないと、あとがきに直リンクで入った読者だけ「書字方向が未確定のままチュートリアルの図解が
+    // 出る」状態が残る。フラグは本文モードと共有なので二重には出ない。
+    _initFirstRun();
 }
 
 /**

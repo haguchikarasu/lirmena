@@ -771,8 +771,9 @@ function renderBookmarks(): void {
 // （index.ts は settings.ts を import しない＝リーフ間非依存を保つため。.dependency-cruiser.cjs の
 //   index-src-isolation ルールが機械的に強制する。理由は design/modules/index.md）。
 // **行の並びは両ページで一致させること**（要件 06-4 の設定項目表の順）。
-// 設定行を足す・並びを変えるときは settings.ts 側と、このファイル内の次の5箇所を同時に直す：
-//   1) LS_* 定数  2) DEFAULTS  3) buildRow の呼び出し順  4) refreshRows() の defs  5) 「設定をリセット」の removeItem
+// 設定行を足す・並びを変えるときは settings.ts 側と、このファイル内の次の6箇所を同時に直す：
+//   1) LS_* 定数  2) DEFAULTS  3) DISPLAY_SETTINGS（キー・既定値・有効値。refreshRows と一致判定が共用）
+//   4) buildRow の呼び出し順  5) 「設定をリセット」の removeItem  6) PRESETS の values（全プリセットに新項目を足す）
 // （さらにファイル冒頭 IF コメントの localStorage キー一覧）。並びのズレは e2e/settings-order.spec.ts が検出する。
 // 目次ページは本文を持たないので CSS 変数へは反映せず、localStorage 保存と .active トグルだけを行う。
 // なお読書点（lirmena.readingAnchor）は設定「行」を持たないので上記 1)〜4) には現れないが、
@@ -785,9 +786,50 @@ function buildSettingsPopup(story: StoryVolume[]): void {
     if (!popup) return;
 
     const optEntries = new Map<string, Array<{ btn: HTMLButtonElement; value: string }>>();
+    const presetEntries: Array<{ btn: HTMLButtonElement; id: string }> = [];
 
+    // 表示設定5項目の localStorage キー・既定値・有効値。行の並び順（要件 06-4）に合わせてある。
+    // 有効値を持つのは本文側 settings.ts の _readEnum に揃えるため——揃えないと lirmena.fontSize='huge' のような
+    // 残留値があったときに、本文は既定へ倒して目次は生値のまま扱い、両ページのプリセット選択表示がズレる。
+    const DISPLAY_SETTINGS: ReadonlyArray<{ key: string; def: string; valid: readonly string[] }> = [
+        { key: LS_WRITING_MODE, def: DEFAULTS.writingMode, valid: ['vertical', 'horizontal'] },
+        { key: LS_LINE_GAP,     def: DEFAULTS.lineGap,     valid: ['on', 'off'] },
+        { key: LS_FONT_FAMILY,  def: DEFAULTS.fontFamily,  valid: ['serif', 'sans'] },
+        { key: LS_FONT_SIZE,    def: DEFAULTS.fontSize,    valid: ['large', 'medium', 'small'] },
+        { key: LS_FONT_WEIGHT,  def: DEFAULTS.fontWeight,  valid: ['normal', 'bold'] },
+    ];
+
+    // 本文側 src/settings.ts の PRESETS と手で揃えた複製（settings.ts を import できないため）。
+    // ズレは e2e/settings-preset.spec.ts が両ページの表示文字列と localStorage の値マップを突き合わせて検出する。
+    const PRESETS: ReadonlyArray<{ id: string; name: string; desc: string; values: Record<string, string> }> = [
+        {
+            id: 'web', name: 'ウェブ小説風', desc: '横書き・空行あり / ゴシック体',
+            values: {
+                [LS_WRITING_MODE]: 'horizontal', [LS_LINE_GAP]: 'on', [LS_FONT_FAMILY]: 'sans',
+                [LS_FONT_SIZE]: 'medium', [LS_FONT_WEIGHT]: 'normal',
+            },
+        },
+        {
+            id: 'book', name: '書籍風', desc: '縦書き・字下げ / 明朝体',
+            values: {
+                [LS_WRITING_MODE]: 'vertical', [LS_LINE_GAP]: 'off', [LS_FONT_FAMILY]: 'serif',
+                [LS_FONT_SIZE]: 'medium', [LS_FONT_WEIGHT]: 'normal',
+            },
+        },
+    ];
+
+    // 未設定・DISPLAY_SETTINGS に無い値は既定へ倒す（本文側 settings.ts の _readEnum と同じ役目）。
     function readSetting(key: string, defaultVal: string): string {
-        return localStorage.getItem(key) ?? defaultVal;
+        const raw = localStorage.getItem(key);
+        if (raw === null) return defaultVal;
+        const spec = DISPLAY_SETTINGS.find((s) => s.key === key);
+        return !spec || spec.valid.includes(raw) ? raw : defaultVal;
+    }
+
+    // 表示設定1項目の現在値（既定値は DISPLAY_SETTINGS から引く）。
+    function currentOf(key: string): string {
+        const spec = DISPLAY_SETTINGS.find((s) => s.key === key);
+        return readSetting(key, spec?.def ?? '');
     }
 
     function buildRow(
@@ -821,6 +863,8 @@ function buildSettingsPopup(story: StoryVolume[]): void {
                 for (const e of entries) {
                     e.btn.classList.toggle('active', e.value === opt.value);
                 }
+                // 単一行の変更でプリセットとの一致が成立・崩壊するのでカードも更新する（永続化しない派生状態）。
+                refreshPresets();
             });
             optsEl.appendChild(btn);
             entries.push({ btn, value: opt.value });
@@ -840,18 +884,69 @@ function buildSettingsPopup(story: StoryVolume[]): void {
     }
 
     function refreshRows(): void {
-        const defs: [string, string][] = [
-            [LS_WRITING_MODE, DEFAULTS.writingMode],
-            [LS_LINE_GAP,     DEFAULTS.lineGap],
-            [LS_FONT_FAMILY,  DEFAULTS.fontFamily],
-            [LS_FONT_SIZE,    DEFAULTS.fontSize],
-            [LS_FONT_WEIGHT,  DEFAULTS.fontWeight],
-        ];
-        for (const [key, def] of defs) {
-            const current = readSetting(key, def);
+        for (const { key } of DISPLAY_SETTINGS) {
+            const current = currentOf(key);
             for (const e of optEntries.get(key) ?? []) {
                 e.btn.classList.toggle('active', e.value === current);
             }
+        }
+    }
+
+    // プリセットの小見出しとカード2枚。本文側 settings.ts の _buildPresets と同じ markup・同じ表示文字列。
+    // カードは設定の「行」ではない（.settings-row / .settings-row__label を使わない）＝行順を検査する
+    // e2e/settings-order.spec.ts の対象外に保つ。
+    function buildPresets(): DocumentFragment {
+        const frag = document.createDocumentFragment();
+
+        const label = document.createElement('div');
+        label.className = 'settings-subtitle';
+        label.id = 'settings-preset-label';
+        label.textContent = 'プリセット';
+        frag.appendChild(label);
+
+        const box = document.createElement('section');
+        box.className = 'settings-preset';
+        box.setAttribute('aria-labelledby', 'settings-preset-label');
+
+        for (const preset of PRESETS) {
+            const btn = document.createElement('button');
+            btn.className = 'settings-preset__btn';
+            btn.type = 'button';
+
+            const name = document.createElement('span');
+            name.className = 'settings-preset__name';
+            name.textContent = preset.name;
+            btn.appendChild(name);
+
+            const desc = document.createElement('span');
+            desc.className = 'settings-preset__desc';
+            desc.textContent = preset.desc;
+            btn.appendChild(desc);
+
+            btn.addEventListener('click', () => {
+                for (const [key, val] of Object.entries(preset.values)) {
+                    localStorage.setItem(key, val);
+                }
+                // buildRow のクリックは自分の行しか更新しないので、複数キーを一括で変えたら refreshRows が要る。
+                refreshRows();
+                refreshPresets();
+            });
+            box.appendChild(btn);
+            presetEntries.push({ btn, id: preset.id });
+        }
+
+        frag.appendChild(box);
+        return frag;
+    }
+
+    // カードの .active を現在値との一致から導く（永続化しない派生状態。既定値はどちらとも一致しない）。
+    function refreshPresets(): void {
+        const hit = PRESETS.find((p) => Object.entries(p.values).every(([key, val]) => currentOf(key) === val));
+        for (const e of presetEntries) {
+            const on = hit !== undefined && e.id === hit.id;
+            e.btn.classList.toggle('active', on);
+            // .active は見た目だけなので、選択状態を支援技術にも伝える（本文側 settings.ts と同じ）。
+            e.btn.setAttribute('aria-pressed', String(on));
         }
     }
 
@@ -862,6 +957,13 @@ function buildSettingsPopup(story: StoryVolume[]): void {
     titleEl.className = 'settings-panel__title';
     titleEl.textContent = '表示設定';
     panel.appendChild(titleEl);
+
+    panel.appendChild(buildPresets());
+    refreshPresets();
+
+    const presetDivider = document.createElement('div');
+    presetDivider.className = 'settings-divider';
+    panel.appendChild(presetDivider);
 
     panel.appendChild(buildRow('書字方向', LS_WRITING_MODE, DEFAULTS.writingMode, [
         { value: 'vertical',   label: '縦書き' },
@@ -917,6 +1019,8 @@ function buildSettingsPopup(story: StoryVolume[]): void {
         // 表示設定の行を持たないが対象に含める（要件 06-4「設定をリセットでデフォルトに戻す」）。
         localStorage.removeItem(LS_READING_ANCHOR);
         refreshRows();
+        // 既定値はどちらのプリセットとも一致しないので、リセット後は両カードとも非 active になるのが正。
+        refreshPresets();
     }));
 
     const closeBtn = document.createElement('button');

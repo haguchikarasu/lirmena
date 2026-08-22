@@ -116,6 +116,11 @@
   <!-- 栞ポップアップ：スロット選択（menu.ts が操作） -->
   <section id="bookmark-popup" hidden role="dialog" aria-label="栞に保存"></section>
 
+  <!-- 初回の読み方選択：プリセット（ウェブ小説風／書籍風）のカードを firstrun.ts が生成する。
+       閉じたあとに下のチュートリアルが続く（書字方向が確定してから図解を描くため）。aria-labelledby が
+       参照する #firstrun-title も firstrun.ts が作る。目次ページ（index.html）には置かない -->
+  <section id="firstrun-popup" hidden role="dialog" aria-labelledby="firstrun-title"></section>
+
   <!-- 読み方（読書点）チュートリアル：初回ガイドのカルーセル。中身（案内役立ち絵＋説明＋CSS図解）は
        tutorial.ts が STEPS から生成する。デバイス×書字方向は html[data-device][data-writing-mode] で CSS が解決 -->
   <section id="tutorial-popup" hidden role="dialog" aria-label="読み方"></section>

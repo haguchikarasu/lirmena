@@ -1,7 +1,7 @@
 /*
  * tutorial.ts
  * 責務: 読書点（基準点）チュートリアル。常時アンカーマーカーの表示とドラッグ移動、初回ガイドのカルーセル。
- * export: init(), open(), reposition()
+ * export: init(), open(), openIfFirstVisit(), reposition()
  * 依存: axis.ts（進行軸・書字方向の解決）／ settings.ts（読書点の所有者。ドロップ時に setReadingAnchor() で永続化）
  *
  * 読書点の値の所在（要件 06-12 / 06-4）:
@@ -20,7 +20,9 @@
  *     合成 scroll イベントを dispatch して bg.ts のクロスフェード中点を即追従させる（bg を import しない＝疎結合）。
  *   - ドロップ時に settings.setReadingAnchor() で連続値を永続化（スナップ・丸めなし）。
  *
- * 初回ガイド: KEY_TUTORIAL_SEEN 未設定時のみ自動表示し、表示後フラグを立てる。再表示は menu.ts の「チュートリアル」が open() を呼ぶ。
+ * 初回ガイド: KEY_TUTORIAL_SEEN 未設定時のみ表示し、表示後フラグを立てる。判定と表示は openIfFirstVisit() が持ち、
+ *   init() では出さない（呼ぶ順序は main.ts が決める＝読み方ダイアログ firstrun.ts の後に開く）。
+ *   再表示は menu.ts の「チュートリアル」が open() を呼ぶ。
  * ガイドカルーセル: ステップ（バッジ・見出し・本文・CSS 図解・案内役立ち絵）は STEPS から tutorial.ts が生成する
  *   （#tutorial-popup は空の器で、本文シェルに中身は持たない）。カードの枠・戻る/次へ・ドット・立ち絵は _buildShell() で
  *   一度だけ作り、送り操作は _update() で中身だけ差し替える（カードを作り直さない＝出現アニメの再発なし）。
@@ -135,10 +137,19 @@ export function init(): void {
         window.addEventListener('resize', _positionMarker);
     }
 
-    if (localStorage.getItem(KEY_TUTORIAL_SEEN) === null) {
-        open();
-        localStorage.setItem(KEY_TUTORIAL_SEEN, '1');
-    }
+}
+
+// まだ見ていなければ初回ガイドを開く。開いたら true、既に見ていて何もしなければ false。
+// **フラグは開いた瞬間に立てる**（閉じた時ではない。即座に閉じた読者を毎回呼び止めないため）。
+// init() から分離してあるのは、初回の読み方ダイアログ（firstrun.ts）を先に出し、**書字方向が確定してから**
+// このガイドを開くため（図解の三角の向き・帯の縦横を CSS の html[data-writing-mode] が解決するので、
+// 未確定のまま開くと選ばれる前の方向で描かれる）。順序を決めるのは main.ts。
+// openIfFirstVisit(): boolean
+export function openIfFirstVisit(): boolean {
+    if (localStorage.getItem(KEY_TUTORIAL_SEEN) !== null) return false;
+    open();
+    localStorage.setItem(KEY_TUTORIAL_SEEN, '1');
+    return true;
 }
 
 // ガイドを開く（初回自動・再表示とも）。先頭ステップから表示し、表示後に全ステップ最大高を測って固定する。
