@@ -106,8 +106,11 @@
    .settings-panel）も max-height + overflow-y: auto で同じ扱い。
    高さの単位は vh ではなく dvh。vh は「ブラウザ UI（アドレスバー・ツールバー）が隠れた状態の高さ」を
    指すため、バーが出ている間は 90vh がバーの下まで伸び、パネルの底（＝「閉じる」）がバーに隠れて
-   押せなくなる（iPhone SE で 55px、スマホ横向きで 25px のかぶりを実測）。_tutorial.css の
-   .tutorial-card が calc(100dvh - 48px) を使っているのと同じ扱い。 */
+   押せなくなる。_tutorial.css の .tutorial-card が calc(100dvh - 48px) を使っているのと同じ扱い。
+   （旧コメントには「iPhone SE で 55px のかぶりを実測」とあったが根拠が無く撤回した。DevTools の
+   デバイスモードには動的ブラウザ UI が無いのでこの症状は原理的に再現できず、実機は iOS も Android も
+   当時試されていない。かぶり量は端末とブラウザ UI の高さで決まる＝固定値では書けない。
+   なお「閉じるへ届く」ことを直接担保しているのは下の overflow-y: auto であり、dvh はそれに加えた予防措置。） */
 .settings-panel {
   width: min(88vw, 21rem);
   background: rgba(12, 12, 12, 0.97);

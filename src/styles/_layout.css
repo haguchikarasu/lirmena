@@ -13,7 +13,19 @@
      ウィンドウがこれ未満なら inline-size:100% で全幅、これ以上なら本文が --line-length で頭打ちして
      残りの inline 空間が margin-inline:auto 経由で両端マージンへ回る（要件：max到達時にマージン部分が拡張）。 */
   max-inline-size: calc(var(--line-length) + 2 * var(--body-margin));
-  height: calc(100vh - 2 * var(--story-padding));
+  /* 天地余白（縦書き）。単位は vh ではなく svh＝「ブラウザ UI（アドレスバー・ツールバー）が出ている状態」
+     の最小ビューポート高さ。vh は逆に「UI が全部隠れた状態」の高さを指すので、上下にバーを持つモバイル
+     ブラウザ（Edge・Brave 等）では 90vh が可視領域より高くなり、body の flex 中央寄せごと上下へはみ出して
+     **天地余白が画面外へ消える**（Chrome は下バーが無いぶんはみ出しが小さく症状が出にくい＝ブラウザで
+     見え方が割れる正体）。
+     dvh（可動）ではなく svh（固定）を採る理由：縦書きではこの高さが 1 行の長さそのものなので、スクロール中に
+     バーが出入りして高さが変わると本文全体が組み直され、読書位置（scrollLeft）が飛ぶ。svh なら UI の出入りで
+     レイアウトは一切動かず、バーが引っ込んだぶんは余白が増えるだけになる（横書きも同じ理由で svh＝下の分岐）。
+     PC では svh = dvh = vh（可動 UI が無い）ため影響しない。可視領域に合わせるのは中央寄せの親側の役目で、
+     `body { height: 100dvh }`（_base.css）が担う。
+     値の実体（svh 版と、非対応環境用の vh 版フォールバック）は _base.css の --story-height／@supports が持つ。
+     **ここに単位を直書きしないこと**＝ビューポート単位の分岐を 1 箇所に閉じてある。 */
+  height: var(--story-height);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -302,13 +314,22 @@ ruby rt {
 =================================================== */
 
 /* スクロール軸を縦へ（横書きは上→下へ読み進める）。
-   縦書きは天地余白（高さ calc(100vh - 2×--story-padding)=90vh ＋ body 中央寄せで上下に 5vh）を取るが、
+   縦書きは天地余白（--story-height＝PC 90svh／スマホ 96svh ＋ body 中央寄せで上下に等分）を取るが、
    横書きでは上下マージンは不要なので高さをビューポート全部にする。あわせて天地 padding も 0 にして、
    開幕の余白帯（btn-container, height:100%）がちょうど1ビューポートになり本文書き出しの覗き込みも防ぐ。 */
 html[data-writing-mode="horizontal"] #main-container {
   overflow-x: hidden;
   overflow-y: auto;
-  height: 100vh;
+  /* 縦書きと同じ svh（固定）。**dvh（可動）にしてはいけない**：本文の**前**にある開幕の余白帯
+     （#btn-container-start は .btn-container { height: 100% }）がコンテナ高さに連動するため、
+     スクロール中にバーが出入りして高さが変わると先頭の帯が同じ量だけ伸縮し、scrollTop は据え置きのまま
+     本文がバー高さぶんずれる（スクロールアンカリングが効かない／ジェスチャ中に抑制される環境で顕在化）。
+     「行は幅で折り返すから高さ可変でも安全」は先頭スペーサーがある時点で成り立たない。
+     可視領域と一致させる役目は中央寄せの親（_base.css の `body { height: 100dvh }`）が持つ。
+     開幕（スクロール 0）ではバーが出ている＝svh が可視領域と一致するので、
+     「余白帯がちょうど1ビューポート」＝覗き込み防止は必要な瞬間に成立する。
+     値の実体（svh 版と非対応環境用の vh 版）は基底と同じく _base.css の --story-height-full／@supports が持つ。 */
+  height: var(--story-height-full);
   padding-block: 0;
   /* 横書きの物理横上限は基底 #main-container の max-inline-size（＝--line-length + 2×--body-margin）で頭打ち済み。
      縦書き用の広い max-width:84rem（物理横）はこれより大きく実質死重＝基底のまま残置で無害。 */

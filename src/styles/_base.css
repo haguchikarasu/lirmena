@@ -87,7 +87,26 @@
   --font-weight: var(--font-weight-normal);
 
   /* レイアウト（開発者が調整する定数） */
-  --story-padding: 5vh;          /* 本文エリアの天地余白 */
+  /* 読書エリア（#main-container）の高さ 2 種。縦書き＝天地余白ぶんを引いた高さ／横書き＝ビューポート全部。
+     _layout.css が var() で参照するだけにして、**ビューポート単位と端末別の分岐はこの直下の 2 ブロックに閉じてある。**
+     ここ（:root）は vh 版＝svh 非対応環境（iOS Safari 15.3 以前）用のフォールバックで、@supports が svh 版で上書きする。
+     単位を vh から svh へ寄せた理由は _layout.css の #main-container の height コメントを見ること。
+
+     **天地余白（100 との差）は PC 10%（上下 5% ずつ）／スマホ 4%（上下 2% ずつ）**。スマホを詰めてあるのは、
+     モバイルは縦書きの 1 行の長さが画面高で頭打ちになるため、余白を PC と同率で取ると 1 行の文字数が目に見えて減るから
+     （実測で 5 文字前後）。数値の縛りは要件に無い（見た目の調整点）。
+
+     **--story-padding のような「余白」変数を経由しないこと**：:root で合成した calc() の中の var() は :root スコープで
+     置換されるため（CSS Custom Properties Level 1。同じ罠が --progress-fill-color にもある＝下の afterword の設計注記）、
+     html[data-device="sp"] 側で余白変数だけ上書きしても**高さには届かない**。だから高さそのものを各スコープで宣言する。
+
+     **なぜ `height: 100vh; height: 100svh;` の重ね書きで済ませないか**：var() を含む宣言はパース時に検証されず、
+     置換後に無効と分かった時点でプロパティが unset（height なら auto）へ落ちるだけで**前の宣言には戻らない**
+     （invalid at computed-value time）。つまり var() 経由では 2 行重ねがフォールバックにならず、非対応環境で
+     #main-container の高さが auto になって**内部スクロールごと消える**（この要素をスクロールする
+     nav / progress / bookmark / reader が全部動かなくなる）。@supports で「そもそも宣言しない」ことでのみ前の値が残る。 */
+  --story-height: 90vh;
+  --story-height-full: 100vh;
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
   --scene-max-w: 84rem;          /* メインコンテナの物理横上限（背景に対する座り＝縦書きで有効）。横書きでは max-inline-size と min() 合成 */
 
@@ -147,6 +166,26 @@
 
   /* 進捗バー塗り色の解決変数。--stage-hue の切替に自動追従（_progress.css 側の分岐は不要）。 */
   --progress-fill-color: hsl(var(--stage-hue) var(--stage-saturation) var(--stage-lightness));
+}
+
+/* スマホは天地余白を詰める（上下 2% ずつ＝高さ 96%）。詳細度 (0,1,1) で :root (0,1,0) に勝つ。
+   端末カテゴリの真実源は <html data-device>（device.ts が反映・本文シェル雛形の早期スクリプトが FOUC 前に先付け）。
+   属性が付く前は :root の PC 値へフォールバックする。 */
+html[data-device="sp"] {
+  --story-height: 96vh;
+}
+
+/* ビューポート単位の解決：svh に対応している環境だけ上書きする（上の 2 ブロックは非対応環境向けのフォールバック）。
+   **数値を変えるときは非対応側（:root / html[data-device="sp"]）と 1:1 で揃えること**（vh 版と svh 版で 4 宣言）。
+   このブロックを消すと、モバイルで本文の天地余白が画面外へ消える（症状と理屈は _layout.css の #main-container）。 */
+@supports (height: 1svh) {
+  :root {
+    --story-height: 90svh;
+    --story-height-full: 100svh;
+  }
+  html[data-device="sp"] {
+    --story-height: 96svh;
+  }
 }
 
 /* 物語進行段階別キーカラーの解決（main.ts / src/index.ts が <html data-story-stage="N"> を付与、
@@ -241,9 +280,25 @@ html, body {
   font-size: 16px;
 }
 
+/* 本文ページの読書エリア（#main-container）を中央寄せする flex コンテナ。本ファイルを読むのは本文/タイトルページ（index.css 経由）だけで、目次は独立の toc.css なので影響しない。
+   高さは 100% ではなく 100dvh＝いま見えている領域ちょうどにする。100%（＝ICB 基準）は
+   ブラウザによって「バーが隠れた状態の大きさ」のまま動かない（iOS Safari が典型）ため、
+   子が svh/dvh で正しい大きさでも**その大きい箱の中で中央寄せされて下端がバーの裏へ回る**。
+   天地余白を画面内に出すには、中央寄せの基準そのものを可視領域に合わせる必要がある。
+   直前の html,body の 100% は dvh 非対応環境へのフォールバックとして残す（カスケードで上書きされる）。
+   ここを dvh（可動）にしても本文は組み直されない：#main-container の高さは svh（固定）で、
+   動くのは中央寄せの位置だけだから（縦書きの行長＝子の高さは不変＝読書位置は飛ばない）。 */
 body {
+  height: 100dvh;
   display: flex;
+  /* 2 行セットで書く（safe は Safari 16.4+ / それ以前は 1 行目の center が残る＝var() を含まないので
+     パース時に落ちて正しくフォールバックする）。
+     safe center は「はみ出すときだけ start 揃えに倒す」保険：この設計では子（--story-height＝svh 基準）が
+     親（100dvh）を超えないことが svh ≤ dvh の定義から保証されるので**通常は一切効かない**が、
+     万一 dvh が可視領域より大きく解決される環境があっても、素の center だと上下均等にはみ出して
+     行頭（縦書きは行の上端）まで欠けるところを、上端だけは必ず画面内に残す。 */
   align-items: center;
+  align-items: safe center;
   justify-content: center;
 }
 
