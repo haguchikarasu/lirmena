@@ -1,7 +1,7 @@
 {
   "id": "/lirmena/?dev",
-  "name": "輝くもの《リルメナ》（dev）",
-  "short_name": "リルメナ(dev)",
+  "name": "輝くもの(リルメナ)",
+  "short_name": "リルメナ",
   "lang": "ja",
   "start_url": "/lirmena/?dev",
   "scope": "/lirmena/",
