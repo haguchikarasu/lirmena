@@ -144,7 +144,7 @@ function _wireButtons(): void {
         }
     }
 
-    // 目次に戻る（<a href>）。現在ページのクエリ（例 ?noga）を引き継ぐため href を JS で上書きする。
+    // 目次に戻る（<a href>）。現在ページのクエリ（例 ?dev）を引き継ぐため href を JS で上書きする。
     // HTML 側の href="../" は JS 前/無効時のフォールバック。
     const index = document.querySelector<HTMLAnchorElement>('#btn-title-index');
     if (index) index.href = state.indexUrl();

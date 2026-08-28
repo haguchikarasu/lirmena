@@ -106,6 +106,12 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* 開発モードの目印。<html data-dev>（＝GA を送らなかった）のときだけ出す＝読者には出ない。
+   属性を付けるのは index.html の gtag.js 導入スニペット。値（query / host）は見ない＝どちらでも表示する。
+   #idx-version-badges が flex-direction: column なので版数バッジ 2 つの下に右寄せで並ぶ。 */
+#badge-dev { display: none; }
+html[data-dev] #badge-dev { display: block; }
+
 /* ===== 続きから読む（ヒーロー下・オートセーブがある時だけ表示） ===== */
 
 #idx-resume {

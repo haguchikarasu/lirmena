@@ -1,0 +1,14 @@
+{
+  "id": "/lirmena/?dev",
+  "name": "輝くもの《リルメナ》（dev）",
+  "short_name": "リルメナ(dev)",
+  "lang": "ja",
+  "start_url": "/lirmena/?dev",
+  "scope": "/lirmena/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": [
+    { "src": "vol01/favicon1.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

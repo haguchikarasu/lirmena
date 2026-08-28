@@ -33,3 +33,32 @@
   text-align: center;
   writing-mode: horizontal-tb;
 }
+
+
+/* ===================================================
+   開発モードの目印（本文ページ。読者には出ない）
+=================================================== */
+/* <html data-dev>（＝GA を送らなかった）のときだけ出す。属性を付けるのは reader.html の gtag.js 導入スニペット。
+   インストールした PWA はアドレスバーが見えず、スマホでは開発者ツールも使えないので、画面に出す以外に
+   「?dev 付きで起動できているか」を確かめる手段が無い。値（query / host）は見ない＝どちらでも表示する。
+   3 つの制約がある（どれも実装の都合ではなくこのサイト固有の理由）:
+   - pointer-events: none は必須。pan.ts が pointerdown を #main-container に**直接**バインドしているので、
+     body 直下の fixed 要素はその子孫ではない＝これが無いとバッジの上に乗った指のイベントがコンテナに届かず、
+     画面の隅がスクロールもドラッグも効かない死角になる
+   - 位置は top 基準で取る。Chrome Android の fixed + bottom は ICB（アドレスバーが隠れた高さ）基準なので、
+     通常ブラウザではアドレスバーの裏に回って見えない（architecture.md が記録している svh/dvh と同じ罠）
+   - z-index は 30 未満。鑑賞モード（_bg.css の #bg-stack）が 30 で全画面を覆うため、それ以上だと絵の上に文字が残る */
+#badge-dev {
+  display: none;
+  position: fixed;
+  top: 4px;
+  right: 6px;
+  z-index: 16;
+  pointer-events: none;
+  font-size: 0.6rem;
+  font-family: monospace, sans-serif;
+  color: #484848;
+  letter-spacing: 0.04em;
+}
+
+html[data-dev] #badge-dev { display: block; }

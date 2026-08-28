@@ -19,6 +19,14 @@
   <!-- favicon は vol ごとに切替（vol 下に帰属）。pages() プラグインが {{faviconHref}} をそのページの vol の
        favicon 相対パスへ埋める -->
   <link rel="icon" href="{{faviconHref}}" />
+  <!-- PWA（インストール可能化）。**3 テンプレ共通**で同じものを置く＝1 行足すときは 3 箇所とも足すこと（同期を見る機械検査は無い）。
+       - manifest は全ページで 1 ファイル。favicon のような vol 別・stage 別の切替はしない＝**アプリアイコンは stage 連動しない**
+         （WebAPK のアイコンはインストール時に端末へ焼き込まれ OS が持つ。stage は読者ごとに違い manifest は全読者共通なので構造的に不可能）
+       - href を相対にするのは base（vite.config.ts）と二重にハードコードしないため。contents/ 配下は 1 階層下で固定なので ../ で足りる
+       - apple-touch-icon は Safari 用（manifest の icons を見ないため）。iOS 実機は未検証
+       - 仕様の正典は design/requirements/07-ogp.md、入れ方の手順は ops/pwa.md（git 管理外） -->
+  <link rel="manifest" href="../app.webmanifest" />
+  <link rel="apple-touch-icon" href="../vol01/favicon1.png" />
   <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
        body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
@@ -41,12 +49,28 @@
       document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
-  <!-- Google tag (gtag.js)：本番ホストでのみ計測（dev/draft/エディタのプレビュー・?noga 付きは送らない） -->
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（ローカルの dev/draft/エディタのプレビューと、?dev 付き＝開発モードでは送らない） -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     var blockGA = location.hostname !== 'haguchikarasu.github.io'
-               || new URLSearchParams(location.search).has('noga');
+               || new URLSearchParams(location.search).has('dev');
+    // GA を送らなかったことを <html data-dev> に出す（診断バッジの表示条件。CSS だけで拾えるよう属性で置く）。
+    // インストール後の PWA はアドレスバーが見えず、スマホでは開発者ツールも使えない＝画面に出す以外に確認手段が無い。
+    // 値で理由を分ける：query＝?dev 付き（＝開発モードが効いている）／host＝?dev は無いが本番ホストでもない
+    // （localhost・draft・エディタのプレビュー）。**ホスト名で分けてはいけない**：ローカルでは常に host になり、
+    // ?dev が効いているかをローカルで確かめられなくなる（確認できるのが本番だけになる）。
+    if (blockGA) document.documentElement.setAttribute('data-dev',
+      new URLSearchParams(location.search).has('dev') ? 'query' : 'host');
+    // ?dev のときは作者用 manifest（dev.webmanifest）を宣言し直す。この 1 行が作者用アプリを入れる唯一の
+    // 経路で（?dev 付きの目次を開いてインストールする）、無いと dev アプリ内の全ページが読者用 manifest
+    // （id=/lirmena/）を宣言し、Chrome の WebAPK 更新チェックが id の食い違いを見て start_url から ?dev を
+    // 落としうる（＝数日後に静かに計測へ戻る）。<link rel="manifest"> はこの script より前にあるので必ず居る。
+    // getAttribute で生の相対値を取るので、本文シェル側の ../ もそのまま活きる。
+    if (new URLSearchParams(location.search).has('dev')) {
+      var mf = document.querySelector('link[rel="manifest"]');
+      if (mf) mf.href = mf.getAttribute('href').replace('app.webmanifest', 'dev.webmanifest');
+    }
     if (!blockGA) {
       var s = document.createElement('script');
       s.async = true;

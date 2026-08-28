@@ -17,7 +17,7 @@
  *     （改行区切りで text 一本化。url パラメータは使わない＝X 側で改行を保つため）。
  *     作品名は固定文字列・番号はゼロ埋めしない。story.json の話タイトルは参照しない（ルビ記法など SNS で
  *     崩れる表現を避け、疎結合を保つため）。共有コンテキストは state.getShareContext() から受け取る。
- *     URL は `location.origin + location.pathname`（?noga 等の開発クエリを落として自ページの正規 URL）。
+ *     URL は `location.origin + location.pathname`（?dev 等の開発クエリを落として自ページの正規 URL）。
  *     dev/local 環境で押した場合はローカル URL が入るが、共有ボタンは本番閲覧者が押す前提。
  *   - マシュマロは sec 単位の紐付けを持たない（マシュマロが1アカウント1箱の仕様のため）。作品全体で
  *     1つの外部 URL を新規タブで開くだけの受動リンク。

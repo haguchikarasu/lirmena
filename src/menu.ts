@@ -155,7 +155,7 @@ function _buildSharePopup(): void {
         return b;
     };
 
-    // 共有 URL は ?noga 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）
+    // 共有 URL は ?dev 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）
     const shareUrl = location.origin + location.pathname;
     panel.append(
         makeAction('リンクをコピー', () => {

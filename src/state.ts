@@ -33,7 +33,7 @@
  * 【被依存】main / title / nav / menu / feedback / opening
  * 【注意】返す URL は contents/ 配下のページ（contents/[ep]-[sec].html など）から参照できる相対パス。
  *         本文・タイトル・あとがきは同一ディレクトリ、目次は "../"（ディレクトリ index を暗黙参照）。
- *         クエリ文字列（例 "?noga"）は _withQuery が現在ページから引き継ぐ。
+ *         クエリ文字列（例 "?dev"）は _withQuery が現在ページから引き継ぐ。
  * 【あとがき「次へ」の遷移先設計】
  *   次巻の sec01 本文ページに直接遷移せず、次巻タイトルページ経由（[epRange[0]2桁]-00.html）にする。
  *   要件「sec01 は ep 扉を経由させる／ep 境界はタイトルページへ」を維持することで、
@@ -250,7 +250,7 @@ function _pad(n: number): string {
     return String(n).padStart(2, '0');
 }
 
-/** 現在ページのクエリ文字列（例 "?noga"）を相対 URL に引き継ぐ */
+/** 現在ページのクエリ文字列（例 "?dev"）を相対 URL に引き継ぐ */
 function _withQuery(path: string): string {
     return path + location.search;
 }

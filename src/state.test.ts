@@ -128,29 +128,29 @@ describe('getPrevAddress（前 sec 本文末へ着地させる pendingScrollEnd 
     });
 });
 
-// 仕様（計画 Context）：返す遷移先 URL は現在ページのクエリ文字列（例 ?noga＝GA 無効化フラグ）を
+// 仕様（計画 Context）：返す遷移先 URL は現在ページのクエリ文字列（例 ?dev＝開発モード。GA を送らない）を
 // そのまま末尾に引き継ぐ。マルチページ間でクエリを維持し、遷移先で GA が復活しないようにするため。
-describe('クエリ引き継ぎ（_withQuery 経由・?noga 等を遷移先 URL に維持）', () => {
+describe('クエリ引き継ぎ（_withQuery 経由・?dev 等を遷移先 URL に維持）', () => {
     afterEach(() => {
         // location.search を空へ戻し、他テスト（クエリ無し前提）へ波及させない
         window.history.replaceState(null, '', '/');
     });
 
-    it('?noga 付きなら本文ページ URL にクエリを引き継ぐ', () => {
-        window.history.replaceState(null, '', '/?noga');
+    it('?dev 付きなら本文ページ URL にクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?dev');
         init(DATA, { ep: 1, sec: 3 });
-        expect(getPrevUrl()).toBe('01-02.html?noga');
+        expect(getPrevUrl()).toBe('01-02.html?dev');
     });
 
-    it('?noga 付きならタイトルページ URL にもクエリを引き継ぐ', () => {
-        window.history.replaceState(null, '', '/?noga');
+    it('?dev 付きならタイトルページ URL にもクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?dev');
         init(DATA, { ep: 1, sec: 1 });
-        expect(getPrevUrl()).toBe('01-00.html?noga');
+        expect(getPrevUrl()).toBe('01-00.html?dev');
     });
 
-    it('?noga 付きなら目次 URL にもクエリを引き継ぐ', () => {
-        window.history.replaceState(null, '', '/?noga');
-        expect(indexUrl()).toBe('../?noga');
+    it('?dev 付きなら目次 URL にもクエリを引き継ぐ', () => {
+        window.history.replaceState(null, '', '/?dev');
+        expect(indexUrl()).toBe('../?dev');
     });
 
     it('クエリが無ければ URL は素のまま（従来挙動）', () => {
