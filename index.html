@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- OGP・メタ情報
        - theme-color は CSS 変数と2箇所で管理。変更時は両方合わせること
-       - og:image は public/ogp.png（1200×630px 推奨）
+       - og:image は public/ogp.png（1200×630px 推奨）。**画像を差し替えたらクエリ ?v=N の N を上げる**
+         ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
        - og:description は設定しない
        - 本文・タイトルの各シェル（public/contents/*.html）にも同じ OGP 設定を揃える
   -->
@@ -14,7 +15,7 @@
   <meta property="og:locale" content="ja_JP" />
   <meta property="og:title" content="輝くもの《リルメナ》" />
   <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
-  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=2" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
   <!-- 目次の favicon は stage に応じて index.ts が差し替える（stage N → vol N の favicon[N].png、

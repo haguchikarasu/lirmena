@@ -7,13 +7,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- OGP・メタ情報（作品名で静的固定・全ページ共通。og:image は public/ogp.png、og:description は設定しない。
+       og:image のクエリ ?v=N は画像を差し替えたら上げる＝SNS のクローラは URL 単位でキャッシュするため。
        theme-color は CSS 変数 --theme-color と2箇所で管理） -->
   <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
   <meta property="og:title" content="輝くもの《リルメナ》" />
   <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
-  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=2" />
   <meta name="twitter:card" content="summary_large_image" />
   <title>輝くもの《リルメナ》</title>
   <!-- favicon は vol ごとに切替（vol 下に帰属）。pages() プラグインが {{faviconHref}} をそのページの vol の
