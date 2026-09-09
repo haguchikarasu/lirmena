@@ -80,12 +80,123 @@ body {
   position: relative;
   max-width: 600px;
   margin: 0 auto;
+  /* 領域の先行予約。index.html の img は src 属性を持たない（早期 <script> が入れる）ので固有寸法が無く、
+     これが無いと画像到着まで高さ 0 ＝目次全体が跳ねる。表紙は全 vol 16:10（1280×800）で統一する。 */
+  aspect-ratio: 16 / 10;
 }
 
-#idx-hero-img {
+/* 表紙ギャラリー（要件 06-7）。2 枚を重ね、#idx-hero-img が常に「いま見えている表紙」、
+   #idx-hero-prev は遷移中に去っていく側を載せるだけ（普段は透明）。
+   object-fit は 16:10 から外れた画像が来たときの保険。 */
+#idx-hero-img,
+#idx-hero-prev {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+}
+
+#idx-hero-prev {
+  opacity: 0;
+}
+
+/* スライドの時間とイージングは CSS が持ち、TS は transform（方向つき）だけを触る。
+   data-hero-anim は遷移中だけ index.ts が立てる＝初期表示と位置リセットは瞬時に決まる。 */
+#idx-hero-card[data-hero-anim="1"] #idx-hero-img,
+#idx-hero-card[data-hero-anim="1"] #idx-hero-prev {
+  transition: transform 0.3s ease;
+  /* 遷移中だけ合成レイヤーに載せる。スマホでスライドがカクつく・飛ぶのを防ぐ。 */
+  will-change: transform;
+}
+
+/* 横スワイプは TS が拾うが、縦スクロールはブラウザに残す */
+#idx-hero-card {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.idx-hero-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+#idx-hero-newer { left: 10px; }
+#idx-hero-older { right: 10px; }
+
+/* 端では押せないので見せない（hidden 属性は「履歴が 1 枚」のときに TS が付ける） */
+.idx-hero-nav[disabled] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* PC はホバーで出す。スマホは :hover が効かないので普段は出ず、フォーカス時だけ現れる。 */
+#idx-hero-card:hover .idx-hero-nav:not([disabled]),
+#idx-hero-card:focus-within .idx-hero-nav:not([disabled]) {
+  opacity: 0.85;
+}
+
+.idx-hero-nav:hover:not([disabled]) {
+  opacity: 1;
+}
+
+.idx-hero-nav:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--idx-accent);
+  outline-offset: 2px;
+}
+
+#idx-hero-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  z-index: 2;
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.idx-hero-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.idx-hero-dot[data-on="1"] {
+  background: #fff;
+}
+
+/* 読み上げ専用。ドットは装飾なので、同じ情報を文言でも置く。 */
+.idx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 #idx-version-badges {

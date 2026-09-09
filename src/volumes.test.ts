@@ -4,6 +4,8 @@
  * IF: type StoryStage = 1|2|3|4|5
  *     MAX_STORY_STAGE: StoryStage
  *     computeStoryStage(read: SecKey[], story: StoryData): StoryStage
+ *     HERO_CARD_RE: RegExp
+ *     resolveHeroCard(stage: StoryStage, story: StoryData): HeroCardRef | null
  * 期待値は IF コメント／要件 06-5-bookmark「進捗バーの色（物語進行段階：5段階）」から導出する（実装をなぞらない）。
  *
  * 網羅する観点：
@@ -19,7 +21,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { computeStoryStage, MAX_STORY_STAGE } from './volumes';
+import { computeStoryStage, MAX_STORY_STAGE, resolveHeroCard, HERO_CARD_RE } from './volumes';
 import type { StoryData } from './types';
 
 // 本番相当の 4vol 構成（全 sec published=true にして最大読破位置の計算をシンプルにする）
@@ -289,5 +291,94 @@ describe('computeStoryStage — 純関数の非破壊性', () => {
         const snapshot = JSON.parse(JSON.stringify(STORY));
         computeStoryStage([VOL1_LAST, VOL2_LAST, VOL3_LAST, VOL4_LAST], STORY);
         expect(STORY).toEqual(snapshot);
+    });
+});
+
+// resolveHeroCard 用の fixture。stage → どの vol のどのファイルへ解決されるかを見たいので vol ごとに
+// 違うファイル名を持たせる（上の STORY は stage 判定用で heroCard が全 vol 同じ値）。
+// vol2 の 'cover 2.webp' は **story-integrity が許す（非空文字列）が素朴な正規表現なら弾く**名前で、
+// キャッシュ検証が story.json のスキーマより狭くなっていないことの回帰を兼ねる。
+const HERO_STORY: StoryData = [
+    {
+        volume: 1,
+        epRange: [1, 1],
+        heroCard: { file: 'vol01.avif' },
+        afterword: { published: false },
+        episodes: [{ id: 1, title: 'ep1', sections: [{ id: 1, published: true }] }],
+    },
+    {
+        volume: 2,
+        epRange: [2, 2],
+        heroCard: { file: 'cover 2.webp' },
+        heroCardCompleted: { file: 'vol02-completed.avif' },
+        afterword: { published: false },
+        episodes: [{ id: 2, title: 'ep2', sections: [{ id: 1, published: true }] }],
+    },
+];
+
+describe('resolveHeroCard — stage から表紙画像を解決する', () => {
+    it('stage N（1 ≤ N ≤ story.length）はその vol の heroCard.file を vol[XX]/ 前置で返す', () => {
+        expect(resolveHeroCard(1, HERO_STORY)).toEqual({ rel: 'vol01/vol01.avif', volume: 1 });
+    });
+
+    it('story-integrity が許す空白入りファイル名もそのまま解決する（キャッシュ検証を狭めない）', () => {
+        expect(resolveHeroCard(2, HERO_STORY)).toEqual({ rel: 'vol02/cover 2.webp', volume: 2 });
+    });
+
+    it('物語完結 stage（story.length + 1）は最終 vol の heroCardCompleted.file を返す', () => {
+        expect(resolveHeroCard(3, HERO_STORY)).toEqual({ rel: 'vol02/vol02-completed.avif', volume: 2 });
+    });
+
+    it('空の story では null（呼び出し側は src もキャッシュも触らない）', () => {
+        expect(resolveHeroCard(1, [])).toBeNull();
+    });
+
+    it('該当する vol が無い stage では null', () => {
+        expect(resolveHeroCard(5, HERO_STORY)).toBeNull();
+    });
+
+    it('最終 vol が heroCardCompleted を持たなければ完結 stage でも null', () => {
+        const noCompleted: StoryData = JSON.parse(JSON.stringify(HERO_STORY));
+        delete (noCompleted[1] as { heroCardCompleted?: unknown }).heroCardCompleted;
+        expect(resolveHeroCard(3, noCompleted)).toBeNull();
+    });
+
+    it('引数の story を破壊しない（純関数）', () => {
+        const snapshot = JSON.parse(JSON.stringify(HERO_STORY));
+        resolveHeroCard(2, HERO_STORY);
+        expect(HERO_STORY).toEqual(snapshot);
+    });
+});
+
+describe('HERO_CARD_RE — index.html の早期スクリプトと同一の検証規則', () => {
+    it('vol[XX]/ 前置の通常のファイル名を通す', () => {
+        expect(HERO_CARD_RE.test('vol01/vol01.avif')).toBe(true);
+        expect(HERO_CARD_RE.test('vol04/vol04-completed.avif')).toBe(true);
+    });
+
+    it('story-integrity が許す空白・記号入りのファイル名も通す（狭めない）', () => {
+        expect(HERO_CARD_RE.test('vol02/cover 2.webp')).toBe(true);
+        expect(HERO_CARD_RE.test('vol02/表紙.avif')).toBe(true);
+    });
+
+    it('vol[XX]/ で始まらない値は弾く（相対パス脱出・絶対 URL）', () => {
+        expect(HERO_CARD_RE.test('../../etc/passwd')).toBe(false);
+        expect(HERO_CARD_RE.test('https://example.com/x.avif')).toBe(false);
+        expect(HERO_CARD_RE.test('//example.com/x.avif')).toBe(false);
+        expect(HERO_CARD_RE.test('vol1/x.avif')).toBe(false);
+    });
+
+    it('vol[XX]/ の外へ出るパスは弾く（正規化で未来の表紙を指させない）', () => {
+        // ブラウザは "vol01/../vol04/x.avif" を vol04 として解決する＝ネタバレになる
+        expect(HERO_CARD_RE.test('vol01/../vol04/vol04-completed.avif')).toBe(false);
+        expect(HERO_CARD_RE.test('vol01/..')).toBe(false);
+        expect(HERO_CARD_RE.test('vol01/.')).toBe(false);
+        expect(HERO_CARD_RE.test('vol01/sub/x.avif')).toBe(false);
+    });
+
+    it('空・ファイル名なし・改行入りは弾く', () => {
+        expect(HERO_CARD_RE.test('')).toBe(false);
+        expect(HERO_CARD_RE.test('vol01/')).toBe(false);
+        expect(HERO_CARD_RE.test('vol01/a\nb.avif')).toBe(false);
     });
 });

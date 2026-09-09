@@ -3,7 +3,8 @@
  * 責務: 本文ページ／巻末あとがきページの末尾ボタン（進行 #btn-next、巻末あとがき導線 #btn-afterword）の
  *       イベント登録と表示更新、戻る遷移 goPrev()（開幕アフォーダンスの「もどる」から呼ばれる）、
  *       sec 末尾（またはあとがき末尾）到達の検知と読了記録。
- * export: init(), initAfterword(vol), update(), updateAfterword(), goPrev(), arm()
+ * export: init(opts?: NavOptions), initAfterword(vol), update(), updateAfterword(), goPrev(), arm()
+ *         type NavOptions = { onReadRecorded?: () => void }
  * 依存: axis.ts / state.ts / bookmark.ts / transition.ts
  *
  * ── 本文モード（init / update / goPrev） ──────────────────────────
@@ -18,6 +19,8 @@
  *     - 前 sec 本文へ戻るときは pendingScrollEnd を遷移前に書く（本文末着地）
  *   読了記録:
  *     - #main-container のスクロールで本文末（末尾余白の手前）到達を検知し bookmark.recordRead を1回だけ呼ぶ
+ *     - 記録した直後に opts.onReadRecorded を呼ぶ。**stage が上がりうる唯一の瞬間**で、main がそこで
+ *       目次向けキャッシュを更新する。nav 自身は volumes を import しない＝注入で疎結合
  *
  * ── あとがきモード（initAfterword / updateAfterword / goPrev） ────────
  *   進行 #btn-next:
@@ -71,7 +74,17 @@ let _readDetectionArmed = false;
 
 // 本文モードで初期化。DOM 取得・クリック／スクロールリスナ登録。
 // init(): void
-export function init(): void {
+// 読了を記録した直後に呼ばれるフック。main が注入する。
+// 読了の瞬間は**物語進行段階（stage）が上がりうる唯一の瞬間**なので、ここで目次向けのキャッシュ
+// （lirmena.storyStage / lirmena.heroCard）を更新しないと、次に目次を開いたときに 1 段古い表紙・
+// キーカラーが一瞬見える。nav 自身が volumes を呼ぶと依存辺が増えるので注入で返す
+// （architecture.md「依存グラフに現れない結線」の onWritingModeChange などと同じ流儀）。
+export type NavOptions = { onReadRecorded?: () => void };
+
+let _onReadRecorded: (() => void) | null = null;
+
+export function init(opts: NavOptions = {}): void {
+    _onReadRecorded = opts.onReadRecorded ?? null;
     _mode = 'sec';
     _btnNext = document.querySelector<HTMLButtonElement>('#btn-next')!;
     _btnAfterword = document.querySelector<HTMLButtonElement>('#btn-afterword');
@@ -131,10 +144,12 @@ function _onScroll(container: HTMLElement): void {
     if (axis.getProgress(container) >= textEnd - END_EPSILON) {
         _readRecorded = true;
         if (_mode === 'afterword') {
+            // あとがきキー vol[XX]-af は stage 判定に影響しない（要件 06-5）ので通知しない
             bookmark.recordReadAfterword(_afterwordVol);
         } else {
             const { ep, sec } = state.getCurrent();
             bookmark.recordRead(ep, sec);
+            _onReadRecorded?.();
         }
     }
 }

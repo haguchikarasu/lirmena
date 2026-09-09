@@ -34,6 +34,11 @@
  *     vol は表示される。
  *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみあとがきチップを差し込む
  *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
+ *   - **表紙ギャラリー（要件 06-7）**：現在 stage から過去の表紙へ ← → で往復できる（完結 stage は
+ *     完結カードを起点に 5 枚）。未来の巻は出さない。stage 1 はナビごと隠す。閲覧位置は永続化せず、
+ *     **stage 由来の状態（heroCard キャッシュ・data-story-stage・favicon・巻カードの open）とは切り離す**
+ *     ＝過去の表紙を見ても次回の初期表示は現在 stage のまま。PC はホバーでボタン、スマホはスワイプ
+ *     （ボタンは DOM に残す＝キーボード・支援技術から操作できる）。
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
  *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
  *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
@@ -54,11 +59,14 @@
  *   "sceneRead"            : string[]         旧 "ep-sec-scene" 形式（移行前フォールバック）
  *   "lirmena.*"            : 表示設定（writingMode/lineGap/fontFamily/fontSize/fontWeight）
  *   "lirmena.readingAnchor": 読書点の位置（settings.ts が所有。目次は表示に使わず「設定をリセット」で消すだけ）
+ *   "lirmena.heroCard"     : string   ヒーローカード画像の相対パス "vol[XX]/<file>"。applyStoryStage が書き、
+ *                            index.html の早期 <script> が次回ロードのパース時点で読む（初期表示のちらつき回避）。
+ *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
  */
 
 import './styles/toc.css';
 import * as bookmark from './bookmark';
-import { computeStoryStage } from './volumes';
+import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
 
 // preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱いで
 // 目次に表示する。空 text（`{ text: "" }`）は「preview 無し」と同義扱いで、事前配置テンプレとして
@@ -131,6 +139,10 @@ const LS_WRITING_MODE          = 'lirmena.writingMode';
 // 読書点。目次は調整 UI も表示反映も持たないが「設定をリセット」の対象には入る（要件 06-4）。
 // そのため設定行の DEFAULTS / buildRow / refreshRows には現れず、リセットの removeItem にだけ現れる。
 const LS_READING_ANCHOR        = 'lirmena.readingAnchor';
+// ヒーローカード画像の相対パス（"vol[XX]/<file>"）。applyStoryStage と本文側 main.ts が書き、
+// index.html の早期 <script> が次回ロードのパース時点で読む＝初期表示のちらつき回避
+// （lirmena.storyStage と同じ流儀）。値の解決と検証規則は volumes.ts に置く（本文側と共用するため）。
+const LS_HERO_CARD             = 'lirmena.heroCard';
 
 const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', fontWeight: 'normal', writingMode: 'horizontal' } as const;
 
@@ -256,6 +268,9 @@ function clearReached(): void {
 function clearReadStatus(): void {
     localStorage.removeItem(LS_READ);
     localStorage.removeItem(LS_SCENE_READ);
+    // stage が 1 に戻るのでヒーローカードのキャッシュも捨てる。直後に applyStoryStage が呼ばれて上書き
+    // されるが、story が空・heroFile 未解決のときは src を触らずに抜けるため古い値が残りうる。
+    localStorage.removeItem(LS_HERO_CARD);
 }
 
 function confirmAndRun(msg: string, run: () => void): void {
@@ -354,32 +369,260 @@ function applyStoryStage(story: StoryVolume[]): void {
     // 起動前に読み取り <html data-story-stage> を先付けする。値は 1〜5 の文字列のみ。
     try { localStorage.setItem('lirmena.storyStage', String(stage)); } catch {}
 
-    const maxVolume = Math.max(...story.map(v => v.volume));
-    let heroFile: string | undefined;
-    let heroVol: number | undefined;
-    if (stage === story.length + 1) {
-        const finalVol = story.find(v => v.volume === maxVolume);
-        heroFile = finalVol?.heroCardCompleted?.file;
-        heroVol = finalVol?.volume;
-    } else {
-        const targetVol = story.find(v => v.volume === stage);
-        heroFile = targetVol?.heroCard.file;
-        heroVol = targetVol?.volume;
-    }
-    if (heroFile && heroVol !== undefined) {
-        const volStr = String(heroVol).padStart(2, '0');
+    // stage → 表紙画像の解決は volumes.ts に置く。**本文側（main.ts）も同じ関数でキャッシュを更新する**
+    // ため、ここに解決ロジックを抱えると二重管理になる（computeStoryStage を共用しているのと同じ理由）。
+    const hero = resolveHeroCard(stage, story as unknown as Parameters<typeof resolveHeroCard>[1]);
+    if (hero) {
+        const volStr = String(hero.volume).padStart(2, '0');
         // Vite dev サーバは public/ 配下を root（BASE_URL 直下）で配信し、build も dist/{BASE_URL}vol[XX]/ に
         // ファイルを配置する。JS 側の src 差し替えは Vite の import.meta.env.BASE_URL 経由で解決する
-        // （HTML 側の <img src="public/vol01/vol01.avif"> は build 時に Vite がハッシュ名へリライトするので
-        // 初期表示は成立するが、JS 側の literal は rewrite 対象外＝本番で 404 になるため BASE_URL 必須）。
+        // （JS 側の literal は Vite の rewrite 対象外＝本番で 404 になるため BASE_URL 必須。HTML 側は
+        // src 属性を持たず早期 <script> が入れる＝ちらつき回避のため。index.html のコメント参照）。
         const heroImg = document.querySelector<HTMLImageElement>('#idx-hero-img');
-        if (heroImg) heroImg.src = `${import.meta.env.BASE_URL}vol${volStr}/${heroFile}`;
+        if (heroImg) heroImg.src = `${import.meta.env.BASE_URL}${hero.rel}`;
+        // 次回ロードの初期表示用にキャッシュ（index.html の早期 <script> が読む）。base を含めない相対形で
+        // 持つのは base を HTML と TS の二箇所にハードコードしないため（favicon の href と同じ流儀）。
+        // **読取側と同じ規則で検証**し、通らない値は残さない（保存できるのに読めない非対称を作らない）。
+        try {
+            if (HERO_CARD_RE.test(hero.rel)) localStorage.setItem(LS_HERO_CARD, hero.rel);
+            else localStorage.removeItem(LS_HERO_CARD);
+        } catch { /* noop */ }
         // favicon も stage の属する vol の物へ差し替える。命名は vol[XX]/favicon[N].png で N=stage
         // （stage 1〜story.length は vol.volume と一致、stage story.length+1＝完結時は最終 vol 直下の
         // favicon[story.length+1].png を参照＝完結専用ファイルは最終 vol にのみ併置する）。
         const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
         if (favicon) favicon.href = `${import.meta.env.BASE_URL}vol${volStr}/favicon${stage}.png`;
     }
+
+    // 表紙ギャラリーの履歴を作り直し、**閲覧位置は最新へ戻す**（stage が変わったのに古い位置へ
+    // 留まらない）。イベント登録は _wireHeroGalleryOnce が 1 度だけ行うので、この関数は
+    // 「読破状況をクリア」で再実行されても安全（＝冪等）。
+    _rebuildHeroGallery(stage, story);
+}
+
+// ----- 表紙ギャラリー（要件 06-7）-----
+// **閲覧位置は stage ではない。** 過去の表紙を見ている間も、stage 由来の状態は現在 stage のまま保つ：
+//   ・localStorage 'lirmena.heroCard'（次回ロードの初期表示）
+//   ・<html data-story-stage> と、そこから派生するキーカラー
+//   ・favicon
+//   ・巻カードの初期 open
+// ここを混ぜると「過去の表紙が次回の初期表示として保存される」＝ちらつき修正そのものが壊れる。
+// そのため書き込み系（キャッシュ・favicon・dataset）は applyStoryStage だけが行い、以下の関数群は
+// #idx-hero-img の src/alt とナビの見た目しか触らない。
+
+// ギャラリーの 1 コマ。stage は物語進行段階、volume は画像の置き場所（vol[XX]/）、rel は BASE_URL からの相対パス。
+type HeroShot = { stage: number; volume: number; rel: string; label: string };
+
+// [0] が現在 stage の表紙で、末尾が第1巻。**未来の巻は入れない**（ネタバレ）。
+let _heroShots: HeroShot[] = [];
+// 閲覧位置。0 = 最新。**永続化しない**＝再訪時は必ず最新から始まる。
+let _heroPos = 0;
+// イベント登録は 1 度だけ。applyStoryStage は「読破状況をクリア」でも再実行されるので、ここで
+// ガードしないとクリックやスワイプが 2 回・3 回と多重に発火する。
+let _heroWired = false;
+// 画像の読み込み（decode）中だけ立てるフラグ。ここで弾かないと前面と背面のレイヤーが入れ違う。
+// **スライド中（CSS transition）は弾かない**：300ms のあいだ操作を捨てると「押したのに動かない」に
+// なるので、進行中のスライドは _finishHeroSlide で即座に畳んでから次へ進む。
+let _heroBusy = false;
+// 進行中スライドの後始末タイマー。次の操作が来たら打ち消して即座に畳む。
+let _heroSlideTimer: number | null = null;
+// 遷移の世代。decode やフレーム待ちの最中に次の操作が来たら、古い遷移は自分の描画を諦めて降りる
+// （降りないと新しい遷移の途中で古い transform を書き込んでしまう）。
+let _heroGen = 0;
+
+// スタイルの確定を挟んで次の描画フレームまで待つ（double rAF）。
+// transition を有効にしたのと同じフレームで transform まで変えると、ブラウザが開始値を取り違えて
+// アニメーションを飛ばすことがある。1 フレーム空けて開始値を確実に固定する。
+// _nextFrame(): Promise<void>
+function _nextFrame(): Promise<void> {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => { requestAnimationFrame(() => { resolve(); }); });
+    });
+}
+
+// toc.css の transition と対の値。片方だけ変えるとスライドが途中で切れる（同期を見る検査は無い）。
+const HERO_SLIDE_MS = 300;
+// スワイプと判定する最小の横移動量。モックで手触りを確認して決めた。
+const HERO_SWIPE_MIN_PX = 45;
+
+// stage の表示名。物語完結 stage（story.length + 1）だけ「完結」で、他は「第N巻」。
+function _heroLabel(stage: number, volCount: number): string {
+    return stage > volCount ? '完結' : `第${stage}巻`;
+}
+
+// 現在 stage から遡れる表紙を新しい順に並べる。stage を 1 つずつ下げて resolveHeroCard に解かせるので、
+// 完結カード（最終 vol の heroCardCompleted）も自然に先頭へ入る。
+// _buildHeroShots(stage: number, story: StoryVolume[]): HeroShot[]
+function _buildHeroShots(stage: number, story: StoryVolume[]): HeroShot[] {
+    const data = story as unknown as Parameters<typeof resolveHeroCard>[1];
+    const shots: HeroShot[] = [];
+    for (let s = stage; s >= 1; s--) {
+        const ref = resolveHeroCard(s as Parameters<typeof resolveHeroCard>[0], data);
+        if (!ref) continue;
+        shots.push({ stage: s, volume: ref.volume, rel: ref.rel, label: _heroLabel(s, story.length) });
+    }
+    return shots;
+}
+
+// 履歴の作り直し。何度呼んでも同じ状態になる（イベント登録は _wireHeroGalleryOnce 側でガード）。
+// _rebuildHeroGallery(stage: number, story: StoryVolume[]): void
+function _rebuildHeroGallery(stage: number, story: StoryVolume[]): void {
+    _heroShots = _buildHeroShots(stage, story);
+    _heroPos = 0;
+    const img = document.querySelector<HTMLImageElement>('#idx-hero-img');
+    if (img && _heroShots.length > 0) img.alt = `${_heroShots[0].label}の表紙`;
+    _wireHeroGalleryOnce();
+    _renderHeroNav();
+}
+
+// ナビの見た目だけを現在の閲覧位置に合わせる。履歴が 1 枚（stage 1）ならボタンごと隠す。
+// _renderHeroNav(): void
+function _renderHeroNav(): void {
+    const newer = document.querySelector<HTMLButtonElement>('#idx-hero-newer');
+    const older = document.querySelector<HTMLButtonElement>('#idx-hero-older');
+    const dots = document.querySelector<HTMLElement>('#idx-hero-dots');
+    const many = _heroShots.length > 1;
+    if (newer) { newer.hidden = !many; newer.disabled = _heroPos <= 0; }
+    if (older) { older.hidden = !many; older.disabled = _heroPos >= _heroShots.length - 1; }
+    if (!dots) return;
+
+    dots.textContent = '';
+    if (!many) return;
+    for (let i = 0; i < _heroShots.length; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'idx-hero-dot';
+        dot.setAttribute('aria-hidden', 'true');
+        if (i === _heroPos) dot.dataset.on = '1';
+        dots.appendChild(dot);
+    }
+    // ドットは装飾なので、同じ情報を読み上げ用の文言でも置く（aria-live="polite" は HTML 側）。
+    const sr = document.createElement('span');
+    sr.className = 'idx-sr-only';
+    sr.textContent = `${_heroShots[_heroPos].label}の表紙（${_heroPos + 1} / ${_heroShots.length}）`;
+    dots.appendChild(sr);
+}
+
+// 表紙を delta 枚ぶん動かす（+1 = 過去へ、-1 = 新しい方へ）。端では何もしない。
+// _goHero(delta: number): Promise<void>
+async function _goHero(delta: number): Promise<void> {
+    if (_heroBusy) return;
+    // 進行中のスライドがあれば先に畳む＝連打しても 1 枚ずつ確実に進む
+    _finishHeroSlide();
+    const next = _heroPos + delta;
+    if (next < 0 || next >= _heroShots.length) return;
+    const card = document.querySelector<HTMLElement>('#idx-hero-card');
+    const img = document.querySelector<HTMLImageElement>('#idx-hero-img');
+    const prev = document.querySelector<HTMLImageElement>('#idx-hero-prev');
+    if (!card || !img || !prev) return;
+
+    _heroBusy = true;
+    const gen = ++_heroGen;
+    const shot = _heroShots[next];
+    const dir = delta > 0 ? 1 : -1;   // 過去へ進むときは新しい絵が右から入る
+
+    // 1. 去っていく絵を背面へ写す。currentSrc はブラウザキャッシュに載っているので即座に出る。
+    prev.src = img.currentSrc || img.src;
+    prev.style.transition = 'none';
+    prev.style.transform = 'translateX(0)';
+    prev.style.opacity = '1';
+
+    // 2. 前面を画面外へ出してから読み込む。**画面内のまま src を差し替えると読み込み中に絵が消える**
+    //    （過去の表紙は押されて初めて取得するので、ここで必ず待ちが入る）。
+    img.style.transition = 'none';
+    img.style.transform = `translateX(${dir * 100}%)`;
+    // **transition を切ったまま、ここで開始位置を確定させる**。この確定を後回しにすると、transition を
+    // 有効にした直後の確定が「0% → 100%」のアニメを走らせてしまい、続く 0% 指定と打ち消し合って
+    // スライドが起きない。decode がキャッシュで即返るときだけ顕在化するので、
+    // 「スマホで時々スライドせずに切り替わる」という形で出た（2026-09-09）。
+    void img.offsetWidth;
+    void prev.offsetWidth;
+
+    img.src = `${import.meta.env.BASE_URL}${shot.rel}`;
+    img.alt = `${shot.label}の表紙`;
+    try { await img.decode(); } catch { /* 404 等でも遷移は進める */ }
+    _heroBusy = false;
+    if (gen !== _heroGen) return;   // 待っている間に次の操作が来た＝この遷移は捨てる
+
+    // 3. スライド。時間とイージングは toc.css が data-hero-anim で持ち、ここは向きだけを与える。
+    card.dataset.heroAnim = '1';
+    img.style.transition = '';
+    prev.style.transition = '';
+    await _nextFrame();
+    if (gen !== _heroGen) return;
+    img.style.transform = 'translateX(0)';
+    prev.style.transform = `translateX(${dir * -100}%)`;
+
+    _heroPos = next;
+    _renderHeroNav();
+
+    _heroSlideTimer = window.setTimeout(_finishHeroSlide, HERO_SLIDE_MS);
+}
+
+// 進行中のスライドを畳む。タイマー満了で呼ばれるほか、次の操作が来たときにも前倒しで呼ぶ。
+// 何度呼んでも安全（冪等）。
+// _finishHeroSlide(): void
+function _finishHeroSlide(): void {
+    if (_heroSlideTimer !== null) {
+        window.clearTimeout(_heroSlideTimer);
+        _heroSlideTimer = null;
+    }
+    const card = document.querySelector<HTMLElement>('#idx-hero-card');
+    const prev = document.querySelector<HTMLImageElement>('#idx-hero-prev');
+    if (card) delete card.dataset.heroAnim;
+    if (prev) {
+        prev.style.transition = 'none';
+        prev.style.opacity = '0';
+        prev.style.transform = 'translateX(0)';
+    }
+}
+
+// 設定・共有ポップアップが開いているか。開いている間はギャラリーのキー操作を譲る。
+// _isPopupOpen(): boolean
+function _isPopupOpen(): boolean {
+    return ['#settings-popup', '#share-popup'].some((sel) => {
+        const el = document.querySelector<HTMLElement>(sel);
+        return el !== null && !el.hidden;
+    });
+}
+
+// クリック・キー・スワイプの登録。**1 度だけ**行う（applyStoryStage は再実行されるため）。
+// _wireHeroGalleryOnce(): void
+function _wireHeroGalleryOnce(): void {
+    if (_heroWired) return;
+    const card = document.querySelector<HTMLElement>('#idx-hero-card');
+    if (!card) return;
+    _heroWired = true;
+
+    document.querySelector('#idx-hero-newer')?.addEventListener('click', () => { void _goHero(-1); });
+    document.querySelector('#idx-hero-older')?.addEventListener('click', () => { void _goHero(1); });
+
+    // ← → は**カード内にフォーカスがあるときだけ**拾う。document で拾うと、設定・共有ポップアップや
+    // FAB を操作している最中にも表紙が動く（FAB は ArrowUp/Down、ポップアップは Escape を使っている）。
+    card.addEventListener('keydown', (e) => {
+        if (_isPopupOpen()) return;
+        if (e.key === 'ArrowRight') { e.preventDefault(); void _goHero(1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); void _goHero(-1); }
+    });
+
+    // スワイプ。縦移動のほうが大きいときは何もしない＝ページのスクロールを邪魔しない。
+    let sx = 0;
+    let sy = 0;
+    let tracking = false;
+    card.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return;   // PC はボタンで操作する
+        sx = e.clientX; sy = e.clientY; tracking = true;
+    });
+    card.addEventListener('pointerup', (e) => {
+        if (!tracking) return;
+        tracking = false;
+        const dx = e.clientX - sx;
+        const dy = e.clientY - sy;
+        if (Math.abs(dx) < HERO_SWIPE_MIN_PX) return;
+        if (Math.abs(dx) < Math.abs(dy)) return;
+        void _goHero(dx < 0 ? 1 : -1);   // 左へ払う＝過去へ（右のボタンと同じ向き）
+    });
+    card.addEventListener('pointercancel', () => { tracking = false; });
+    card.addEventListener('dragstart', (e) => { e.preventDefault(); });
 }
 
 // ----- 目次本体（vol カード → ep → sec、直後にあとがきチップ） -----

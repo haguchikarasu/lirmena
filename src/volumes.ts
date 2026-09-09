@@ -4,6 +4,9 @@
  * export: type StoryStage = 1 | 2 | 3 | 4 | 5
  *         MAX_STORY_STAGE: StoryStage                                    … stage の上限値（型の最大値と同値）
  *         computeStoryStage(read: SecKey[], story: StoryData): StoryStage
+ *         type HeroCardRef = { rel: string; volume: number }
+ *         HERO_CARD_RE: RegExp                                          … キャッシュ値の検証（HTML 側と同一規則）
+ *         resolveHeroCard(stage: StoryStage, story: StoryData): HeroCardRef | null
  * 依存: 型のみ（StoryData / Volume / SecKey）。DOM・localStorage・fetch 非依存。純関数（引数を破壊しない）。
  *
  * 物語進行段階（stage 1〜5）— 最大読破位置ベース：
@@ -130,4 +133,44 @@ function _isNextVolFirstSecPublished(nextVol: Volume): boolean {
 
 function _secKey(ep: number, sec: number): string {
     return `${String(ep).padStart(2, '0')}-${String(sec).padStart(2, '0')}`;
+}
+
+/**
+ * HeroCardRef: stage に対応する目次ヒーローカード画像の参照。
+ *   rel    … BASE_URL からの相対パス "vol[XX]/<file>"。img.src と localStorage キャッシュの両方に使う
+ *   volume … その画像が属する vol 番号（favicon の解決に使う。完結カードは最終 vol に併置される）
+ */
+export type HeroCardRef = { rel: string; volume: number };
+
+// キャッシュ値 'lirmena.heroCard' の検証規則。**index.html の早期 <script> 内の正規表現と同一**で、
+// 片方だけ変えると静かに vol01 へフォールバックする（検査は e2e/toc-hero.spec.ts）。
+// 拡張子もファイル名の文字種も縛らない：story-integrity は heroCard.file に非空文字列しか要求しないため、
+// ここで縛ると「story.json 的には正しいのにキャッシュが効かない」非対称が生まれる。
+// ただし **vol[XX]/ の中から出させない**："/" を含めず、"." と ".." も弾く。これが無いと
+// "vol01/../vol04/vol04-completed.avif" のような値がブラウザの正規化で別 vol を指し、
+// **未来の表紙が出てネタバレになる**（Codex code レビュー 2026-09-09）。
+export const HERO_CARD_RE = /^vol\d{2}\/(?!\.\.?$)[^/\r\n]+$/;
+
+// stage に対応するヒーローカード画像を解決する。解決できなければ null。
+//   stage 1..story.length       → その vol の heroCard.file
+//   stage story.length+1（完結） → 最終 vol（volume 最大）の heroCardCompleted.file
+// **目次（index.ts）と本文（main.ts）の両方から使う**：stage が上がるのは本文を読み終えた瞬間なので、
+// キャッシュ更新を目次側だけに置くと「上がった直後に初めて目次へ戻る」場面で 1 段古い表紙が一瞬見える。
+// 解決ロジックをここに置くことで両者が二重管理にならない（computeStoryStage を共用しているのと同じ理由）。
+export function resolveHeroCard(stage: StoryStage, story: StoryData): HeroCardRef | null {
+    if (story.length === 0) return null;
+    const maxVolume = Math.max(...story.map(v => v.volume));
+    let file: string | undefined;
+    let volume: number | undefined;
+    if (stage === story.length + 1) {
+        const finalVol = story.find(v => v.volume === maxVolume);
+        file = finalVol?.heroCardCompleted?.file;
+        volume = finalVol?.volume;
+    } else {
+        const targetVol = story.find(v => v.volume === stage);
+        file = targetVol?.heroCard?.file;
+        volume = targetVol?.volume;
+    }
+    if (typeof file !== 'string' || file === '' || volume === undefined) return null;
+    return { rel: `vol${String(volume).padStart(2, '0')}/${file}`, volume };
 }

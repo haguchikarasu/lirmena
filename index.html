@@ -90,7 +90,36 @@
        （vol カード側の <header> は必ず <section> の内側に置く＝index.ts の _buildVolHead 参照） -->
   <header id="idx-hero">
     <figure id="idx-hero-card">
-      <img id="idx-hero-img" src="public/vol01/vol01.avif" alt="タイトル" />
+      <!-- 表紙ギャラリー（要件 06-7）の背面レイヤー。遷移中だけ見え、去っていく側の表紙を載せる。
+           装飾なので支援技術からは隠す。前面の #idx-hero-img は**常に「いま見えている表紙」**を指し、
+           閲覧位置が変わってもレイヤーごと入れ替わらない（キャッシュと e2e の参照先が安定する）。 -->
+      <img id="idx-hero-prev" alt="" aria-hidden="true" />
+      <img id="idx-hero-img" alt="タイトル" onerror="this.onerror=null;this.src='vol01/vol01.avif'" />
+      <!-- ヒーローカードの先付け（ちらつき回避）：applyStoryStage が前回決めた相対パスを localStorage
+           'lirmena.heroCard' から読み、パース時点で src を確定させる。**src 属性を HTML に持たせない**のが肝で、
+           属性があるとプリロードスキャナが vol1 を先読みし、stage 2 以上の読者には vol1 → vol2 の差し替えが
+           必ず見える（2026-09-09 に実際に起きた。preview＝本番ビルドでも再現する）。
+           検証規則は src/volumes.ts の HERO_CARD_RE と**同一**＝片方だけ直すと静かに vol01 へ落ちる
+           （検査は e2e/toc-hero.spec.ts）。未設定＝初回訪問は stage 1 相当の vol01 にフォールバックする。
+           画像が 404 のとき（改名・削除・draft 由来の残留値）は onerror が vol01 へ落とし、そのロードの直後に
+           applyStoryStage が story.json を正としてキャッシュを直す＝腐るのは 1 ロードだけ。 -->
+      <script>
+        try {
+          var h = localStorage.getItem('lirmena.heroCard');
+          document.getElementById('idx-hero-img').src =
+            (h && /^vol\d{2}\/(?!\.\.?$)[^\/\r\n]+$/.test(h)) ? h : 'vol01/vol01.avif';
+        } catch (e) {
+          document.getElementById('idx-hero-img').src = 'vol01/vol01.avif';
+        }
+      </script>
+      <!-- 表紙ギャラリーのナビ（要件 06-7）。**過去へ進むのが右**。履歴が 1 枚（stage 1）のときと
+           端に達したときは index.ts が hidden / disabled にする。
+           スマホでは :hover が効かないので普段は見えないが、**DOM からは消さない**——スワイプだけに
+           すると、スイッチ操作やキーボードの読者が過去の表紙へ辿り着けなくなる。 -->
+      <button type="button" id="idx-hero-newer" class="idx-hero-nav" hidden aria-label="次の巻の表紙を見る">‹</button>
+      <button type="button" id="idx-hero-older" class="idx-hero-nav" hidden aria-label="前の巻の表紙を見る">›</button>
+      <!-- 位置表示。ドットは装飾（aria-hidden）で、読み上げ用には同じ内容を文言で入れる。 -->
+      <p id="idx-hero-dots" aria-live="polite"></p>
     </figure>
     <p id="idx-version-badges">
       <span id="badge-content-version" class="idx-version-badge"></span>

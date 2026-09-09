@@ -62,7 +62,7 @@ import * as loader from './loader';
 import * as parser from './parser';
 import * as feedback from './feedback';
 import * as analytics from './analytics';
-import { computeStoryStage } from './volumes';
+import { computeStoryStage, resolveHeroCard, HERO_CARD_RE, type StoryStage } from './volumes';
 import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
 import type { Scene, BgLayerSpec, EpisodesData, CharactersData, StoryData, SecAddress } from './types';
 
@@ -169,8 +169,16 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
     const storyStage = computeStoryStage(read, story);
     document.documentElement.dataset.storyStage = String(storyStage);
     // 次回ロード時の FOUC 回避用にキャッシュ。reader.html / title.html / index.html の早期 <script> が
-    // 起動前に読み取り <html data-story-stage> を先付けする。値は 1〜5 の文字列のみ。
-    try { localStorage.setItem('lirmena.storyStage', String(storyStage)); } catch {}
+    // 起動前に読み取り <html data-story-stage> を先付けし、目次は表紙も先付ける。
+    _cacheStageForToc(storyStage, story);
+    // **stage が上がるのはこのページを読み終えた瞬間**（nav がスクロール到達を見て bookmark.recordRead を
+    // 呼ぶ）で、上のロード時計算より後になる。離脱時にもう一度計算し直さないと、次に目次へ戻ったときに
+    // 1 段古い表紙・キーカラーが一瞬見える（＝ちらつき修正が肝心の場面で効かない）。ページ遷移は
+    // location.href によるフルリロードなので pagehide は必ず走り、localStorage は同期 API なので
+    // ハンドラ内で書き終わる。
+    window.addEventListener('pagehide', () => {
+        _cacheStageForToc(computeStoryStage(bookmark.getRead(), story), story);
+    });
     analytics.send(settings.getSettings(), storyStage, read, reached, data);
 
     const externalEntry = _isExternalEntry();
@@ -184,7 +192,12 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
     bookmark.setAutoRecordSuppressed({ reachedRead: reachedReadSuppressed, autoSave: autoSaveSuppressed });
     if (!reachedReadSuppressed) bookmark.recordReached(ep, sec);
 
-    nav.init();
+    // 読了を記録した瞬間に stage を計算し直して目次向けキャッシュを更新する。**stage が上がるのは
+    // ここだけ**で、pagehide 頼みだと「モバイルで OS に終了された」「目次を別タブで開いた」ときに
+    // 更新されず、次の目次で 1 段古い表紙が一瞬見える（Codex code レビュー 2026-09-09）。
+    nav.init({
+        onReadRecorded: () => { _cacheStageForToc(computeStoryStage(bookmark.getRead(), story), story); },
+    });
     menu.init(charactersData);
     feedback.init();
 
@@ -277,8 +290,9 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     const reached = bookmark.getReached();
     const storyStage = computeStoryStage(read, story);
     document.documentElement.dataset.storyStage = String(storyStage);
-    // 次回ロード時の FOUC 回避用にキャッシュ（本文モード側と同処理）。
-    try { localStorage.setItem('lirmena.storyStage', String(storyStage)); } catch {}
+    // 次回ロード時の FOUC 回避用にキャッシュ（本文モード側と同処理）。あとがきキー vol[XX]-af は
+    // stage 判定に影響しない（要件 06-5）ので、本文モードのような離脱時の再計算は要らない。
+    _cacheStageForToc(storyStage, story);
     // analytics は本文 Episode[] を渡す（あとがきキー vol[XX]-af は buildSecOrderIndex に含まれない＝
     // read_ratio 分母に影響しない・furthest_position は本文 sec のみで算出される既存動作を維持）。
     analytics.send(settings.getSettings(), storyStage, read, reached, story.flatMap(v => v.episodes));
@@ -323,6 +337,19 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
  * BgLayerSpec は Pick なのでフィールドを落としても型エラーにならず、本文モード／あとがきモードの片方だけ
  * 取りこぼしても静かに機能が抜ける。それを防ぐため変換はこの1箇所に集約する（両モードから呼ぶ）。
  */
+// stage と、それに対応するヒーローカードの相対パスを localStorage に控える。
+// 目次（index.html）と 3 シェルの早期 <script> が次回ロードのパース時点で読み、キーカラーと表紙を
+// 先付けする＝FOUC と表紙のちらつきを消す。DOM も fetch も触らない（localStorage の同期書き込みのみ）。
+// _cacheStageForToc(stage: StoryStage, story: StoryData): void
+function _cacheStageForToc(stage: StoryStage, story: StoryData): void {
+    try { localStorage.setItem('lirmena.storyStage', String(stage)); } catch { /* noop */ }
+    const hero = resolveHeroCard(stage, story);
+    try {
+        if (hero && HERO_CARD_RE.test(hero.rel)) localStorage.setItem('lirmena.heroCard', hero.rel);
+        else localStorage.removeItem('lirmena.heroCard');
+    } catch { /* noop */ }
+}
+
 function _toBgLayerSpecs(scenes: Scene[]): BgLayerSpec[] {
     return scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX, bgDim: s.bgDim }));
 }
