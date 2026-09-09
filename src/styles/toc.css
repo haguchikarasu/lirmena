@@ -81,13 +81,13 @@ body {
   max-width: 600px;
   margin: 0 auto;
   /* 領域の先行予約。index.html の img は src 属性を持たない（早期 <script> が入れる）ので固有寸法が無く、
-     これが無いと画像到着まで高さ 0 ＝目次全体が跳ねる。表紙は全 vol 16:10（1280×800）で統一する。 */
-  aspect-ratio: 16 / 10;
+     これが無いと画像到着まで高さ 0 ＝目次全体が跳ねる。表紙は全 vol 1280×905 で統一する。 */
+  aspect-ratio: 1280 / 905;
 }
 
 /* 表紙ギャラリー（要件 06-7）。2 枚を重ね、#idx-hero-img が常に「いま見えている表紙」、
    #idx-hero-prev は遷移中に去っていく側を載せるだけ（普段は透明）。
-   object-fit は 16:10 から外れた画像が来たときの保険。 */
+   object-fit は 1280×905 から外れた画像が来たときの保険。 */
 #idx-hero-img,
 #idx-hero-prev {
   position: absolute;
