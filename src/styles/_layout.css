@@ -1,4 +1,4 @@
-/* _layout.css — main-container / scene-content / btn-container / btn-next / 本文段落 / 縦中横 / ルビ / 傍点 */
+/* _layout.css — main-container / scene-content / btn-container / btn-next / 本文段落 / 縦中横 / 二重引用符 / ルビ / 傍点 */
 
 /* ===================================================
    メインコンテナ
@@ -288,6 +288,21 @@ html[data-writing-mode="vertical"] #btn-share-heading {
 /* 縦中横（renderer.ts が .tcy を付与） */
 .tcy {
   text-combine-upright: all;
+}
+
+/* 二重引用符（要件 05-4）：renderer.ts が “ ” を <span.dq-h>原稿の字</span><span.dq-v>縦書きの字</span> の対で
+   出す。横書き＝“ ”／縦書き＝〝 〟 をここで出し分ける（切替で本文は再描画しない）。
+   基底は横書き：属性なし＝横書き扱いで、--writing-mode の既定（_base.css）と同じ根拠で倒れる。
+   縦中横と基底の向きが逆なのは、text-combine-upright は横組みで効かないので基底が縦でも害がないのに対し、
+   引用符は基底の字がそのまま見えるため。hidden 属性は使わない（_base.css の [hidden] が !important） */
+.dq-v {
+  display: none;
+}
+html[data-writing-mode="vertical"] .dq-h {
+  display: none;
+}
+html[data-writing-mode="vertical"] .dq-v {
+  display: inline;
 }
 
 /* 傍点：renderer.ts が <em class="bouten"> 内に1文字ずつ <ruby>字<rt>•</rt></ruby> を生成。

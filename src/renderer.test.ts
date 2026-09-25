@@ -1,13 +1,16 @@
 /*
  * renderer.test.ts
- * 対象: renderer.ts の字下げ判定（.indent クラスの付与）と、<p> の切れ目・空行の出力。
- * 期待値の出典: design/requirements/05-4-text.md（本文の書式規約）／design/modules/renderer.md。
- *   - 行頭が全角スペース（U+3000）／始め括弧類の段落は字下げしない
+ * 対象: renderer.ts の字下げ判定（.indent クラスの付与）と、<p> の切れ目・空行の出力、
+ *       二重引用符 “ ” の展開（<span.dq-h> と <span.dq-v> の対）。
+ * 期待値の出典: design/requirements/05-4-text.md（本文の書式規約・「二重引用符の縦書き表示」）／design/modules/renderer.md。
+ *   - 行頭が全角スペース（U+3000）／始め括弧類（“ 〝 を含む）の段落は字下げしない
  *   - それ以外（地の文）は .indent を付ける。字下げ量は CSS の --paragraph-indent が持つ
  *   - 空段落には付けない
  *   - 判定は <p> を積む単一の出口（seal）で行うので、各シーンの最終段落も対象になる。
  *     parser がタグ直前シーンの末尾改行を剥がすため最終 <p> は空とは限らず、
  *     flushPara だけに判定を置くとここが素通りする（回帰防止のテストを置く）
+ *   - “ ” は横書きでそのまま・縦書きで 〝 〟 に見える。出し分けは CSS なので、ここでは DOM の形
+ *     （対の順序・展開する範囲）と、CSS の出し分けを DOM 上で再現した「見える字」を検証する
  * renderScenes() は #main-container / #scene-content をモジュール読み込み時に掴むため直接は呼べない。
  * DOM 取得を伴わない buildNodes() / shouldIndent() を対象にする。
  */
@@ -31,6 +34,22 @@ function indentMapOf(text: string): Array<[string, boolean]> {
   return scenes[0].map((p) => [p.textContent ?? "", p.classList.contains("indent")]);
 }
 
+// 単一シーン・単一段落の本文から、その <p> を取り出す
+function onlyParaOf(text: string): HTMLParagraphElement {
+  const scenes = parasOf(text);
+  expect(scenes).toHaveLength(1);
+  expect(scenes[0]).toHaveLength(1);
+  return scenes[0][0];
+}
+
+// 書字方向ごとに読者に見える本文の字。jsdom は CSS を当てないので、_layout.css の出し分け
+// （横書き＝.dq-v を隠す／縦書き＝.dq-h を隠す）を DOM 上で再現する。rt（ルビの読み・傍点）も除く。
+function visibleText(el: Element, mode: "horizontal" | "vertical"): string {
+  const c = el.cloneNode(true) as Element;
+  c.querySelectorAll(mode === "vertical" ? ".dq-h, rt" : ".dq-v, rt").forEach((n) => n.remove());
+  return c.textContent ?? "";
+}
+
 describe("renderer 字下げ判定（shouldIndent）", () => {
   it("地の文の先頭文字は字下げする", () => {
     expect(shouldIndent("リ")).toBe(true);
@@ -39,7 +58,7 @@ describe("renderer 字下げ判定（shouldIndent）", () => {
   });
 
   it("始め括弧類は字下げしない（地の文か会話文かを問わず形で決める）", () => {
-    for (const c of ["「", "『", "（", "〈", "《", "【", "〔", "［", "｛", "("]) {
+    for (const c of ["「", "『", "（", "〈", "《", "【", "〔", "［", "｛", "(", "“", "〝"]) {
       expect(shouldIndent(c)).toBe(false);
     }
   });
@@ -67,6 +86,15 @@ describe("renderer <p> への .indent 付与", () => {
     expect(indentMapOf("答えた。\n『やはり』とまではいかない。")).toEqual([
       ["答えた。", true],
       ["『やはり』とまではいかない。", false],
+    ]);
+  });
+
+  it("“ や 〝 で始まる段落にも付かない（書字方向に依らず原稿の字で判定する）", () => {
+    const paras = parasOf("答えた。\n“雇い主”と呼んだ。\n〝雇い主〟と呼んだ。")[0];
+    expect(paras.map((p) => [[...(p.textContent ?? "")][0], p.className])).toEqual([
+      ["答", "indent"],
+      ["“", ""], // textContent の先頭は dq-h（原稿の字）。dq-v の 〝 は 2 文字目
+      ["〝", ""],
     ]);
   });
 
@@ -135,5 +163,59 @@ describe("renderer 段落の切れ目（従来どおり）", () => {
     const nodes = buildNodes(parse("前。\n\n後。")[0].content as TextNode[]);
     expect(nodes.map((n) => n.nodeName)).toEqual(["P", "BR", "P"]);
     expect(nodes.map((n) => (n as HTMLElement).className)).toEqual(["indent", "", "indent"]);
+  });
+});
+
+describe("renderer 二重引用符の書字方向別表示（“ ” ⇔ 〝 〟）", () => {
+  it("横書きでは “ ” のまま、縦書きでは 〝 〟 に見える", () => {
+    const p = onlyParaOf("「理由は簡単だ。“雇い主”」");
+    expect(visibleText(p, "horizontal")).toBe("「理由は簡単だ。“雇い主”」");
+    expect(visibleText(p, "vertical")).toBe("「理由は簡単だ。〝雇い主〟」");
+  });
+
+  it("各引用符は dq-h → dq-v の順の対で出る（textContent は原稿の字から始まる）", () => {
+    const p = onlyParaOf("“雇い主”");
+    expect([...p.querySelectorAll("span")].map((s) => [s.className, s.textContent])).toEqual([
+      ["dq-h", "“"], ["dq-v", "〝"], ["dq-h", "”"], ["dq-v", "〟"],
+    ]);
+  });
+
+  it("“ ” を含まない段落は従来どおりテキストノード 1 つ", () => {
+    const p = onlyParaOf("リッカは歩いた。");
+    expect(p.childNodes).toHaveLength(1);
+    expect(p.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+  });
+
+  it("連続・端の引用符でも空のテキストノードを作らない", () => {
+    const p = onlyParaOf("“”“a”");
+    expect([...p.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.nodeValue === "")).toBe(false);
+    expect(visibleText(p, "vertical")).toBe("〝〟〝a〟");
+  });
+
+  it("ルビの親文字の中でも出し分け、rt は ruby の最後の子のまま", () => {
+    const ruby = onlyParaOf("|“雇い主”《やといぬし》と呼ぶ。").querySelector("ruby")!;
+    expect(ruby.lastElementChild?.tagName).toBe("RT");
+    expect(ruby.lastElementChild?.textContent).toBe("やといぬし");
+    expect(visibleText(ruby, "horizontal")).toBe("“雇い主”");
+    expect(visibleText(ruby, "vertical")).toBe("〝雇い主〟");
+  });
+
+  it("傍点の各字でも出し分け、黒丸は字数ぶん（引用符にも付く＝ほかの約物と同じ）", () => {
+    const p = onlyParaOf("《《“強”》》");
+    const rubies = [...p.querySelectorAll("em.bouten > ruby")];
+    expect(rubies.map((r) => r.lastElementChild?.textContent)).toEqual(["•", "•", "•"]);
+    expect(visibleText(p, "vertical")).toBe("〝強〟");
+  });
+
+  it("縦中横の中は変換しない", () => {
+    const tcy = onlyParaOf("^“1”^日").querySelector(".tcy")!;
+    expect(tcy.textContent).toBe("“1”");
+    expect(tcy.querySelector(".dq-h, .dq-v")).toBeNull();
+  });
+
+  it("原稿に直接書いた 〝 〟 は変換しない（逆方向の変換はしない）", () => {
+    const p = onlyParaOf("〝雇い主〟");
+    expect(p.querySelector(".dq-h, .dq-v")).toBeNull();
+    expect(p.textContent).toBe("〝雇い主〟");
   });
 });

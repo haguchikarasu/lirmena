@@ -22,6 +22,10 @@
  *       { type: "tcy"      }  → <span class="tcy">value</span>（text-combine-upright）
  *       { type: "br"       }  → <p> の境界（\n 1つ → </p><p>）
  *       { type: "blank"    }  → <p> の境界＋空行（\n\n → </p><br><p>）
+ *   - text・ruby の親文字・傍点の各字は appendText() を通す。二重引用符 “ ” だけを
+ *     <span class="dq-h">“</span><span class="dq-v">〝</span> の対に展開し、どちらを見せるかは
+ *     CSS（_layout.css）が html[data-writing-mode] で決める（縦書き＝〝 〟。要件 05-4）。
+ *     本モジュールは書字方向を知らない（縦中横 .tcy と同じ分担）。縦中横の中とルビの読み（rt）は対象外
  *   - 各 <p> は先頭文字を見て字下げクラス .indent を付ける（要件 05-4）。字下げは本文テキストに
  *     書かず、CSS の text-indent（--paragraph-indent）が与える。段落間の空行と排他で切り替わる
  *     ため、settings が --paragraph-margin と --paragraph-indent を必ずセットで駆動する（要件 06-4）
@@ -35,7 +39,14 @@ import type { TextNode } from "./parser";
 // 字下げしない段落の先頭文字（要件 05-4）。意味（地の文か会話文か）ではなく形（行頭の文字）で決める。
 //   U+3000     … 原稿が自前でインデント済みの段落（ブロック引用）。表示側で重ねない
 //   始め括弧類 … 行頭が始め括弧なら、地の文か会話文かを問わず字下げしない
-const NO_INDENT_HEADS = new Set(['　', '「', '『', '（', '〈', '《', '【', '〔', '［', '｛', '(']);
+//                “ と 〝 も JLREQ の始め括弧類（cl-01）。原稿の字でも縦書きの字でも同じ判定になるよう両方置く
+const NO_INDENT_HEADS = new Set(['　', '「', '『', '（', '〈', '《', '【', '〔', '［', '｛', '(', '“', '〝']);
+
+// 縦書きで差し替える二重引用符（要件 05-4）。原稿の字 → 縦書きの字。
+// 閉じは縦組用の U+301F 〟（U+301E 〞 は横組用なので使わない）。
+const DQ_VERTICAL: ReadonlyMap<string, string> = new Map([['“', '〝'], ['”', '〟']]);
+// 引用符で分割し、引用符自身も結果に残す（キャプチャ付き）。g を付けない＝test() が状態を持たない
+const DQ_SPLIT = new RegExp(`([${[...DQ_VERTICAL.keys()].join('')}])`);
 
 const mainContainerEl = document.querySelector<HTMLElement>('#main-container')!;
 const sceneContentEl = document.querySelector<HTMLElement>('#scene-content')!;
@@ -63,6 +74,36 @@ export function shouldIndent(first: string | undefined): boolean {
     return first !== undefined && !NO_INDENT_HEADS.has(first);
 }
 
+// 本文の文字列を parent に足す。二重引用符（DQ_VERTICAL のキー）だけは
+// <span class="dq-h">原稿の字</span><span class="dq-v">縦書きの字</span> の対に展開する。
+// - 対は dq-h → dq-v の順に置き、textContent が原稿の字から始まるようにする（seal() の字下げ判定もこれを見るが、
+//   判定表は “ と 〝 を同じ扱いにしてあるので、今は順序で字下げの結果は変わらない）
+// - 引用符を含まない文字列はテキストノード 1 つを足すだけ（従来と同じ DOM）
+// - aria-hidden も hidden 属性も付けない。読み上げ・コピー・ページ内検索は display の出し分けで見えている字に揃う
+//   （aria-hidden は縦書きで見えている 〝 まで読ませなくし、hidden は _base.css の !important に負けて表示に戻せない）
+// appendText(parent: Element, s: string): void
+function appendText(parent: Element, s: string): void {
+    if (!DQ_SPLIT.test(s)) {
+        parent.appendChild(document.createTextNode(s));
+        return;
+    }
+    for (const part of s.split(DQ_SPLIT)) {
+        if (part === '') continue; // 端・連続の引用符で split が返す空文字
+        const vertical = DQ_VERTICAL.get(part);
+        if (vertical === undefined) {
+            parent.appendChild(document.createTextNode(part));
+            continue;
+        }
+        const h = document.createElement('span');
+        h.className = 'dq-h';
+        h.textContent = part;
+        const v = document.createElement('span');
+        v.className = 'dq-v';
+        v.textContent = vertical;
+        parent.append(h, v);
+    }
+}
+
 // TextNode[] を <p> ベースの DOM Node[] に変換する
 // - br は <p> の境界、blank は <p> の境界＋<br>
 // - <p> は seal() を通してから result に積む（字下げクラスの付与点を1箇所に保つ）
@@ -87,13 +128,14 @@ export function buildNodes(nodes: TextNode[]): Node[] {
     for (const node of nodes) {
         switch (node.type) {
             case 'text':
-                p.appendChild(document.createTextNode(node.value));
+                appendText(p, node.value);
                 break;
             case 'ruby': {
                 const ruby = document.createElement('ruby');
                 const rt = document.createElement('rt');
                 rt.textContent = node.rt;
-                ruby.append(document.createTextNode(node.base), rt);
+                appendText(ruby, node.base);
+                ruby.appendChild(rt);
                 p.appendChild(ruby);
                 break;
             }
@@ -108,7 +150,8 @@ export function buildNodes(nodes: TextNode[]): Node[] {
                     const rt = document.createElement('rt');
                     rt.textContent = '•'; // • U+2022 BULLET
                     rt.setAttribute('aria-hidden', 'true');
-                    ruby.append(document.createTextNode(ch), rt);
+                    appendText(ruby, ch);
+                    ruby.appendChild(rt);
                     em.appendChild(ruby);
                 }
                 p.appendChild(em);
