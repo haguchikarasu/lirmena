@@ -52,7 +52,7 @@
   position: relative;
   display: flex;
   flex-direction: column;      /* 高さ固定時: head 上 / media 中央 / foot 下 */
-  width: min(92vw, 560px);
+  width: min(100vw - 48px, 560px);   /* 48px = オーバーレイ padding 左右 24px（下の max-height と同じ根拠）。これを超えると grid トラックが右へはみ出してカードが右寄りになる */
   max-height: calc(100dvh - 48px);   /* 短い viewport（スマホ横向き等）でカード内スクロール＝footer/× へ必ず到達できる（オーバーレイ padding 上下 24px 分を差し引く） */
   overflow-y: auto;
   padding: 26px 26px 18px;
@@ -284,7 +284,7 @@ html[data-writing-mode="horizontal"] .fig-arrow::after  { bottom: -1px; transfor
 .tutorial-next:hover { filter: brightness(1.06); }
 
 /* スマホ: カードを絞り、メディア帯は縦積み、立ち絵は小さく、本文・見出しを一段小さく */
-html[data-device="sp"] .tutorial-card { width: min(94vw, 400px); padding: 22px 18px 14px; }
+html[data-device="sp"] .tutorial-card { width: min(100vw - 48px, 400px); padding: 22px 18px 14px; }
 html[data-device="sp"] .tutorial-media { flex-direction: column; gap: 14px; }
 html[data-device="sp"] .tutorial-guide { width: 86px; }
 html[data-device="sp"] .tutorial-guide--foll { width: 75px; }
