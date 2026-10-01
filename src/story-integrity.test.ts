@@ -1,12 +1,12 @@
 /*
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
- * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)
+ * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
  *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
  *
  * 網羅する観点：
  *   - 実データ（public/story.json）が validateStory の全ルール（(i) 以外）を満たす
- *   - 意図的に壊した story.json 断片で各違反 (a)〜(m) がメッセージに出る（回帰）
+ *   - 意図的に壊した story.json 断片で各違反 (a)〜(n) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
  *   - preview を持つ未執筆 vol/ep が (a)〜(l) を壊さない正常系
  *   - (m) は vol 数の境界（上限ちょうど／超過）で判定が切り替わる
@@ -234,6 +234,34 @@ describe('validateStory — 壊したパターンで各違反が検出される'
     it('(m) vol 数 + 1 が stage 上限 MAX_STORY_STAGE を超える → (m) エラー', () => {
         const errors = validateStory(_storyOfVolumes(MAX_STORY_STAGE));
         expect(errors.some(e => e.startsWith('(m)'))).toBe(true);
+    });
+
+    // (n) は title.ts が CSS へ素通しする扉の位置指定の形式検査。X に "top" が入ると CSS は縦位置として読む。
+    it('(n) coverPositionX / Y の正しい形（パーセント・軸の合うキーワード）は通る', () => {
+        const story = _baseStory();
+        story[0].episodes[0].coverPositionX = '20%';
+        story[0].episodes[0].coverPositionY = 'top';
+        story[0].episodes[1].coverPositionX = 'right';
+        story[0].episodes[1].coverPositionY = '100%';
+        story[1].episodes[0].coverPositionX = '0%';
+        story[1].episodes[0].coverPositionY = '12.5%';
+        expect(validateStory(story).filter(e => e.startsWith('(n)'))).toEqual([]);
+    });
+
+    it.each([
+        ['coverPositionX', 'top'],
+        ['coverPositionX', 'center'],
+        ['coverPositionX', '20px'],
+        ['coverPositionX', '120%'],
+        ['coverPositionX', '-5%'],
+        ['coverPositionY', 'left'],
+        ['coverPositionY', 'Bottom'],
+        ['coverPositionY', 30],
+    ] as const)('(n) %s=%s → (n) エラー', (field, value) => {
+        const story = _baseStory();
+        (story[0].episodes[0] as Record<string, unknown>)[field] = value;
+        const errors = validateStory(story);
+        expect(errors.some(e => e.startsWith('(n)') && e.includes(field))).toBe(true);
     });
 
     it('(m) vol 数 + 1 が上限ちょうど（現行 4vol）なら (m) は出ない', () => {

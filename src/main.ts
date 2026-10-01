@@ -351,7 +351,7 @@ function _cacheStageForToc(stage: StoryStage, story: StoryData): void {
 }
 
 function _toBgLayerSpecs(scenes: Scene[]): BgLayerSpec[] {
-    return scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX, bgDim: s.bgDim }));
+    return scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX, bgPositionY: s.bgPositionY, bgDim: s.bgDim }));
 }
 
 /** #main-container を取得し、wheel/pan/immersive の共通結線を行う（両モード共通） */

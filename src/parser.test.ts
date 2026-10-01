@@ -115,12 +115,14 @@ describe("parser @@BG@@ 境界の改行（タグを跨ぐ空行）", () => {
 describe("parser @@BG@@ タグのシーンパラメータ（キー=値）", () => {
   // 期待値の出典: design/requirements/05-1-tags.md「シーンパラメータ（キー=値）」節。
   //   第1トークン＝ファイル名固定、第2トークン以降が キー=値（: 区切り・順不同・任意個）。
-  //   値はパーセント表記のみ有効・0〜100% にクランプ・未知のキーは無視・重複キーは先勝ち・旧記法は非対応。
+  //   値はパーセント表記（xpos は left/right、ypos は top/bottom も可）・0〜100% にクランプ・未知のキーは無視・
+  //   重複キーは先勝ち・旧記法は非対応。
 
   it("パラメータなしはファイル名だけを取り、両フィールドとも未指定", () => {
     const s = sceneOf("@@BG:a.avif@@");
     expect(s.bgFile).toBe("a.avif");
     expect(s.bgPositionX).toBeUndefined();
+    expect(s.bgPositionY).toBeUndefined();
     expect(s.bgDim).toBeUndefined();
   });
 
@@ -190,6 +192,44 @@ describe("parser @@BG@@ タグのシーンパラメータ（キー=値）", () =
     const empty = sceneOf("@@BG::dim=20%@@");
     expect(empty.bgFile).toBeNull();
     expect(empty.bgDim).toBeUndefined();
+  });
+
+  it("ypos は % 込みの文字列で格納し、0〜100% にクランプする", () => {
+    expect(sceneOf("@@BG:a.avif:ypos=30%@@").bgPositionY).toBe("30%");
+    expect(sceneOf("@@BG:a.avif:ypos=-5%@@").bgPositionY).toBe("0%");
+    expect(sceneOf("@@BG:a.avif:ypos=30px@@").bgPositionY).toBeUndefined();
+  });
+
+  it("xpos は left/right を 0%/100% に正規化する（画像の左端/右端を描画範囲の端に揃える）", () => {
+    expect(sceneOf("@@BG:a.avif:xpos=left@@").bgPositionX).toBe("0%");
+    expect(sceneOf("@@BG:a.avif:xpos=right@@").bgPositionX).toBe("100%");
+  });
+
+  it("ypos は top/bottom を 0%/100% に正規化する（画像の上端/下端を描画範囲の端に揃える）", () => {
+    expect(sceneOf("@@BG:a.avif:ypos=top@@").bgPositionY).toBe("0%");
+    expect(sceneOf("@@BG:a.avif:ypos=bottom@@").bgPositionY).toBe("100%");
+  });
+
+  it("軸の合わないキーワードは無視する（xpos=top/bottom・ypos=left/right）", () => {
+    expect(sceneOf("@@BG:a.avif:xpos=top@@").bgPositionX).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:xpos=bottom@@").bgPositionX).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:ypos=left@@").bgPositionY).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:ypos=right@@").bgPositionY).toBeUndefined();
+  });
+
+  it("center・大文字・dim へのキーワードは受けない", () => {
+    expect(sceneOf("@@BG:a.avif:xpos=center@@").bgPositionX).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:ypos=Top@@").bgPositionY).toBeUndefined();
+    expect(sceneOf("@@BG:a.avif:dim=top@@").bgDim).toBeUndefined();
+    // Object.prototype のプロパティ名をキーワード表から引かない
+    expect(sceneOf("@@BG:a.avif:xpos=constructor@@").bgPositionX).toBeUndefined();
+  });
+
+  it("xpos と ypos は独立に持てる（順不同）", () => {
+    const s = sceneOf("@@BG:a.avif:ypos=bottom:dim=20%:xpos=30%@@");
+    expect(s.bgPositionX).toBe("30%");
+    expect(s.bgPositionY).toBe("100%");
+    expect(s.bgDim).toBeCloseTo(0.2);
   });
 
   it("パラメータの有無はシーン分割に影響しない（第1トークン＝ファイル名固定）", () => {

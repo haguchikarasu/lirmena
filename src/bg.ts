@@ -27,7 +27,9 @@
  *     フェードアップし、読書点が本文の読み始め辺（leadEdge）に到達した時点で全表示になる（＝「読み進める」の
  *     移動完了とともに先頭背景が出そろう）。窓は接近距離に収め CROSSFADE_PX を上限とする（leadEdge と
  *     leadWindow を layerOpacities へ渡して実現。静止した開幕 scrollLeft 0 では必ず黒のまま）
- *   - bgPositionX（@@BG の xpos）は縦長画面（innerWidth < innerHeight）のときのみ object-position: X% center を適用
+ *   - bgPositionX / bgPositionY（@@BG の xpos / ypos）は各レイヤーの CSS 変数 --bg-x / --bg-y へ書くだけ。
+ *     縦長なら横位置・横長なら縦位置という画面比率の判定は _bg.css の @media (orientation) が持つ
+ *     （bg は画面比率を知らない＝回転・リサイズに CSS が追従する。扉の --cover-position-x/y と同じ方式）
  *   - bgDim（@@BG の dim・未指定は DIM_DEFAULT）は各レイヤーの不透明度を重みに加重平均し（blendDim・重み和で正規化）、
  *     CSS 変数 --bg-dim として #bg-stack へ rAF ごとに書く（差分更新）。暗幕の実体は CSS の #bg-stack::after 1枚で、
  *     bg は数値を渡すだけ。重み和 0（静止した開幕の黒余白）とシーン 0 枚は DIM_DEFAULT
@@ -70,7 +72,8 @@ let _rafId = 0;
 const _pad = (n: number) => String(n).padStart(2, '0');
 
 // #bg-stack を空にし、シーン数ぶんの <img class="bg-layer"> を生成する。
-// 黒レイヤー（bgFile null）は src を持たない。縦長画面では bgPositionX を object-position に反映する。
+// 黒レイヤー（bgFile null）は src を持たない。bgPositionX / bgPositionY は指定があれば CSS 変数 --bg-x / --bg-y に置く
+// （どちらを効かせるかは _bg.css のメディアクエリが決める。未指定は var() のフォールバック center）。
 // 背景画像のパス組み立ては BgSource で分岐する（本文＝vol/ep/img/... ／あとがき＝vol/... ＝buildBgUrl）。
 // main.ts が state.getCurrentVolume() から vol を取り出し、ページ種別に応じた BgSource を渡す。
 // main.ts が renderScenes() の後に呼ぶ（scene 数と layer 数を一致させるため）。
@@ -87,14 +90,14 @@ export function init(layers: BgLayerSpec[], source: BgSource): void {
   if (!stack) return;
   stack.replaceChildren();
 
-  const portrait = window.innerWidth < window.innerHeight;
   _layers = layers.map((spec) => {
     const img = document.createElement('img');
     img.className = 'bg-layer';
     img.alt = '';
     img.decoding = 'async';
     img.style.opacity = '0';
-    img.style.objectPosition = (spec.bgPositionX && portrait) ? `${spec.bgPositionX} center` : 'center center';
+    if (spec.bgPositionX) img.style.setProperty('--bg-x', spec.bgPositionX);
+    if (spec.bgPositionY) img.style.setProperty('--bg-y', spec.bgPositionY);
     stack.appendChild(img);
     return img;
   });

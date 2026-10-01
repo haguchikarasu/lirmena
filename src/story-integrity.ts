@@ -3,7 +3,7 @@
  * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン。
  *       config() フックなので build / dev / preview の全経路でブロッキング）と
  *       test 時（src/story-integrity.test.ts）で同じ関数を共有する。
- * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)
+ * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
  *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
  * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE のみ（(m) で参照）。
  *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
@@ -40,8 +40,12 @@
  *       vol を足しても実行時エラーにはならず、**stage が 1 段低いまま頭打ちになって静かに間違う**。
  *       型 StoryStage・MAX_STORY_STAGE・CSS の --stage-N-hue の追加漏れをここで止める
  *       （追加手順は design/modules/volumes.md「vol5 以降を追加するときの手順」）
+ *   (n) ep.coverPositionX / ep.coverPositionY は定義されていれば「"0%"〜"100%" のパーセント表記」か
+ *       「軸の合うキーワード」（X＝left/right、Y＝top/bottom。小文字のみ）の文字列であること。
+ *       title.ts はこの値を CSS の background-position へ素通しするため、ここが唯一の形の関門になる
+ *       （X に "top" が入ると CSS は `top center` を「縦＝top」と読み、横位置の指定として効かない。要件 06-1）
  *
- * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(m)" のタグ）。
+ * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(n)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
  * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
@@ -83,7 +87,20 @@ function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
     return preview.text.trim() !== '';
 }
 
-// (a)〜(h) + (j)(k)(k')(l) の純データ検査。fs 非依存。
+// (n) 扉背景の位置指定の形式検査。定義されていて、パーセント表記（0〜100%）でも軸の合うキーワードでもなければ理由文字列。
+// @@BG の xpos / ypos（parser.ts の parsePosition）と受ける形は同じだが、あちらは不正値を黙って既定へ戻し、
+// こちらは build を止める（story.json は公開ゲート配下のデータなので、書き損じは公開前に直させる）。
+// _validateCoverPosition(value: unknown, keywords: readonly string[]): string | null
+function _validateCoverPosition(value: unknown, keywords: readonly string[]): string | null {
+    const allowed = `"0%"〜"100%" または ${keywords.map(k => `"${k}"`).join(' / ')}`;
+    if (typeof value !== 'string') return `${allowed} の文字列である必要がある`;
+    if (keywords.includes(value)) return null;
+    const m = /^(\d+(?:\.\d+)?)%$/.exec(value);
+    if (m === null || parseFloat(m[1]) > 100) return `"${value}" は不正（${allowed} のみ）`;
+    return null;
+}
+
+// (a)〜(h) + (j)(k)(k')(l)(m)(n) の純データ検査。fs 非依存。
 // validateStory(story: StoryData): string[]
 export function validateStory(story: StoryData): string[] {
     const errors: string[] = [];
@@ -124,6 +141,7 @@ export function validateStory(story: StoryData): string[] {
         _checkVolumeHeroCard(vol, maxVolume, errors);
         _checkVolumeAfterword(vol, errors);
         _checkVolumePreview(vol, errors);
+        _checkVolumeCoverPosition(vol, errors);
     }
 
     return errors;
@@ -288,6 +306,20 @@ function _checkVolumePreview(vol: Volume, errors: string[]): void {
     for (const ep of vol.episodes) {
         if (_hasEffectivePreview(ep.preview) && ep.sections.some(s => s.published)) {
             errors.push(`(l) vol${vol.volume} ep${ep.id}: 公開済み sec があるのに非空 ep.preview が残存している（sec 公開時に ep.preview を空文字にするか削除すること）`);
+        }
+    }
+}
+
+// (n) — ep 扉背景の位置指定（coverPositionX / coverPositionY）の形式検査
+function _checkVolumeCoverPosition(vol: Volume, errors: string[]): void {
+    for (const ep of vol.episodes) {
+        if (ep.coverPositionX !== undefined) {
+            const reason = _validateCoverPosition(ep.coverPositionX, ['left', 'right']);
+            if (reason !== null) errors.push(`(n) vol${vol.volume} ep${ep.id}: coverPositionX ${reason}`);
+        }
+        if (ep.coverPositionY !== undefined) {
+            const reason = _validateCoverPosition(ep.coverPositionY, ['top', 'bottom']);
+            if (reason !== null) errors.push(`(n) vol${vol.volume} ep${ep.id}: coverPositionY ${reason}`);
         }
     }
 }

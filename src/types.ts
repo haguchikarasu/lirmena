@@ -22,9 +22,11 @@ export type PreviewSpec = { text: string };
 
 /**
  * Episode: story.json の ep エントリ。
- * coverFile / coverPositionX は ep扉（タイトル画面）背景の指定。任意（省略時は従来挙動）。
+ * coverFile / coverPositionX / coverPositionY は ep扉（タイトル画面）背景の指定。任意（省略時は従来挙動）。
  *   coverFile      … 扉背景のファイル名。省略時 'title.avif'。常に epNN/ 配下から解決する
- *   coverPositionX … 例 "30%"。縦長画面（スマホ）のみ background-position-x に反映。横長・未指定は中央
+ *   coverPositionX … "0%"〜"100%" / "left" / "right"。縦長画面（スマホ）のみ横位置に反映。横長・未指定は中央
+ *   coverPositionY … "0%"〜"100%" / "top" / "bottom"。横長画面（PC）のみ縦位置に反映。縦長・未指定は中央
+ *                    （X/Y とも形は story-integrity (n) が強制＝title.ts は CSS へ素通しする）
  *   preview        … 目次で表示する予告テキスト（任意）。**非空** text のときのみ「予告あり」扱いで
  *                    目次に出す（公開済み sec がゼロの ep のみ有効＝story-integrity (l)）。
  *                    タイトルと予告テキストだけを目次に出し、sec chip は出さない（要件 06-7）。
@@ -35,6 +37,7 @@ export type Episode = {
     title: string;
     coverFile?: string;
     coverPositionX?: string;
+    coverPositionY?: string;
     sections: EpisodeSection[];
     preview?: PreviewSpec;
 };
@@ -176,7 +179,7 @@ export type ScrollNotification = { scrollLeft: number; ratio: number; scrollWidt
  * bgFile === null は黒背景レイヤー（@@BG@@・先頭テキスト）。
  * Pick なのでフィールドを落としても型エラーにならない。取りこぼしを防ぐため変換は main.ts の _toBgLayerSpecs に集約する。
  */
-export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX' | 'bgDim'>;
+export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX' | 'bgPositionY' | 'bgDim'>;
 
 /**
  * BgSource: bg.ts の画像 URL 解決先を示す discriminated union。main.ts が bg.init に渡す。
@@ -209,12 +212,13 @@ export type ChangelogEntry = { version: string; date: string; change: string; sh
  */
 export type Scene = {
     bgFile: string | null;
-    bgPositionX?: string;  // 例: "70%"。@@BG:file:xpos=X%@@ で指定。縦長画面のみ有効
-    bgDim?: number;        // 暗幕の濃さ 0〜1（0=暗幕なし・1=真っ黒）。@@BG:file:dim=X%@@ を正規化。未指定は bg.ts の DIM_DEFAULT
+    bgPositionX?: string;  // 例: "70%"。@@BG:file:xpos=X%@@ で指定（left/right は 0%/100% に正規化済み）。縦長画面のみ有効
+    bgPositionY?: string;  // 例: "30%"。@@BG:file:ypos=Y%@@ で指定（top/bottom は 0%/100% に正規化済み）。横長画面のみ有効
+    bgDim?: number;       // 暗幕の濃さ 0〜1（0=暗幕なし・1=真っ黒）。@@BG:file:dim=X%@@ を正規化。未指定は bg.ts の DIM_DEFAULT
     lineCount: number;
     content: unknown;
 };
-// bgPositionX が文字列・bgDim が数値なのは意図的（揃えないこと）。
-//   bgPositionX … bg.ts が `${bgPositionX} center` として object-position へ素通しするだけなので文字列が最短経路
+// bgPositionX / bgPositionY が文字列・bgDim が数値なのは意図的（揃えないこと）。
+//   bgPositionX/Y … bg.ts が CSS 変数経由で object-position へ素通しするだけなので文字列が最短経路
 //   bgDim       … bg.ts が blendDim() の加重平均にかける値。文字列で持つと bg 側が parseFloat を持つことになり、
 //                 「タグ記法はパーセント表記」という parser の知識が外へ漏れる

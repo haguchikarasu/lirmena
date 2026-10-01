@@ -16,7 +16,8 @@
  *   #title-screen-changelog  … 変更履歴（全エントリを表示。無ければ「更新履歴なし」）
  *
  * 背景画像: {BASE_URL}vol[YY]/ep[XX]/{coverFile}（story.json のエピソード内 coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
- *   coverPositionX（任意・例 "30%"）は CSS 変数 --cover-position-x に設定し、縦長画面のみ src/styles/_title.css 側で background-position に反映する。
+ *   coverPositionX / coverPositionY（任意・例 "30%" / "left" / "top"）は CSS 変数 --cover-position-x / --cover-position-y に設定し、
+ *   X は縦長画面・Y は横長画面のみ src/styles/_title.css 側で background-position に反映する。値の形は story-integrity (n) が保証する。
  *
  * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま（href に現在ページのクエリを引き継ぐ）。
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
@@ -95,9 +96,12 @@ function _renderTitle(ep: number): void {
         const volStr = vol ? String(vol.volume).padStart(2, '0') : '01';
         const path = `${import.meta.env.BASE_URL}vol${volStr}/ep${String(ep).padStart(2, '0')}/${file}`;
         titleScreen.style.backgroundImage = `url('${path}')`;
-        // 左右位置は CSS 変数に流すのみ。縦長画面での反映可否は src/styles/_title.css のメディアクエリが担う。
+        // 左右・上下位置は CSS 変数に流すのみ。どちらを効かせるかは src/styles/_title.css のメディアクエリが担う。
         if (episode?.coverPositionX) {
             titleScreen.style.setProperty('--cover-position-x', episode.coverPositionX);
+        }
+        if (episode?.coverPositionY) {
+            titleScreen.style.setProperty('--cover-position-y', episode.coverPositionY);
         }
     }
 }

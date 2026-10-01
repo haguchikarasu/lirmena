@@ -30,10 +30,11 @@ export type TextNode =
 // - @@BG:file@@ でシーン分割・bgFile にファイル名のみ（パスなし）を格納
 // - @@BG:file:キー=値[:キー=値…]@@ のシーンパラメータを解析する（第1トークン＝ファイル名固定、
 //   第2トークン以降がキー付き・順不同・任意個。要件 05-1）
-//     xpos → bgPositionX（"70%" のまま＝object-position へ素通しするため文字列）
+//     xpos → bgPositionX（"70%" の文字列＝object-position へ素通しするため。left/right は "0%"/"100%" に正規化）
+//     ypos → bgPositionY（同上。top/bottom は "0%"/"100%" に正規化）
 //     dim  → bgDim（0〜1 の number へ正規化＝bg.ts が加重平均の算術にかけるため）
-//   どちらも 0〜100% にクランプ。パーセント表記でない値・未知のキーは無視して既定へフォールバックし、
-//   重複キーは最初の1つを採用する。キーなしの旧記法（:70%）は非対応
+//   いずれも 0〜100% にクランプ。不正な値（パーセント表記でない・軸の合わないキーワード xpos=top 等）・
+//   未知のキーは無視して既定へフォールバックし、重複キーは最初の1つを採用する。キーなしの旧記法（:70%）は非対応
 // - @@BG@@ は bgFile: null（黒背景のシーン）。パラメータは取らない（位置を決める画像がなく黒地では暗幕も見えない）
 // - タグより前のテキストは bgFile: null の先頭シーンとして格納
 // - lineCount は @@BG タグを除いた改行数
@@ -45,13 +46,14 @@ export type TextNode =
 export function parse(text: string): Scene[] {
   const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  type TagInfo = { start: number; end: number; bgFile: string | null; bgPositionX?: string; bgDim?: number };
+  type TagInfo = { start: number; end: number; bgFile: string | null; bgPositionX?: string; bgPositionY?: string; bgDim?: number };
   const tags: TagInfo[] = [];
   const tagRe = /@@BG(?::([^@]+))?@@/g;
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(src)) !== null) {
     let bgFile: string | null = null;
     let bgPositionX: string | undefined;
+    let bgPositionY: string | undefined;
     let bgDim: number | undefined;
     if (m[1] !== undefined) {
       const tokens = m[1].split(":");
@@ -62,18 +64,22 @@ export function parse(text: string): Scene[] {
           const eq = tokens[i].indexOf("=");
           if (eq <= 0) continue;                                  // "=" なし（旧記法 70%）・キー名が空
           const key = tokens[i].slice(0, eq).trim();
-          const pct = parsePercent(tokens[i].slice(eq + 1));
-          if (pct === null) continue;                             // パーセント表記でない値
-          if (key === "xpos" && bgPositionX === undefined) bgPositionX = `${pct}%`;
-          else if (key === "dim" && bgDim === undefined) bgDim = pct / 100;
+          const value = tokens[i].slice(eq + 1);
+          // 不正な値は代入しない（undefined のまま＝既定）。よって不正値の後に同じキーの有効値があればそちらを拾う
+          if (key === "xpos" && bgPositionX === undefined) bgPositionX = parsePosition(value, X_KEYWORDS) ?? undefined;
+          else if (key === "ypos" && bgPositionY === undefined) bgPositionY = parsePosition(value, Y_KEYWORDS) ?? undefined;
+          else if (key === "dim" && bgDim === undefined) {
+            const pct = parsePercent(value);
+            if (pct !== null) bgDim = pct / 100;
+          }
           // 未知のキー・重複キー（2つ目以降）は無視する
         }
       }
     }
-    tags.push({ start: m.index, end: m.index + m[0].length, bgFile, bgPositionX, bgDim });
+    tags.push({ start: m.index, end: m.index + m[0].length, bgFile, bgPositionX, bgPositionY, bgDim });
   }
 
-  const segments: Array<{ bgFile: string | null; bgPositionX?: string; bgDim?: number; raw: string }> = [];
+  const segments: Array<{ bgFile: string | null; bgPositionX?: string; bgPositionY?: string; bgDim?: number; raw: string }> = [];
 
   if (tags.length === 0) {
     segments.push({ bgFile: null, raw: src });
@@ -100,15 +106,31 @@ export function parse(text: string): Scene[] {
       }
       raw = "\n".repeat(Math.max(before + after - 1, 0)) + raw.slice(after);
 
-      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, bgDim: tags[i].bgDim, raw });
+      segments.push({ bgFile: tags[i].bgFile, bgPositionX: tags[i].bgPositionX, bgPositionY: tags[i].bgPositionY, bgDim: tags[i].bgDim, raw });
     }
   }
 
-  return segments.map(({ bgFile, bgPositionX, bgDim, raw }) => {
+  return segments.map(({ bgFile, bgPositionX, bgPositionY, bgDim, raw }) => {
     const content = tokenize(raw);
     const lineCount = content.reduce((acc, n) => acc + (n.type === "br" ? 1 : n.type === "blank" ? 2 : 0), 0);
-    return { bgFile, bgPositionX, bgDim, lineCount, content };
+    return { bgFile, bgPositionX, bgPositionY, bgDim, lineCount, content };
   });
+}
+
+// 位置キーワード → パーセント。軸ごとに別表なので、軸の合わないキーワード（xpos=top 等）は引けず不正値になる。
+// CSS の object-position でも left/top＝0%・right/bottom＝100%（＝描画範囲の端と画像の端を揃える）で同義。
+// center は受けない（未指定と同じ＝書く必要がない。要件 05-1）
+const X_KEYWORDS: Readonly<Record<string, number>> = { left: 0, right: 100 };
+const Y_KEYWORDS: Readonly<Record<string, number>> = { top: 0, bottom: 100 };
+
+// 位置パラメータ（xpos / ypos）の値を "N%" 文字列に正規化する。パーセント表記（0〜100 にクランプ）か、
+// keywords に載っているキーワード（小文字のみ）を受ける。どちらでもなければ null（呼び出し側が既定へフォールバック）。
+// parsePosition(raw: string, keywords: Readonly<Record<string, number>>): string | null
+function parsePosition(raw: string, keywords: Readonly<Record<string, number>>): string | null {
+  const word = raw.trim();
+  if (Object.prototype.hasOwnProperty.call(keywords, word)) return `${keywords[word]}%`;
+  const pct = parsePercent(word);
+  return pct === null ? null : `${pct}%`;
 }
 
 // シーンパラメータの値（パーセント表記）を 0〜100 の数値に解析する。
