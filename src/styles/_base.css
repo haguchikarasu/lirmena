@@ -296,10 +296,37 @@ body {
      safe center は「はみ出すときだけ start 揃えに倒す」保険：この設計では子（--story-height＝svh 基準）が
      親（100dvh）を超えないことが svh ≤ dvh の定義から保証されるので**通常は一切効かない**が、
      万一 dvh が可視領域より大きく解決される環境があっても、素の center だと上下均等にはみ出して
-     行頭（縦書きは行の上端）まで欠けるところを、上端だけは必ず画面内に残す。 */
+     行頭（縦書きは行の上端）まで欠けるところを、上端だけは必ず画面内に残す。
+     なお svh 対応環境では下の @supports で body を clip しているので、はみ出した分は文書スクロールで見に行けず切られる
+     （保険が守るのは上端だけ）。 */
   align-items: center;
   align-items: safe center;
   justify-content: center;
+}
+
+/* アドレスバーを本文スクロールで隠させない（Android Chrome の implicit root scroller 対策）。
+   症状：横書きの #main-container（100svh）は上の body（100dvh・中央寄せ）の中で、バー表示中は**画面ぴったり (0,0)** になる。
+   Chromium（Android のみ有効）は「画面を覆うスクロール要素」をページ本体として扱う（implicit root scroller）ため、
+   本文を内側スクロールしただけでアドレスバーが隠れ、そのあいだ fixed の背景（#bg-stack）がバーと一緒に 56px 滑る・
+   画面下に黒帯・止まった瞬間に背景の拡大と本文の 28px 跳び、が起きていた（縦書きは 96svh で画面を覆わないので無縁）。
+   対策：昇格条件のうち「祖先がはみ出しを切り取っていたら昇格しない」（root_scroller_controller.cc の IsValidImplicit）を使う。
+   - body だけに書くと、html が visible のとき body の値はビューポートへ持っていかれ body 自身は切り取らない（overflow の伝播規則）。
+     だから html にも書く：html の値がビューポートへ渡り（ビューポートでは hidden 扱い）、body は自分の clip を保持する
+   - body は hidden → clip の 2 行（var() を含まないので非対応環境は 1 行目が残る）。clip を優先するのは、hidden だと body が
+     スクリプトからスクロールできるスクロールコンテナになり、scrollIntoView 等で動く余地ができるため
+   - 見た目は変わらない：body の子で fixed でないのは #main-container だけで（他はすべて position: fixed＝body のクリップを受けない）、
+     その #main-container は svh ≤ dvh の定義から body をはみ出さない
+   - **svh 対応環境に限る（@supports）**：非対応環境では --story-height-full が 100vh・body が 100% に落ちて子が親を超えうるので、
+     切り取ると本文の末尾が永久に読めなくなる。非対応環境は svh 由来の昇格もそもそも起きないので何もしない
+   **これを外すと横書きで再発する。** 理由と経緯は design/architecture.md のビューポート単位の項。 */
+@supports (height: 1svh) {
+  html {
+    overflow: hidden;
+  }
+  body {
+    overflow: hidden;
+    overflow: clip;
+  }
 }
 
 /* ボタン要素のフォント継承（UA スタイルシートの上書き） */
