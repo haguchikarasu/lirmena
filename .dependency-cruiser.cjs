@@ -19,16 +19,24 @@ module.exports = {
     {
       name: 'no-orphans',
       severity: 'error',
-      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index）と型集約（types）は対象外',
+      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
       from: {
         orphan: true,
         pathNot: [
           '(^|/)src/(main|title|index)\\.ts$',
           '(^|/)src/types\\.ts$',
           '(^|/)src/vite-env\\.d\\.ts$',
+          '(^|/)src/bg-stub\\.ts$',
         ],
       },
       to: {},
+    },
+    {
+      name: 'bg-stub-isolation',
+      severity: 'error',
+      comment: '本体は制作用のスタブ背景（bg-stub）に依存しない。src/ のどのモジュールも bg-stub を import してはならない（結線は vite.config.ts の plugins だけ。理由は src/bg-stub.ts 冒頭）',
+      from: { pathNot: '(^|/)src/bg-stub\\.ts$' },
+      to: { path: '(^|/)src/bg-stub\\.ts$' },
     },
     {
       name: 'index-src-isolation',

@@ -29,6 +29,7 @@ export default defineConfig({
         'src/transition.ts',
         'src/loader.ts',
         'src/bg.ts',
+        'src/bg-stub.ts',   // 制作用のスタブ背景＝機械テストを置かない（本番機能だけが対象）
       ],
     },
   },
