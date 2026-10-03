@@ -168,7 +168,7 @@ export default defineConfig({
   // build が「No matching HTML proxy module found」で落ちる。root を __dirname に明示して、
   // pages() が rollupOptions.input に流し込むパスと config.root の casing を構造的に一致させる。
   root: __dirname,
-  // bgStub は制作用のスタブ背景（@@BG:stub=N@@）を dev サーバでだけ返す。本体（src/）はこれを知らない
+  // bgStub は制作用のスタブ背景（@@BG:stub=ラベル@@）を dev サーバでだけ返す。本体（src/）はこれを知らない
   // ＝結線はここだけ。仕様は src/bg-stub.ts 冒頭。
   plugins: [pages(__dirname), bgStub()],
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
