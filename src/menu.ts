@@ -1,14 +1,14 @@
 /*
  * menu.ts
- * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理・キャラクター紹介ポップアップの管理
+ * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理（キャラクター紹介ポップアップの中身は characters.ts）
  * export: init(characters: CharactersData): void
- * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現在 vol の逆引き経由でキャラ紹介の巻を特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, ruby.ts（キャラ名/説明のルビ展開）
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
  *   栞を追加          → _openBookmarkPopup()（スロット選択ポップアップを開き、選んだ slot へ保存）
  *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
- *   キャラクター紹介  → _openCharactersPopup() を呼ぶ
+ *   キャラクター紹介  → _openCharactersPopup()（そのページの Stage を charaPopup.open() に渡す）
  *   設定を開く        → settings.open() を呼ぶ
  *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
  *
@@ -26,10 +26,9 @@
  *   - Escape キーで閉じる（ポップアップが閉じている場合）
  *   - メニュー外クリックで閉じる
  *
- * キャラクター紹介ポップアップ：
- *   - _openCharactersPopup(): void — 現在 ep の巻を特定してキャラカードを生成・表示する
- *   - _closeCharactersPopup(): void — オーバーレイを hidden にする
- *   - 閉じる方法：オーバーレイ背景クリック・Escape キー・閉じるボタン
+ * キャラクター紹介ポップアップ（中身の生成・背景クリック・閉じるボタンは characters.ts）：
+ *   - _openCharactersPopup(): void — 現ページの Stage を特定して charaPopup.open() に渡す
+ *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → メニューの順に閉じる）。characters.ts は Escape を持たない
  *
  * 共有ポップアップ（#share-popup）：
  *   - _buildSharePopup(): void — リンクをコピー / X でシェア / LINE でシェア / 閉じる を生成する
@@ -51,12 +50,12 @@ import * as bookmark from './bookmark';
 import * as settings from './settings';
 import * as transition from './transition';
 import * as tutorial from './tutorial';
-import { applyRuby } from './ruby';
+import * as charaPopup from './characters';
 import type { CharactersData } from './types';
+import type { StoryStage } from './volumes';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
-let _overlay: HTMLElement;
 let _share: HTMLElement;
 let _bookmark: HTMLElement;
 let _items: HTMLButtonElement[] = [];
@@ -70,9 +69,9 @@ export function init(characters: CharactersData): void {
     _charactersData = characters;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
-    _overlay = document.querySelector<HTMLElement>('#characters-overlay')!;
     _share = document.querySelector<HTMLElement>('#share-popup')!;
     _bookmark = document.querySelector<HTMLElement>('#bookmark-popup')!;
+    charaPopup.init();
     _buildItems();
     _buildSharePopup();
     _buildBookmarkPopup();
@@ -294,54 +293,17 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
-// 現在 ep（あとがきモードなら現在 vol）が属する巻のキャラクターカードを生成し、ポップアップを表示する。
-// 巻が特定できない場合は巻1にフォールバックする。
-// あとがきモードでは state.getCurrent().ep が 0 になるため、_volumesData の epRange 逆引きは失敗して vol1
-// にフォールバックしていた（vol2+ のあとがきで誤って vol1 のキャストが出る）。state.getCurrentVolume()
-// は本文／あとがき両モードで正しく解決するのでこちらを使う。
+// 現ページ（本文 ep、あとがきモードなら現在 vol）が属する Stage のキャラクター紹介を開く。
+// vol n のページは Stage n。巻が特定できない場合は Stage 1 にフォールバックする。
+// あとがきモードでは state.getCurrent().ep が 0 になるため、epRange の逆引きでは巻が特定できない
+// （以前は vol2+ のあとがきで誤って vol1 のキャストが出た）。state.getCurrentVolume() は本文／あとがき
+// 両モードで正しく解決するのでこちらを使う。
+// volume（number）を StoryStage に絞ってよいのは、巻数＋1 が Stage の上限を超えないことを
+// story-integrity の (m) がビルドで保証しているため（巻番号は常に 1〜巻数＝Stage の範囲内）。
 // _openCharactersPopup(): void
 function _openCharactersPopup(): void {
-    const volume = state.getCurrentVolume()?.volume ?? 1;
-    const volumeEntry = _charactersData.find(c => c.volume === volume);
-    const characters = volumeEntry?.characters ?? [];
-
-    const list = document.querySelector<HTMLElement>('#characters-list')!;
-    list.innerHTML = '';
-
-    for (const chara of characters) {
-        const card = document.createElement('div');
-        card.className = 'character-card';
-
-        if (chara.image !== '') {
-            const img = document.createElement('img');
-            img.src = `${import.meta.env.BASE_URL}chara/${chara.image}`;
-            img.alt = '';
-            card.appendChild(img);
-        }
-
-        const info = document.createElement('div');
-        info.className = 'character-info';
-
-        const name = document.createElement('p');
-        name.className = 'character-name';
-        applyRuby(chara.name, name);
-
-        const desc = document.createElement('p');
-        desc.className = 'character-description';
-        applyRuby(chara.description, desc);
-
-        info.append(name, desc);
-        card.appendChild(info);
-        list.appendChild(card);
-    }
-
-    _overlay.hidden = false;
-}
-
-// キャラクター紹介ポップアップを閉じる。
-// _closeCharactersPopup(): void
-function _closeCharactersPopup(): void {
-    _overlay.hidden = true;
+    const stage = (state.getCurrentVolume()?.volume ?? 1) as StoryStage;
+    charaPopup.open(_charactersData, stage);
 }
 
 // メニューボタン・Escape・外部クリック・上下キー・ポップアップ閉じるのイベントを登録する。
@@ -361,8 +323,8 @@ function _registerEvents(): void {
                 _closeShare();
                 return;
             }
-            if (!_overlay.hidden) {
-                _closeCharactersPopup();
+            if (charaPopup.isOpen()) {
+                charaPopup.close();
                 return;
             }
             if (!_panel.hidden) {
@@ -394,12 +356,6 @@ function _registerEvents(): void {
         }
     });
 
-    _overlay.addEventListener('click', (e) => {
-        if (e.target === _overlay) {
-            _closeCharactersPopup();
-        }
-    });
-
     _share.addEventListener('click', (e) => {
         if (e.target === _share) {
             _closeShare();
@@ -411,7 +367,4 @@ function _registerEvents(): void {
             _closeBookmarkPopup();
         }
     });
-
-    document.querySelector<HTMLButtonElement>('#characters-popup-close')!
-        .addEventListener('click', () => _closeCharactersPopup());
 }

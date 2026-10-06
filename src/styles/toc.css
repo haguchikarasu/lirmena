@@ -1,4 +1,6 @@
-/* index.css — 目次ページ専用スタイル（style.css とは独立） */
+/* toc.css — 目次ページ専用スタイル（本文側の index.css とは独立）。
+   例外：キャラクター紹介ポップアップは本文と同じ部品なので _characters.css を index.ts が共用で読み込む
+   （toc.css より前に読み込む＝下の #characters-overlay の z-index 上書きを後勝ちで効かせるため）。 */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -307,13 +309,15 @@ html[data-dev] #badge-dev { display: block; }
   color: var(--idx-accent);
 }
 
-.idx-vol-k {
+.idx-vol-k,
+#idx-appendix-title {
   font-size: 1.18rem;
   letter-spacing: 0.12em;
   color: var(--idx-text-primary);
   flex: 1;
 }
-.idx-vol-head:hover .idx-vol-k {
+.idx-vol-head:hover .idx-vol-k,
+.idx-vol-head:hover #idx-appendix-title {
   color: var(--idx-accent);
 }
 
@@ -502,6 +506,55 @@ ruby rt {
   color: var(--idx-text-dim);
   cursor: default;
 }
+
+/* ===== 付録カード（要件 06-7） =====
+   巻カード（.idx-vol-card ほか）と ep ブロック（.idx-ep / .idx-chips / .idx-chip）の部品をそのまま使い、
+   差分だけをここに書く。見出しの見た目は上の .idx-vol-k と同じルールに #idx-appendix-title を並べてある。 */
+
+/* 巻カードの続きに見せる：エピソード一覧 nav の下 padding を付録側の下へ移す
+   （巻カード→付録は巻カード同士と同じ 1.6rem、付録→栞は従来の「最後の巻→栞」と同じ間隔になる） */
+#idx-ep-nav { padding-bottom: 0; }
+#idx-appendix-area { padding-top: 0; }
+
+/* 巻ではないので stage 連動の左アクセント線を中立色にする（「本編」と「付録」を見分ける）。
+   stage 非依存の中立色は直接値で書く（design/modules/index.md「アクセント色だけ」） */
+#idx-appendix { border-left-color: #2a2a2a; }
+
+/* 項目見出しは ep タイトルより一段小さく（ep と同格に見せない） */
+#idx-appendix .idx-ep-title {
+  font-size: 0.98rem;
+  color: var(--idx-text-muted);
+  margin-bottom: 0.7rem;
+}
+
+/* 付録のチップは押すことが目的なので、ホバー／フォーカスでアクセント色に寄せる */
+#idx-appendix .idx-chip {
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+#idx-appendix .idx-chip:not(:disabled):hover,
+#idx-appendix .idx-chip:focus-visible {
+  color: var(--idx-accent);
+  border-color: var(--idx-border-accent);
+  outline: none;
+}
+
+/* キャラクター紹介ボタンは characters.json を読み終えるまで disabled（index.ts の initAppendix） */
+#idx-appendix .idx-chip:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 外部リンクは既読 ✓ の器（.idx-chip::after）を借りて ↗ を常時出す */
+.idx-chip--ext::after {
+  content: '↗';
+  font-size: 10px;
+  visibility: visible;
+}
+
+/* キャラクター紹介ポップアップ（_characters.css）は本文側では z-index 30。目次では FAB（100）より上、
+   設定・共有ポップアップと同じ層に上げる。_characters.css より後に読み込まれるので同じ ID 指定で勝つ */
+#characters-overlay { z-index: 200; }
 
 /* ===== 栞エリア ===== */
 

@@ -2,12 +2,13 @@
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
  * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
- *     validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在検査を注入）
+ *     validateStoryFiles(story, opts): string[]    — (i)(o) を含む合成版（fs 実在検査と characters.json を注入）
  *
  * 網羅する観点：
  *   - 実データ（public/story.json）が validateStory の全ルール（(i) 以外）を満たす
  *   - 意図的に壊した story.json 断片で各違反 (a)〜(n) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
+ *   - (o) characters.json の形・重複・存在しない巻・公開済みの巻の登録漏れを検出する（実データ回帰を含む）
  *   - preview を持つ未執筆 vol/ep が (a)〜(l) を壊さない正常系
  *   - (m) は vol 数の境界（上限ちょうど／超過）で判定が切り替わる
  *   - 純関数の非破壊性（引数を破壊しない）
@@ -18,12 +19,20 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateStory, validateStoryFiles } from './story-integrity';
 import { MAX_STORY_STAGE } from './volumes';
-import type { StoryData, Volume } from './types';
+import type { StoryData, Volume, CharacterEntry, CharactersData } from './types';
 
 const STORY_JSON_PATH = resolve(__dirname, '../public/story.json');
+const CHARACTERS_JSON_PATH = resolve(__dirname, '../public/characters.json');
 
 function _loadRealStory(): StoryData {
     return JSON.parse(readFileSync(STORY_JSON_PATH, 'utf-8')) as StoryData;
+}
+
+// (o) 用のダミーのキャラ 1 人と、story の全巻に 1 人ずつ登録した characters.json 相当。
+// (o) 以外を見るテストはこれを渡して (o) を発火させない。
+const _CHARA: CharacterEntry = { name: 'キャラ', description: '説明', image: '' };
+function _charactersFor(story: StoryData): CharactersData {
+    return story.map(v => ({ volume: v.volume, characters: [_CHARA] }));
 }
 
 // preview テスト用の未執筆 vol ベース。全 sec 未公開・afterword 非公開の 2vol 構成。
@@ -411,6 +420,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         story[0].episodes[0].sections = [{ id: 1, published: false }]; // 全 sec 公開でない状態にする
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: () => true,
+            characters: _charactersFor(story),
         });
         expect(errors.filter(e => e.startsWith('(i)'))).toEqual([]);
     });
@@ -420,8 +430,73 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         story[0].afterword = { published: true }; // vol1 全 sec 公開なので (e') は起きない
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: (vol) => vol !== 1, // vol1 だけ不在
+            characters: _charactersFor(story),
         });
         expect(errors.some(e => e.startsWith('(i)') && e.includes('vol1'))).toBe(true);
+    });
+});
+
+describe('validateStoryFiles — (o) characters.json との整合', () => {
+    const only = (errors: string[]): string[] => errors.filter(e => e.startsWith('(o)'));
+    const run = (story: StoryData, characters: unknown): string[] =>
+        only(validateStoryFiles(story, { afterwordTxtExists: () => true, characters }));
+
+    it('実データ：public/story.json と public/characters.json は (o) を満たす（実データ回帰）', () => {
+        const characters: unknown = JSON.parse(readFileSync(CHARACTERS_JSON_PATH, 'utf-8'));
+        expect(run(_loadRealStory(), characters)).toEqual([]);
+    });
+
+    it('公開済みの巻すべてに登録がある → (o) はトリガーしない', () => {
+        const story = _baseStory();
+        expect(run(story, _charactersFor(story))).toEqual([]);
+    });
+
+    it('公開済みの巻に登録が無い → (o) エラー（その巻の番号が出る）', () => {
+        const story = _baseStory();
+        const errors = run(story, _charactersFor(story).filter(c => c.volume !== 2));
+        expect(errors.some(e => e.includes('vol2'))).toBe(true);
+    });
+
+    it('公開済みの巻の登録が空配列 → (o) エラー', () => {
+        const story = _baseStory();
+        const characters = _charactersFor(story).map(c => c.volume === 1 ? { ...c, characters: [] } : c);
+        expect(run(story, characters).some(e => e.includes('vol1'))).toBe(true);
+    });
+
+    it('未公開の巻は登録が無くても通る', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }]; // vol1 だけ公開を始める
+        expect(run(story, _charactersFor(story).filter(c => c.volume === 1))).toEqual([]);
+    });
+
+    it('story.json に無い巻の登録 → (o) エラー', () => {
+        const story = _baseStory();
+        const characters = [..._charactersFor(story), { volume: 3, characters: [_CHARA] }];
+        expect(run(story, characters).some(e => e.includes('volume 3'))).toBe(true);
+    });
+
+    it('同じ巻の登録が重複 → (o) エラー', () => {
+        const story = _baseStory();
+        const characters = [..._charactersFor(story), { volume: 1, characters: [] }];
+        expect(run(story, characters).some(e => e.includes('重複'))).toBe(true);
+    });
+
+    it('配列でない（読めなかった＝undefined を含む） → (o) エラー', () => {
+        const story = _baseStory();
+        expect(run(story, undefined).length).toBe(1);
+        expect(run(story, { volume: 1 }).length).toBe(1);
+    });
+
+    it('volume が整数でない／characters が配列でない → (o) エラー', () => {
+        const story = _baseStory();
+        expect(run(story, [{ volume: 1.5, characters: [_CHARA] }, ..._charactersFor(story)]).some(e => e.includes('[0]'))).toBe(true);
+        expect(run(story, [{ volume: 1, characters: 'x' }, { volume: 2, characters: [_CHARA] }]).some(e => e.includes('[0]'))).toBe(true);
+    });
+
+    it('キャラの name / description / image が文字列でない → (o) エラー', () => {
+        const story = _baseStory();
+        const characters = [{ volume: 1, characters: [{ name: 'キャラ', description: '説明' }] }, { volume: 2, characters: [_CHARA] }];
+        expect(run(story, characters).some(e => e.includes('volume 1 の characters[0]'))).toBe(true);
     });
 });
 
@@ -438,6 +513,7 @@ describe('validateStory — 純関数の非破壊性', () => {
         const snapshot = JSON.parse(JSON.stringify(story));
         validateStoryFiles(story, {
             afterwordTxtExists: () => true,
+            characters: _charactersFor(story),
         });
         expect(story).toEqual(snapshot);
     });

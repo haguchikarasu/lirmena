@@ -4,7 +4,7 @@
  *       config() フックなので build / dev / preview の全経路でブロッキング）と
  *       test 時（src/story-integrity.test.ts）で同じ関数を共有する。
  * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
- *         validateStoryFiles(story, opts): string[]    — (i) を含む合成版（fs 実在を opts で注入）
+ *         validateStoryFiles(story, opts): string[]    — (i)(o) を含む合成版（fs 実在と characters.json の中身を opts で注入）
  * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE のみ（(m) で参照）。
  *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
@@ -44,8 +44,13 @@
  *       「軸の合うキーワード」（X＝left/right、Y＝top/bottom。小文字のみ）の文字列であること。
  *       title.ts はこの値を CSS の background-position へ素通しするため、ここが唯一の形の関門になる
  *       （X に "top" が入ると CSS は `top center` を「縦＝top」と読み、横位置の指定として効かない。要件 06-1）
+ *   (o) characters.json（validateStoryFiles のみ。opts.characters で注入）：配列で、各要素が整数の volume と
+ *       配列の characters（各キャラは文字列の name / description / image）を持ち、volume は重複せず
+ *       story.json に存在する巻だけ。**公開済み sec を持つ巻は
+ *       characters を 1 件以上持つ**（その巻の Stage に到達できる読者に必ずキャラ紹介を出すため。
+ *       Stage → 登録の対応規則は characters.ts の resolveCharacters。要件 06-8）
  *
- * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(n)" のタグ）。
+ * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(o)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
  * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
@@ -324,15 +329,71 @@ function _checkVolumeCoverPosition(vol: Volume, errors: string[]): void {
     }
 }
 
-// (a)〜(i) の完全検査（ファイル実在検査を含む）。exists 関数を注入することで fs 依存を呼び出し側に閉じ込める。
+// (o) — characters.json と story.json の整合。characters は JSON をそのまま受け取り、形もここで見る
+// （読めなかった・壊れていた場合は呼び出し側が undefined を渡す＝「配列でない」として止まる）。
+// characters.ts の resolveCharacters は「巻番号が Stage 以下の登録のうち最大のもの」を引くので、
+// 次の 4 点が崩れると Stage に対して違う巻のキャラが出る：
+//   - 形：配列で、各要素が整数の volume と配列の characters を持ち、各キャラは文字列の name / description / image を持つ
+//   - 重複なし：同じ volume が 2 回出てこない（どちらを引くかが実装しだいになる）
+//   - 存在する巻だけ：story.json に無い巻の登録があると、Stage 5（完結）が最終巻ではなくそれを引く
+//   - 公開済みの巻には登録がある：公開済み sec を持つ巻＝その Stage に到達できる読者がいる巻
+// _checkCharacters(story: StoryData, characters: unknown, errors: string[]): void
+function _checkCharacters(story: StoryData, characters: unknown, errors: string[]): void {
+    if (!Array.isArray(characters)) {
+        errors.push('(o) public/characters.json が読めない、または配列でない');
+        return;
+    }
+
+    const storyVolumes = new Set(story.map(v => v.volume));
+    const counts = new Map<number, number>(); // volume → characters の件数
+    characters.forEach((entry: unknown, i) => {
+        const e = entry as { volume?: unknown; characters?: unknown } | null;
+        if (typeof e !== 'object' || e === null || !Number.isInteger(e.volume) || !Array.isArray(e.characters)) {
+            errors.push(`(o) characters.json[${i}]: 整数の volume と配列の characters を持つオブジェクトである必要がある`);
+            return;
+        }
+        const volume = e.volume as number;
+        // 各キャラの形：characters.ts は name / description をルビ展開し、image を "" か否かで分岐する
+        e.characters.forEach((c: unknown, j) => {
+            const ch = c as { name?: unknown; description?: unknown; image?: unknown } | null;
+            if (typeof ch !== 'object' || ch === null ||
+                typeof ch.name !== 'string' || typeof ch.description !== 'string' || typeof ch.image !== 'string') {
+                errors.push(`(o) characters.json volume ${volume} の characters[${j}]: name / description / image は文字列である必要がある（画像が無ければ image は ""）`);
+            }
+        });
+        if (counts.has(volume)) {
+            errors.push(`(o) characters.json: volume ${volume} が重複している`);
+            return;
+        }
+        counts.set(volume, e.characters.length);
+        if (!storyVolumes.has(volume)) {
+            errors.push(`(o) characters.json: volume ${volume} は story.json に存在しない巻`);
+        }
+    });
+
+    for (const vol of story) {
+        const hasPublished = vol.episodes.some(ep => ep.sections.some(s => s.published));
+        if (hasPublished && (counts.get(vol.volume) ?? 0) === 0) {
+            errors.push(
+                `(o) vol${vol.volume}: 公開済み sec があるのに characters.json にキャラ紹介が無い` +
+                `（Stage ${vol.volume} の読者に出すキャラ紹介を public/characters.json に足すこと）`
+            );
+        }
+    }
+}
+
+// (a)〜(i)・(o) の完全検査（ファイル実在検査と characters.json との整合を含む）。
+// fs 依存は呼び出し側に閉じ込める（exists 関数と読み込み済みの characters を注入する）。
 // validateStoryFiles(story, opts): string[]
 export function validateStoryFiles(
     story: StoryData,
     opts: {
         afterwordTxtExists: (vol: number) => boolean;
+        characters: unknown;
     }
 ): string[] {
     const errors = validateStory(story);
+    _checkCharacters(story, opts.characters, errors);
 
     for (const vol of story) {
         const volStr = String(vol.volume).padStart(2, '0');

@@ -10,7 +10,7 @@ import type { StoryData } from './src/types'
 //   public/story.json から contents/[ep]-[sec].html / contents/[ep]-00.html / contents/vol[XX]-afterword.html を
 //   build/serve 両方で自動生成する（手書きシェルは廃止）。生成物 contents/ は .gitignore（触らない＝雛形と
 //   プラグインだけを追跡する）。
-// - 生成前に story.json の整合を story-integrity.ts の純関数で検査し、違反があれば throw して build を止める。
+// - 生成前に story.json の整合（と characters.json との整合＝(o)）を story-integrity.ts の純関数で検査し、違反があれば throw して build を止める。
 // - 生成 HTML は Vite の MPA 入力として登録され、各ページの <script src="/src/{main,title}.ts"> を
 //   解決し、そこが import する CSS 込みでバンドルする。<script>/<link> は Vite が base 付き・ハッシュ名へ自動書換。
 // - 目次ページ index.html も MPA 入力（src/index.ts と目次 CSS を import）。
@@ -53,6 +53,16 @@ function renderTitleTpl(tpl: string, ep: number, sec: number, faviconHref: strin
     .replace(/\{\{faviconHref\}\}/g, faviconHref)
 }
 
+// public/characters.json を読んで JSON のまま返す。無い・壊れているときは undefined
+// （形の検査は story-integrity の (o) に任せる＝「配列でない」として build を止める）。
+function readCharacters(root: string): unknown {
+  try {
+    return JSON.parse(readFileSync(resolve(root, 'public/characters.json'), 'utf-8'))
+  } catch {
+    return undefined
+  }
+}
+
 // story.json ＋ テンプレ2種から contents/[ep]-[sec].html / [ep]-00.html / vol[XX]-afterword.html を全生成し、
 // 生成パス配列を返す。生成範囲：各 vol 各 ep について title(sec=0) 1本 ＋ sections 配列分の reader、
 // vol.afterword.published=true のときはさらに vol[XX]-afterword.html。published 無関係で HTML は全生成
@@ -66,9 +76,10 @@ function generatePages(root: string): string[] {
   const errors = validateStoryFiles(story, {
     afterwordTxtExists: (vol) =>
       existsSync(resolve(root, `public/vol${pad(vol)}/vol${pad(vol)}-afterword.txt`)),
+    characters: readCharacters(root),
   })
   if (errors.length > 0) {
-    throw new Error(`story.json 整合違反:\n  - ${errors.join('\n  - ')}`)
+    throw new Error(`story.json / characters.json 整合違反:\n  - ${errors.join('\n  - ')}`)
   }
 
   const readerTpl = readFileSync(resolve(root, 'templates/reader.html'), 'utf-8')
@@ -116,10 +127,12 @@ function pages(root: string): Plugin {
       const pagePaths = generatePages(root)
       return { build: { rollupOptions: { input: [resolve(root, 'index.html'), ...pagePaths] } } }
     },
-    // dev：story.json / テンプレの変更を監視し、再生成して full-reload する。
+    // dev：story.json / characters.json / テンプレの変更を監視し、再生成して full-reload する。
+    // characters.json は生成には使わないが、story-integrity (o) の入力なので直したら検査を走らせ直す。
     configureServer(server) {
       const watched = [
         resolve(root, 'public/story.json'),
+        resolve(root, 'public/characters.json'),
         resolve(root, 'templates/reader.html'),
         resolve(root, 'templates/title.html'),
       ].map((p) => p.replace(/\\/g, '/'))

@@ -7,8 +7,10 @@
  * 依存: bookmark.ts（スキーマ移行 init() のみ。read セットは loadReadKeys() で localStorage を直読みする
  *       ＝目次内で「読破状況をクリア」した直後に bookmark 側のメモリキャッシュが古いままになるのを避けるため。
  *       applyStoryStage 参照）、
- *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）。
- *       src/ 内はこの2本のみ例外 import（目次の独立方針の緩和：判定ロジックを二重化しない・二重管理を避ける）。
+ *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）、
+ *       characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）。
+ *       src/ 内はこの3本のみ例外 import（目次の独立方針の緩和。bookmark・volumes は判定・移行ロジックの
+ *       二重管理を避けるため、characters はポップアップの表示を二重実装しないため。design/modules/index.md）。
  *
  * 機能:
  *   - story.json を fetch して vol → ep → sec 一覧を動的生成
@@ -43,6 +45,11 @@
  *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
  *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
  *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts の inline 複製）
+ *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
+ *     キャラクター紹介ボタンは、押された時点の Stage（computeStoryStage）を charaPopup.open() に渡す
+ *     （Stage から登録を引く規則は characters.ts。characters.json は initAppendix が自分で取得し、
+ *     取得に失敗したらキャラクター紹介のボタンを隠す）。項目は「設定」（キャラクター紹介・地図・用語集）と
+ *     「リンク」（X・カクヨム・小説家になろう）の 2 つEscape は initFab のキー処理が最優先で閉じる
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
@@ -69,9 +76,14 @@
  *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
  */
 
+// _characters.css は toc.css より前に読み込む：#characters-overlay の z-index は両方が同じ ID 指定で書いており
+// 後勝ちになる。toc.css 側の 200（FAB の 100 より上）を勝たせるため、この順序を崩さないこと。
+import './styles/_characters.css';
 import './styles/toc.css';
 import * as bookmark from './bookmark';
+import * as charaPopup from './characters';
 import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
+import type { CharactersData } from './types';
 
 // preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱いで
 // 目次に表示する。空 text（`{ text: "" }`）は「preview 無し」と同義扱いで、事前配置テンプレとして
@@ -1423,6 +1435,9 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume
 
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
+        // キャラクター紹介は付録カードからだけ開く最前面のポップアップなので最優先で閉じる
+        // （characters.ts は Escape を拾わない＝優先順位は各ページのキー処理が決める）
+        if (charaPopup.isOpen()) { charaPopup.close(); return; }
         if (!sharePopup.hidden) { sharePopup.hidden = true; return; }
         if (!popup.hidden) { popup.hidden = true; return; }
         if (isOpen()) closeFab(); else openFab();
@@ -1577,6 +1592,44 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     }
 }
 
+// ----- 付録カード（キャラクター紹介） -----
+
+// 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、押された時点の Stage を
+// charaPopup.open() に渡す（Stage を変数に持ち回らない＝「読破状況をクリア」で下がった後も追従する）。
+// story か characters.json が取れなければボタンを隠す（押しても何も出ないボタンを残さない）。その結果
+// 「設定」に見える項目が 1 つも無くなったら見出しごと隠す（地図・用語集は公開まで hidden のため）。
+// characters.json の取得を loader.ts に寄せないのは story.json と同じく目次の独立方針のため。
+// initAppendix(story: StoryVolume[]): Promise<void>
+async function initAppendix(story: StoryVolume[]): Promise<void> {
+    const section = document.getElementById('appendix-settings');
+    const btn = document.getElementById('appendix-chara-btn');
+    if (!section || !btn) return;
+
+    let data: CharactersData = [];
+    try {
+        const res = await fetch('characters.json');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = (await res.json()) as CharactersData;
+    } catch {
+        data = [];
+    }
+    if (story.length === 0 || data.length === 0) {
+        btn.hidden = true;
+        if (!section.querySelector('.idx-chip:not([hidden])')) section.hidden = true;
+        return;
+    }
+
+    btn.addEventListener('click', () => {
+        const stage = computeStoryStage(
+            Array.from(loadReadKeys()),
+            story as unknown as Parameters<typeof computeStoryStage>[1],
+        );
+        charaPopup.open(data, stage);
+    });
+    // index.html では disabled で置いてある：結線が済むまで押せないようにする（読み込み中のクリックが空振りしないように）
+    (btn as HTMLButtonElement).disabled = false;
+}
+
 // ----- エントリポイント -----
 
 async function main(): Promise<void> {
@@ -1608,6 +1661,8 @@ async function main(): Promise<void> {
     loadChangelog('site');
 
     initResumeButton();
+    charaPopup.init();
+    void initAppendix(story);
 
     const popup = document.getElementById('settings-popup');
     const sharePopup = document.getElementById('share-popup');

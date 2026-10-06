@@ -1,7 +1,7 @@
 /* _characters.css — characters-overlay / character-card */
 
 /* ===================================================
-   キャラクター紹介ポップアップ（menu.ts が操作）
+   キャラクター紹介ポップアップ（characters.ts が生成・操作。本文と目次で共用）
 =================================================== */
 #characters-overlay {
   position: fixed;
@@ -61,7 +61,8 @@
 }
 
 .character-card img {
-  width: var(--chara-img-width);
+  /* 既定値 100% は目次用（目次は変数を定義する _base.css を読み込まない） */
+  width: var(--chara-img-width, 100%);
   max-width: 16rem;
   margin: 0 auto;
   aspect-ratio: 3 / 4;

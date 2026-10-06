@@ -157,13 +157,9 @@
   <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->
   <div id="transition-overlay" class="fading" aria-hidden="true"></div>
 
-  <!-- キャラクター紹介ポップアップ（menu.ts が操作） -->
-  <section id="characters-overlay" hidden>
-    <article id="characters-popup">
-      <button id="characters-popup-close">閉じる</button>
-      <div id="characters-list"></div>
-    </article>
-  </section>
+  <!-- キャラクター紹介ポップアップ（空の器。中身は characters.ts の init() が生成し、menu.ts が開く。
+       目次 index.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->
+  <section id="characters-overlay" hidden role="dialog" aria-label="キャラクター紹介"></section>
 
   <!-- エラー表示（main.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>

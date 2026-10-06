@@ -135,11 +135,48 @@
   <button id="idx-resume" type="button" hidden>続きから読む</button>
 
   <!-- ep・sec 一覧エリア（本文への導線＝nav。中身は index.ts が動的生成） -->
-  <nav class="idx-body" aria-label="エピソード一覧">
+  <nav id="idx-ep-nav" class="idx-body" aria-label="エピソード一覧">
     <section id="episodes-area">
       <p class="loading-text">読み込み中…</p>
     </section>
   </nav>
+
+  <!-- 付録カード（要件 06-7）。巻カードの続きに置き、見た目も巻カードと同じ部品（.idx-vol-card / .idx-vol-head /
+       .idx-ep / .idx-chip）を使う。初期状態は閉じる（open 属性を付けない・開閉は保存しない）。
+       - 本文への導線でも保存位置への導線でもないので、エピソード一覧・栞の nav とは別の <aside>
+       - 見出しに .idx-vol-k を付けない：e2e/toc-preview.spec.ts が巻の見出しの件数を .idx-vol-k で数えている
+         （同じ見た目は toc.css でセレクタを並べて当てる）
+       - キャラクター紹介は index.ts の initAppendix が結線する（押された時点の Stage のキャラを出す） -->
+  <aside id="idx-appendix-area" class="idx-body" aria-label="付録">
+    <details id="idx-appendix" class="idx-vol-card">
+      <summary class="idx-vol-head">
+        <span class="idx-vol-chev" aria-hidden="true">▶</span>
+        <span id="idx-appendix-title">付録</span>
+      </summary>
+      <section class="idx-vol-body">
+        <!-- 設定：作品世界の資料。公開物がまだ無い項目は hidden で置いておき、公開時に href を足して hidden を外す -->
+        <section id="appendix-settings" class="idx-ep">
+          <h3 class="idx-ep-title">設定</h3>
+          <p class="idx-chips">
+            <!-- disabled は initAppendix が characters.json を読み終えて結線した時点で外す
+                 （読み込み中に押されて何も起きない、を防ぐ） -->
+            <button type="button" id="appendix-chara-btn" class="idx-chip" disabled>キャラクター紹介</button>
+            <a id="appendix-map" class="idx-chip" hidden>エシュカ地図</a>
+            <a id="appendix-glossary" class="idx-chip" hidden>用語集</a>
+          </p>
+        </section>
+
+        <section id="appendix-links" class="idx-ep">
+          <h3 class="idx-ep-title">リンク</h3>
+          <p class="idx-chips">
+            <a class="idx-chip idx-chip--ext" href="https://x.com/haguchikarasu" target="_blank" rel="noopener noreferrer">X</a>
+            <a class="idx-chip idx-chip--ext" href="https://kakuyomu.jp/works/822139846666600323" target="_blank" rel="noopener noreferrer">カクヨム</a>
+            <a class="idx-chip idx-chip--ext" href="https://ncode.syosetu.com/n8003mj/" target="_blank" rel="noopener noreferrer">小説家になろう</a>
+          </p>
+        </section>
+      </section>
+    </details>
+  </aside>
 
   <!-- 栞エリア（保存位置への導線＝nav。中身は index.ts が動的生成） -->
   <nav id="idx-bm-section" class="idx-body" aria-label="栞">
@@ -187,6 +224,10 @@
   <section id="share-popup" hidden role="dialog" aria-label="共有">
     <!-- index.ts が動的生成 -->
   </section>
+
+  <!-- キャラクター紹介ポップアップ（空の器。中身は characters.ts の init() が生成し、付録カードのボタンで開く。
+       本文シェル templates/reader.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->
+  <section id="characters-overlay" hidden role="dialog" aria-label="キャラクター紹介"></section>
 
   <script type="module" src="src/index.ts"></script>
 </body>
