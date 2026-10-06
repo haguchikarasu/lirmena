@@ -311,7 +311,12 @@ body {
    画面下に黒帯・止まった瞬間に背景の拡大と本文の 28px 跳び、が起きていた（縦書きは 96svh で画面を覆わないので無縁）。
    対策：昇格条件のうち「祖先がはみ出しを切り取っていたら昇格しない」（root_scroller_controller.cc の IsValidImplicit）を使う。
    - body だけに書くと、html が visible のとき body の値はビューポートへ持っていかれ body 自身は切り取らない（overflow の伝播規則）。
-     だから html にも書く：html の値がビューポートへ渡り（ビューポートでは hidden 扱い）、body は自分の clip を保持する
+     だから html にも書く：html の値がビューポートへ渡り（html 自身は visible 扱い）、body は自分の clip を保持する。
+     昇格を止めているのは body の clip だけで、html の値は「visible 以外」でありさえすれば役目を果たす
+   - html は **auto**（hidden にしない）：ビューポートの overflow-y が hidden だと Chrome は pull-to-refresh（下に引いて更新）を
+     無効にする（cc の root_overflow_y_hidden → overscroll_refresh.cc がリセット。2026-10-04 に hidden で入れて実際に更新が効かなくなった）。
+     auto ならビューポートは何も書かない場合と同じ扱い。中身は画面ぴったり（body 100dvh・はみ出しなし）なので文書スクロールは起きず、
+     バーも隠れない
    - body は hidden → clip の 2 行（var() を含まないので非対応環境は 1 行目が残る）。clip を優先するのは、hidden だと body が
      スクリプトからスクロールできるスクロールコンテナになり、scrollIntoView 等で動く余地ができるため
    - 見た目は変わらない：body の子で fixed でないのは #main-container だけで（他はすべて position: fixed＝body のクリップを受けない）、
@@ -321,7 +326,7 @@ body {
    **これを外すと横書きで再発する。** 理由と経緯は design/architecture.md のビューポート単位の項。 */
 @supports (height: 1svh) {
   html {
-    overflow: hidden;
+    overflow: auto;
   }
   body {
     overflow: hidden;
