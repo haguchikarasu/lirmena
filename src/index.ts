@@ -47,6 +47,11 @@
  *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
  *   - 続きから読む：loadLatestAutoSave で本編／あとがき union を取り、pendingJump または pendingJumpAfterword を書いて遷移
+ *   - **コンテンツ更新履歴（要件 06-7）**：changelog/content-changelog.json を記述順のまま全件 li に描き、
+ *     各 li に data-kind（versionKind＝title.ts の inline 複製）を付ける。#content-changelog-filter の
+ *     版種別スイッチ（メジャー／マイナー／パッチの独立トグル・aria-pressed。初期値メジャー＋マイナー・永続化しない）と
+ *     「すべて表示」の展開状態から、_applyChangelogFilter が hidden・空表示・トグルボタンを一括で決める
+ *     （初期 CHANGELOG_INITIAL_COUNT 件は絞り込み後に数える）
  *
  * localStorage キー（bookmark.ts と共有・変更時は両側を合わせる）:
  *   "reached"              : string[]         到達キー集合。"EP-SEC" と "vol[XX]-af" が混在
@@ -1426,27 +1431,76 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume
 
 // ----- 更新履歴 -----
 
-function _initChangelogToggle(listEl: HTMLElement, toggleBtn: HTMLButtonElement | null): void {
-    if (!toggleBtn) return;
-    toggleBtn.hidden = false;
-    toggleBtn.addEventListener('click', () => {
-        const expanding = toggleBtn.textContent === 'すべて表示';
-        listEl.querySelectorAll<HTMLLIElement>('li').forEach((item, i) => {
-            if (i >= CHANGELOG_INITIAL_COUNT) item.hidden = !expanding;
+type VersionKind = 'major' | 'minor' | 'patch';
+
+/**
+ * 版番号 "x.y.z" の種別を返す。z≠0→patch、y≠0→minor、それ以外→major。欠けた桁は "0" とみなす。
+ * versionKind(version: string): VersionKind
+ * title.ts の versionKind と同一ロジック（目次の独立方針で inline 複製。同期は e2e/changelog-filter.spec.ts が見る）。
+ */
+function versionKind(version: string): VersionKind {
+    const [, minor = '0', patch = '0'] = version.split('.');
+    if (Number(patch) !== 0) return 'patch';
+    if (Number(minor) !== 0) return 'minor';
+    return 'major';
+}
+
+// 版種別スイッチで ON の種別（初期値はメジャー＋マイナー。永続化しない＝ページを開くたびにこの値へ戻る）と、
+// 「すべて表示」の展開状態。どちらも _applyChangelogFilter が唯一の読み手。
+const _changelogKinds = new Set<VersionKind>(['major', 'minor']);
+let _changelogExpanded = false;
+
+/**
+ * 版種別フィルタと展開状態を #content-changelog-list に反映する。表示の出し入れはこの関数だけが決める。
+ * 初期件数（CHANGELOG_INITIAL_COUNT）は絞り込み後の何件目かで数える。該当 0 件なら空表示、
+ * 絞り込み後の件数が初期件数を超えるときだけ「すべて表示／閉じる」を出す。
+ * _applyChangelogFilter(): void
+ */
+function _applyChangelogFilter(): void {
+    const listEl    = document.getElementById('content-changelog-list');
+    const emptyEl   = document.getElementById('content-changelog-empty');
+    const toggleBtn = document.getElementById('content-changelog-toggle');
+    if (!listEl) return;
+
+    let shown = 0;
+    listEl.querySelectorAll<HTMLLIElement>('li.cl-entry').forEach(li => {
+        const match = _changelogKinds.has(li.dataset.kind as VersionKind);
+        li.hidden = !match || (!_changelogExpanded && shown >= CHANGELOG_INITIAL_COUNT);
+        if (match) shown++;
+    });
+    if (emptyEl) emptyEl.hidden = shown > 0;
+    if (toggleBtn) {
+        toggleBtn.hidden = shown <= CHANGELOG_INITIAL_COUNT;
+        toggleBtn.textContent = _changelogExpanded ? '閉じる' : 'すべて表示';
+    }
+}
+
+/** 版種別スイッチ（aria-pressed のトグル）と「すべて表示」を 1 度だけ結線する。_initChangelogControls(): void */
+function _initChangelogControls(): void {
+    document.querySelectorAll<HTMLButtonElement>('#content-changelog-filter button[data-kind]').forEach(btn => {
+        const kind = btn.dataset.kind as VersionKind;
+        btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
+        btn.addEventListener('click', () => {
+            if (_changelogKinds.has(kind)) _changelogKinds.delete(kind); else _changelogKinds.add(kind);
+            btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
+            _applyChangelogFilter();
         });
-        toggleBtn.textContent = expanding ? '閉じる' : 'すべて表示';
+    });
+    document.getElementById('content-changelog-toggle')?.addEventListener('click', () => {
+        _changelogExpanded = !_changelogExpanded;
+        _applyChangelogFilter();
     });
 }
 
 function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
-    const listEl    = document.getElementById('content-changelog-list');
-    const toggleBtn = document.getElementById('content-changelog-toggle') as HTMLButtonElement | null;
+    const listEl = document.getElementById('content-changelog-list');
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    entries.forEach((entry, i) => {
+    entries.forEach(entry => {
         const li = document.createElement('li');
         li.className = 'cl-entry';
+        li.dataset.kind = versionKind(entry.version);
 
         const header = document.createElement('p');
         header.className = 'cl-header';
@@ -1492,11 +1546,10 @@ function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
             li.appendChild(epLinks);
         }
 
-        if (i >= CHANGELOG_INITIAL_COUNT) li.hidden = true;
         listEl.appendChild(li);
     });
 
-    if (entries.length > CHANGELOG_INITIAL_COUNT) _initChangelogToggle(listEl, toggleBtn);
+    _applyChangelogFilter();
 }
 
 function _updateVersionBadge(type: 'content' | 'site', version: string): void {
@@ -1550,6 +1603,7 @@ async function main(): Promise<void> {
     renderStory(story, loadReachedKeys(), loadReadKeys());
     renderBookmarks();
     applyStoryStage(story);
+    _initChangelogControls();
     loadChangelog('content');
     loadChangelog('site');
 

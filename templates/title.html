@@ -96,7 +96,21 @@
       <button id="btn-title-prev" type="button">前のエピソードへ</button>
       <a id="btn-title-index" href="../">目次へ戻る</a>
     </nav>
-    <section id="title-screen-changelog"></section>
+    <!-- 更新履歴。行は title.ts が #title-screen-changelog-list に描く（器ごと replaceChildren するとスイッチが消えるため分けてある）。
+         版種別スイッチは index.html の #content-changelog-filter と同じ markup の複製（同期は e2e/changelog-filter.spec.ts が見る）。
+         履歴が 1 件も無い ep ではスイッチを出さない＝header は hidden のまま。 -->
+    <section id="title-screen-changelog">
+      <header id="title-screen-changelog-head" hidden>
+        <fieldset id="title-screen-changelog-filter" aria-label="表示する版の種類">
+          <button type="button" data-kind="major" aria-pressed="true">メジャー</button>
+          <button type="button" data-kind="minor" aria-pressed="true">マイナー</button>
+          <button type="button" data-kind="patch" aria-pressed="false">パッチ</button>
+        </fieldset>
+      </header>
+      <!-- 空表示は list より前に置く：list は flex:1 で残りの高さを占めるので、後ろに置くと枠の下端まで押し下げられる -->
+      <p id="title-screen-changelog-empty" hidden>表示する更新がありません</p>
+      <section id="title-screen-changelog-list"></section>
+    </section>
   </section>
 
   <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->

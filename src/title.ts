@@ -13,7 +13,10 @@
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
- *   #title-screen-changelog  … 変更履歴（全エントリを表示。無ければ「更新履歴なし」）
+ *   #title-screen-changelog  … 変更履歴の器。行は子の #title-screen-changelog-list に描く（無ければ「更新履歴なし」）。
+ *                               1 件以上あれば #title-screen-changelog-head（版種別スイッチ：メジャー／マイナー／パッチの
+ *                               独立トグル・初期値メジャー＋マイナー・永続化しない）を出し、絞り込みで 0 件なら
+ *                               #title-screen-changelog-empty を出す。版種別の判定 versionKind は index.ts の inline 複製と同一
  *
  * 背景画像: {BASE_URL}vol[YY]/ep[XX]/{coverFile}（story.json のエピソード内 coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
  *   coverPositionX / coverPositionY（任意・例 "30%" / "left" / "top"）は CSS 変数 --cover-position-x / --cover-position-y に設定し、
@@ -154,12 +157,31 @@ function _wireButtons(): void {
     if (index) index.href = state.indexUrl();
 }
 
+type VersionKind = 'major' | 'minor' | 'patch';
+
 /**
- * 変更履歴を描画する。全エントリ（パッチ含む）を新しい順に表示。
- * エントリが無ければ「更新履歴なし」。バージョン番号を GitHub コミットへのリンクにする。
+ * 版番号 "x.y.z" の種別を返す。z≠0→patch、y≠0→minor、それ以外→major。欠けた桁は "0" とみなす。
+ * versionKind(version: string): VersionKind
+ * index.ts の versionKind と同一ロジック（目次の独立方針で inline 複製。同期は e2e/changelog-filter.spec.ts が見る）。
+ */
+function versionKind(version: string): VersionKind {
+    const [, minor = '0', patch = '0'] = version.split('.');
+    if (Number(patch) !== 0) return 'patch';
+    if (Number(minor) !== 0) return 'minor';
+    return 'major';
+}
+
+// 版種別スイッチで ON の種別。初期値はメジャー＋マイナーで、永続化しない（ページを開くたびにこの値へ戻る）。
+const _changelogKinds = new Set<VersionKind>(['major', 'minor']);
+
+/**
+ * 変更履歴を描画する。JSON の記述順（新しい順は運用で担保）に全行を #title-screen-changelog-list へ描き、
+ * 版種別スイッチで絞り込む。エントリが無ければ「更新履歴なし」を出し、スイッチ（header）は隠したまま。
+ * バージョン番号を GitHub コミットへのリンクにする。
+ * _renderChangelog(changelog: ChangelogEntry[]): void
  */
 function _renderChangelog(changelog: ChangelogEntry[]): void {
-    const area = document.querySelector<HTMLElement>('#title-screen-changelog');
+    const area = document.querySelector<HTMLElement>('#title-screen-changelog-list');
     if (!area) return;
 
     if (changelog.length === 0) {
@@ -170,6 +192,7 @@ function _renderChangelog(changelog: ChangelogEntry[]): void {
     const rows = changelog.map(entry => {
         const row = document.createElement('p');
         row.className = 'changelog-entry';
+        row.dataset.kind = versionKind(entry.version);
 
         const dateSpan = document.createElement('span');
         dateSpan.className = 'changelog-date';
@@ -192,6 +215,39 @@ function _renderChangelog(changelog: ChangelogEntry[]): void {
         return row;
     });
     area.replaceChildren(...rows);
+
+    const head = document.querySelector<HTMLElement>('#title-screen-changelog-head');
+    if (head) head.hidden = false;
+    _wireChangelogFilter();
+    _applyChangelogFilter();
+}
+
+/**
+ * 版種別フィルタを行に反映する。ON の種別に一致しない行を hidden にし、該当 0 件なら空表示を出す。
+ * _applyChangelogFilter(): void
+ */
+function _applyChangelogFilter(): void {
+    let shown = 0;
+    document.querySelectorAll<HTMLElement>('#title-screen-changelog-list .changelog-entry').forEach(row => {
+        const match = _changelogKinds.has(row.dataset.kind as VersionKind);
+        row.hidden = !match;
+        if (match) shown++;
+    });
+    const empty = document.querySelector<HTMLElement>('#title-screen-changelog-empty');
+    if (empty) empty.hidden = shown > 0;
+}
+
+/** 版種別スイッチ（aria-pressed のトグル）を結線する。_renderChangelog から 1 度だけ呼ばれる。_wireChangelogFilter(): void */
+function _wireChangelogFilter(): void {
+    document.querySelectorAll<HTMLButtonElement>('#title-screen-changelog-filter button[data-kind]').forEach(btn => {
+        const kind = btn.dataset.kind as VersionKind;
+        btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
+        btn.addEventListener('click', () => {
+            if (_changelogKinds.has(kind)) _changelogKinds.delete(kind); else _changelogKinds.add(kind);
+            btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
+            _applyChangelogFilter();
+        });
+    });
 }
 
 /** エラーメッセージを #error-message に表示し、#title-screen を非表示にする */

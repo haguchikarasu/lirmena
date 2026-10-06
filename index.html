@@ -149,13 +149,23 @@
     </section>
   </nav>
 
-  <!-- 更新履歴エリア（index.ts が動的生成） -->
+  <!-- 更新履歴エリア（index.ts が動的生成）
+       版種別スイッチは templates/title.html の #title-screen-changelog-filter と同じ markup の複製
+       （同期は e2e/changelog-filter.spec.ts が見る）。ランドマークを増やさないため nav ではなく fieldset。 -->
   <section id="content-changelog" class="idx-body">
-    <h2 class="idx-sec-label">コンテンツ更新履歴</h2>
+    <header id="content-changelog-head">
+      <h2 class="idx-sec-label">コンテンツ更新履歴</h2>
+      <fieldset id="content-changelog-filter" aria-label="表示する版の種類">
+        <button type="button" data-kind="major" aria-pressed="true">メジャー</button>
+        <button type="button" data-kind="minor" aria-pressed="true">マイナー</button>
+        <button type="button" data-kind="patch" aria-pressed="false">パッチ</button>
+      </fieldset>
+    </header>
     <ul id="content-changelog-list">
       <!-- index.ts が動的に生成 -->
     </ul>
-    <button id="content-changelog-toggle" hidden>すべて表示</button>
+    <p id="content-changelog-empty" hidden>表示する更新がありません</p>
+    <button id="content-changelog-toggle" type="button" hidden>すべて表示</button>
   </section>
 
   <!-- 右下 FAB メニュー（index.ts が操作） -->
