@@ -45,11 +45,16 @@
       {
         "id": 4,
         "title": "街へいこうよ",
-        "preview": { "text": "2026年11月公開予定" },
+        "preview": { "text": "2026年10/16(金)より順次公開" },
         "sections": [
           { "id": 1, "published": false },
           { "id": 2, "published": false },
-          { "id": 3, "published": false }
+          { "id": 3, "published": false },
+          { "id": 4, "published": false },
+          { "id": 5, "published": false },
+          { "id": 6, "published": false },
+          { "id": 7, "published": false },
+          { "id": 8, "published": false }
         ]
       }
     ]
