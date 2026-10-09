@@ -8,9 +8,10 @@
  *       ＝目次内で「読破状況をクリア」した直後に bookmark 側のメモリキャッシュが古いままになるのを避けるため。
  *       applyStoryStage 参照）、
  *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）、
- *       characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）。
- *       src/ 内はこの3本のみ例外 import（目次の独立方針の緩和。bookmark・volumes は判定・移行ロジックの
- *       二重管理を避けるため、characters はポップアップの表示を二重実装しないため。design/modules/index.md）。
+ *       characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）、
+ *       map.ts（付録カードから開くエシュカ地図ポップアップ＝同上）。
+ *       src/ 内はこの4本のみ例外 import（目次の独立方針の緩和。bookmark・volumes は判定・移行ロジックの
+ *       二重管理を避けるため、characters・map はポップアップの表示を二重実装しないため。design/modules/index.md）。
  *
  * 機能:
  *   - story.json を fetch して vol → ep → sec 一覧を動的生成
@@ -48,8 +49,10 @@
  *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
  *     キャラクター紹介ボタンは、押された時点の Stage（computeStoryStage）を charaPopup.open() に渡す
  *     （Stage から登録を引く規則は characters.ts。characters.json は initAppendix が自分で取得し、
- *     取得に失敗したらキャラクター紹介のボタンを隠す）。項目は「設定」（キャラクター紹介・地図・用語集）と
- *     「リンク」（X・カクヨム・小説家になろう）の 2 つEscape は initFab のキー処理が最優先で閉じる
+ *     取得に失敗したらキャラクター紹介のボタンを隠す）。エシュカ地図ボタンは initAppendixMap が同期で結線し
+ *     mapPopup.open() を呼ぶ（取得するデータが無いので initAppendix とは別関数＝その早期 return に巻き込まれない）。
+ *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集。用語集だけ未公開＝hidden）と
+ *     「リンク」（X・カクヨム・小説家になろう）の 2 つ。Escape は initFab のキー処理が最優先で閉じる
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
@@ -76,12 +79,15 @@
  *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
  */
 
-// _characters.css は toc.css より前に読み込む：#characters-overlay の z-index は両方が同じ ID 指定で書いており
-// 後勝ちになる。toc.css 側の 200（FAB の 100 より上）を勝たせるため、この順序を崩さないこと。
+// _characters.css / _map.css は toc.css より前に読み込む：#characters-overlay と #map-overlay の z-index は
+// 両方が同じ ID 指定で書いており後勝ちになる。toc.css 側の 200（FAB の 100 より上）を勝たせるため、
+// この順序を崩さないこと。
 import './styles/_characters.css';
+import './styles/_map.css';
 import './styles/toc.css';
 import * as bookmark from './bookmark';
 import * as charaPopup from './characters';
+import * as mapPopup from './map';
 import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
 import type { CharactersData } from './types';
 
@@ -1435,9 +1441,11 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume
 
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        // キャラクター紹介は付録カードからだけ開く最前面のポップアップなので最優先で閉じる
-        // （characters.ts は Escape を拾わない＝優先順位は各ページのキー処理が決める）
+        // キャラクター紹介とエシュカ地図は付録カードからだけ開く最前面のポップアップなので最優先で閉じる
+        // （characters.ts / map.ts は Escape を拾わない＝優先順位は各ページのキー処理が決める）。
+        // 両者は同時に開かないので相対順は実害が無いが、本文側（menu.ts）と並びを揃えてある
         if (charaPopup.isOpen()) { charaPopup.close(); return; }
+        if (mapPopup.isOpen()) { mapPopup.close(); return; }
         if (!sharePopup.hidden) { sharePopup.hidden = true; return; }
         if (!popup.hidden) { popup.hidden = true; return; }
         if (isOpen()) closeFab(); else openFab();
@@ -1592,12 +1600,25 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     }
 }
 
-// ----- 付録カード（キャラクター紹介） -----
+// ----- 付録カード（キャラクター紹介・エシュカ地図） -----
+
+// 付録カードのエシュカ地図ボタンを結線する（要件 06-14）。取得するデータが無いので同期で済み、
+// 押された側の要素を mapPopup.open() に渡して閉じたときのフォーカス戻り先にする。
+// **initAppendix に同居させない**：あちらは characters.json の取得失敗で早期 return するので、
+// 中に置くとネットワーク不調の読者に「見えるのに押しても何も起きない地図チップ」が残る。
+// initAppendixMap(): void
+function initAppendixMap(): void {
+    const btn = document.getElementById('appendix-map');
+    if (!btn) return;
+    btn.addEventListener('click', () => mapPopup.open(btn));
+}
 
 // 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、押された時点の Stage を
 // charaPopup.open() に渡す（Stage を変数に持ち回らない＝「読破状況をクリア」で下がった後も追従する）。
 // story か characters.json が取れなければボタンを隠す（押しても何も出ないボタンを残さない）。その結果
-// 「設定」に見える項目が 1 つも無くなったら見出しごと隠す（地図・用語集は公開まで hidden のため）。
+// 「設定」に見える項目が 1 つも無くなったら見出しごと隠す。
+// **後者の見出し隠しは 2026-10-09 以降は到達しない**：地図チップを公開したので「見える項目が 1 つも無い」
+// が成立しなくなった（要件 06-7 の条項ごと残してあるのは、将来また全項目が非公開になる場合に効くため）。
 // characters.json の取得を loader.ts に寄せないのは story.json と同じく目次の独立方針のため。
 // initAppendix(story: StoryVolume[]): Promise<void>
 async function initAppendix(story: StoryVolume[]): Promise<void> {
@@ -1662,6 +1683,8 @@ async function main(): Promise<void> {
 
     initResumeButton();
     charaPopup.init();
+    mapPopup.init();
+    initAppendixMap();
     void initAppendix(story);
 
     const popup = document.getElementById('settings-popup');

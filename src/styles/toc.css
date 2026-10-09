@@ -1,6 +1,7 @@
 /* toc.css — 目次ページ専用スタイル（本文側の index.css とは独立）。
-   例外：キャラクター紹介ポップアップは本文と同じ部品なので _characters.css を index.ts が共用で読み込む
-   （toc.css より前に読み込む＝下の #characters-overlay の z-index 上書きを後勝ちで効かせるため）。 */
+   例外：キャラクター紹介ポップアップとエシュカ地図ポップアップは本文と同じ部品なので、_characters.css と
+   _map.css を index.ts が共用で読み込む（どちらも toc.css より前に読み込む＝下の #characters-overlay /
+   #map-overlay の z-index 上書きを後勝ちで効かせるため）。 */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -552,9 +553,11 @@ ruby rt {
   visibility: visible;
 }
 
-/* キャラクター紹介ポップアップ（_characters.css）は本文側では z-index 30。目次では FAB（100）より上、
-   設定・共有ポップアップと同じ層に上げる。_characters.css より後に読み込まれるので同じ ID 指定で勝つ */
+/* キャラクター紹介（_characters.css）とエシュカ地図（_map.css）のポップアップは本文側では z-index 30。
+   目次では FAB（100）より上、設定・共有ポップアップと同じ層に上げる。
+   どちらも toc.css より前に読み込まれるので同じ ID 指定で勝つ */
 #characters-overlay { z-index: 200; }
+#map-overlay { z-index: 200; }
 
 /* ===== 栞エリア ===== */
 

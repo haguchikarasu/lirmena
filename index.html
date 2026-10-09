@@ -154,14 +154,18 @@
         <span id="idx-appendix-title">付録</span>
       </summary>
       <section class="idx-vol-body">
-        <!-- 設定：作品世界の資料。公開物がまだ無い項目は hidden で置いておき、公開時に href を足して hidden を外す -->
+        <!-- 設定：作品世界の資料。公開物がまだ無い項目は hidden で置いておき、公開時に hidden を外す
+             （別ページ・別リソースへ飛ばすなら <a> に href を足し、ポップアップを開くなら
+               #appendix-map のように <button type="button"> へ変える） -->
         <section id="appendix-settings" class="idx-ep">
           <h3 class="idx-ep-title">設定</h3>
           <p class="idx-chips">
             <!-- disabled は initAppendix が characters.json を読み終えて結線した時点で外す
                  （読み込み中に押されて何も起きない、を防ぐ） -->
             <button type="button" id="appendix-chara-btn" class="idx-chip" disabled>キャラクター紹介</button>
-            <a id="appendix-map" class="idx-chip" hidden>エシュカ地図</a>
+            <!-- 地図は押してもページ遷移せずポップアップを開くので <a> ではなく <button>。
+                 結線は initAppendixMap（同期・characters.json の取得結果に依存しない）＝disabled は要らない -->
+            <button type="button" id="appendix-map" class="idx-chip">エシュカ地図</button>
             <a id="appendix-glossary" class="idx-chip" hidden>用語集</a>
           </p>
         </section>
@@ -228,6 +232,11 @@
   <!-- キャラクター紹介ポップアップ（空の器。中身は characters.ts の init() が生成し、付録カードのボタンで開く。
        本文シェル templates/reader.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->
   <section id="characters-overlay" hidden role="dialog" aria-label="キャラクター紹介"></section>
+
+  <!-- エシュカ地図ポップアップ（空の器。中身は map.ts の init() が生成し、付録カードのボタンで開く。
+       本文シェル templates/reader.html にも同じ器がある＝中身の markup は map.ts 1 か所だけが持つ）。
+       role="dialog" は見た目のためでなく、immersive.ts が [role="dialog"] で背景鑑賞モードを抑止するため -->
+  <section id="map-overlay" hidden role="dialog" aria-label="エシュカ地図"></section>
 
   <script type="module" src="src/index.ts"></script>
 </body>

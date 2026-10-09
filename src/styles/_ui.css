@@ -45,9 +45,23 @@
   background: rgba(8, 8, 8, 0.93);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
-  overflow: hidden;
+  /* 横（x）は border-radius のクリップ用に hidden のまま、縦（y）だけスクロールを許す。
+     パネルはトグルの上へ伸びるので、項目が増えると上端が画面の外へ出て**最上段が押せなくなる**
+     （2026-10-09 にエシュカ地図を足して 7 項目＝高さ 341px になり、横向きスマホ 844×390 で
+     最上段「目次へ戻る」の top が -32px になった。6 項目のときは収まっていた）。
+     引く 6.1rem の内訳：コンテナ下余白 1.5rem ＋ トグル 3rem ＋ パネルとの間 0.6rem ＋ 上の余白 1rem */
+  max-height: calc(100vh - 6.1rem);
+  overflow: hidden auto;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+@supports (height: 1dvh) {
+  /* 底（ここでは上端）が指に届くこと自体が要件なので可視領域に追従させる
+     （design/architecture.md「ビューポート高さの単位」(3)(4)。切り替えは @supports で行う） */
+  #menu-panel {
+    max-height: calc(100dvh - 6.1rem);
+  }
 }
 
 /* menu.ts が動的生成するメニューアイテムボタン */

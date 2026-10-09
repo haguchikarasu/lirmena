@@ -2,13 +2,14 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理（キャラクター紹介ポップアップの中身は characters.ts）
  * export: init(characters: CharactersData): void
- * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）, map.ts（エシュカ地図ポップアップ）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
  *   栞を追加          → _openBookmarkPopup()（スロット選択ポップアップを開き、選んだ slot へ保存）
  *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
  *   キャラクター紹介  → _openCharactersPopup()（そのページの Stage を charaPopup.open() に渡す）
+ *   エシュカ地図      → mapPopup.open(_toggle)（作品世界の資料なのでキャラクター紹介の直後に置く）
  *   設定を開く        → settings.open() を呼ぶ
  *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
  *
@@ -28,7 +29,12 @@
  *
  * キャラクター紹介ポップアップ（中身の生成・背景クリック・閉じるボタンは characters.ts）：
  *   - _openCharactersPopup(): void — 現ページの Stage を特定して charaPopup.open() に渡す
- *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → メニューの順に閉じる）。characters.ts は Escape を持たない
+ *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → 地図 → メニューの順に閉じる）。characters.ts は Escape を持たない
+ *
+ * エシュカ地図ポップアップ（中身の生成・背景クリック・閉じるボタンは map.ts）：
+ *   - メニュー項目から mapPopup.open(_toggle) を呼ぶ。閉じたときのフォーカス戻り先に _toggle（メニューボタン）を
+ *     渡すのは、makeBtn が handler の前に _close() する＝押されたメニュー項目がもう hidden の中にいるため
+ *   - Escape の順は上と同じ。map.ts も Escape を持たない
  *
  * 共有ポップアップ（#share-popup）：
  *   - _buildSharePopup(): void — リンクをコピー / X でシェア / LINE でシェア / 閉じる を生成する
@@ -51,6 +57,7 @@ import * as settings from './settings';
 import * as transition from './transition';
 import * as tutorial from './tutorial';
 import * as charaPopup from './characters';
+import * as mapPopup from './map';
 import type { CharactersData } from './types';
 import type { StoryStage } from './volumes';
 
@@ -72,6 +79,7 @@ export function init(characters: CharactersData): void {
     _share = document.querySelector<HTMLElement>('#share-popup')!;
     _bookmark = document.querySelector<HTMLElement>('#bookmark-popup')!;
     charaPopup.init();
+    mapPopup.init();
     _buildItems();
     _buildSharePopup();
     _buildBookmarkPopup();
@@ -117,6 +125,12 @@ function _buildItems(): void {
         _openCharactersPopup();
     });
 
+    // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、
+    // 押されたこのボタン自身はもう hidden のパネルの中にいる（戻しても見えない）
+    const btnMap = makeBtn('エシュカ地図', () => {
+        mapPopup.open(_toggle);
+    });
+
     const btnSettings = makeBtn('設定', () => {
         settings.open();
     });
@@ -127,7 +141,7 @@ function _buildItems(): void {
 
     const items: HTMLButtonElement[] = [btnIndex];
     if (btnBookmark) items.push(btnBookmark);
-    items.push(btnTutorial, btnCharacters);
+    items.push(btnTutorial, btnCharacters, btnMap);
     _panel.append(...items, sep(), btnSettings, btnShare);
     items.push(btnSettings, btnShare);
     _items = items;
@@ -325,6 +339,10 @@ function _registerEvents(): void {
             }
             if (charaPopup.isOpen()) {
                 charaPopup.close();
+                return;
+            }
+            if (mapPopup.isOpen()) {
+                mapPopup.close();
                 return;
             }
             if (!_panel.hidden) {

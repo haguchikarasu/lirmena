@@ -161,6 +161,11 @@
        目次 index.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->
   <section id="characters-overlay" hidden role="dialog" aria-label="キャラクター紹介"></section>
 
+  <!-- エシュカ地図ポップアップ（空の器。中身は map.ts の init() が生成し、menu.ts が開く。
+       目次 index.html にも同じ器がある＝中身の markup は map.ts 1 か所だけが持つ）。
+       role="dialog" は見た目のためでなく、immersive.ts が [role="dialog"] で背景鑑賞モードを抑止するため -->
+  <section id="map-overlay" hidden role="dialog" aria-label="エシュカ地図"></section>
+
   <!-- エラー表示（main.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>
 

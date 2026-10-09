@@ -5,7 +5,7 @@
 // design/architecture.md「依存グラフに現れない結線」が持つ。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
-const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics)';
+const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map)';
 
 module.exports = {
   forbidden: [
@@ -41,7 +41,7 @@ module.exports = {
     {
       name: 'index-src-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes・characters のみ。bookmark・volumes は stage 判定と栞スキーマ移行を二重管理しないため、characters はキャラクター紹介ポップアップを二重実装しないための例外＝理由は design/modules/index.md「なぜ src/ から独立しているか」）',
+      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes・characters・map のみ。bookmark・volumes は stage 判定と栞スキーマ移行を二重管理しないため、characters・map はポップアップを二重実装しないための例外＝理由は design/modules/index.md「なぜ src/ から独立しているか」）',
       from: { path: '(^|/)src/index\\.ts$' },
       to: {
         path: '(^|/)src/',
@@ -49,6 +49,7 @@ module.exports = {
           '(^|/)src/bookmark\\.ts$',
           '(^|/)src/volumes\\.ts$',
           '(^|/)src/characters\\.ts$',
+          '(^|/)src/map\\.ts$',
           '(^|/)src/types\\.ts$',
         ],
       },
@@ -56,7 +57,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 14 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
+      comment: 'リーフ 15 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',
@@ -68,13 +69,13 @@ module.exports = {
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/(bookmark|volumes|characters)\\.ts$' } },
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/(bookmark|volumes|characters|map)\\.ts$' } },
     // characters → volumes は StoryStage の型だけ（tsPreCompilationDeps で型 import も辺に数える）。
     { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/(ruby|volumes)\\.ts$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
-    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|characters|volumes)\\.ts$' } },
+    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|characters|map|volumes)\\.ts$' } },
     { from: { path: '(^|/)src/reader\\.ts$' },   to: { path: '(^|/)src/(state|progress|opening|bookmark)\\.ts$' } },
     { from: { path: '(^|/)src/opening\\.ts$' },  to: { path: '(^|/)src/(axis|state|nav)\\.ts$' } },
     { from: { path: '(^|/)src/renderer\\.ts$' }, to: { path: '(^|/)src/parser\\.ts$' } },

@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config'
 // ユニットテスト用設定（本番ビルドの vite.config.ts とは分離）。
 // 対象は localStorage / DOM に依存するロジック層のため environment は jsdom。
 // テストは esbuild でトランスパイルされるのみで型チェックはしない（型は tsc / IFコメントが担保）。
-// カバレッジは UI/エントリ層（main/reader/nav/menu/title/index/opening/tutorial/transition/loader/bg）を除外し
+// カバレッジは UI/エントリ層（main/reader/nav/menu/map/title/index/opening/tutorial/transition/loader/bg）を除外し
 // ロジック層のみを可視化する。閾値ゲートは baseline 測定後に判断（初回は可視化のみ・非ブロッキング）。
 // renderer は字下げ判定（shouldIndent / buildNodes）というロジックを持ち renderer.test.ts が検査するので除外しない。
 export default defineConfig({
@@ -22,6 +22,7 @@ export default defineConfig({
         'src/reader.ts',
         'src/nav.ts',
         'src/menu.ts',
+        'src/map.ts',   // 純関数を持たない DOM 専用（characters.ts が除外されていないのは resolveCharacters を持つから）
         'src/title.ts',
         'src/index.ts',
         'src/opening.ts',

@@ -17,7 +17,7 @@ const CHARACTERS = JSON.parse(
 const VOL1_COUNT = CHARACTERS.find(c => c.volume === 1)!.characters.length;
 
 test.describe('目次の付録カード', () => {
-    test('初期状態は閉じていて、未公開の項目（地図・用語集）は見えない', async ({ page }) => {
+    test('初期状態は閉じていて、未公開の項目（用語集）は見えない', async ({ page }) => {
         await page.goto('/lirmena/');
         const card = page.locator('#idx-appendix');
         await expect(card).toBeVisible();
@@ -26,7 +26,8 @@ test.describe('目次の付録カード', () => {
 
         await page.locator('#idx-appendix > summary').click();
         await expect(page.locator('#appendix-chara-btn')).toBeVisible();
-        await expect(page.locator('#appendix-map')).toBeHidden();
+        // エシュカ地図は 2026-10-09 に公開済み（挙動は e2e/map-popup.spec.ts が見る）
+        await expect(page.locator('#appendix-map')).toBeVisible();
         await expect(page.locator('#appendix-glossary')).toBeHidden();
     });
 

@@ -1,0 +1,131 @@
+/* _map.css — map-overlay / map-popup（エシュカ地図ポップアップ・要件 06-14） */
+
+/* ===================================================
+   エシュカ地図ポップアップ（map.ts が生成・操作。本文と目次で共用）
+   隣の _characters.css と同じ器の作りだが、**高さの単位だけは真似ない**：
+   _characters.css の max-height: 80vh は design/architecture.md「ビューポート高さの単位」(3)
+   「ポップアップ類は dvh」の列挙から漏れた既存例外で、ここは正典どおり dvh に寄せる。
+=================================================== */
+#map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  /* 縦書きコンテキストの外（縦書きなのは #main-container / #scene-content だけ）だが、
+     _ui.css のポップアップと同じく明示的にリセットしておく */
+  writing-mode: horizontal-tb;
+}
+
+#map-popup {
+  /* 地図は「全体が収まって見える」ことが要件なので、背景を見せるために意図的に小さくしている
+     隣の #characters-popup（36rem）とは逆に、本文コンテナと同じ 42rem まで許す（design/modules/map.md） */
+  width: min(calc(100vw - 2rem), 42rem);
+  /* dvh 非対応環境（iOS Safari 15.3 以前）向けのフォールバック。下の @supports が上書きする */
+  max-height: 85vh;
+  padding: 0.8rem 1rem 1.2rem;
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  /* 高さ予算を flex に配分させる＝画像の上限を「85vh から固定値を引いた数」で書かない。
+     固定値（閉じるボタン＋原寸リンク＋余白 ≒ 90px）で引くと、その分を確保できない画面
+     （横向きスマホ・1366×768 の最大化ウィンドウ）で地図の下端が切れる */
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  overflow-y: auto;
+}
+
+@supports (height: 1dvh) {
+  /* ポップアップは底が指に届くこと自体が要件なので可視領域に追従させる
+     （design/architecture.md「ビューポート高さの単位」(3)(4)。切り替えは @supports で行う） */
+  #map-popup {
+    max-height: 85dvh;
+  }
+}
+
+#map-popup-close {
+  align-self: flex-end;
+  flex: none;
+  padding: 0.3rem 0.8rem;
+  background: none;
+  border: 1px solid #999;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#map-popup-close:hover,
+#map-popup-close:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+/* 画像の器。min-height: 0 が要（flex item の既定 min-height: auto のままだと内容より縮まず、
+   #map-popup の max-height を突き抜ける） */
+#map-popup-link {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* **高さは align-self: stretch で受ける（max-height: 100% ではない）**。
+   親 #map-popup-link の height は flex が決める used value でしかなく `height` プロパティは auto のままなので、
+   `max-height: 100%` のパーセンテージが解決しない＝画像が原寸比のまま伸びてパネルを突き抜ける
+   （2026-10-09 に実測：横向き 844×390 で画像 638×690px・パネル 332px）。stretch なら器の確定高さに合わせられる。
+   絵そのものは object-fit: contain が比率を保って内接させる。
+   width/height を auto のままにしておくのは、map.ts が入れる width/height 属性（intrinsic dimensions）で
+   読み込み前にも比率ぶんの箱を取らせるため＝画像の到着でポップアップが跳ねない */
+#map-popup img {
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+}
+
+/* 画像が押せると気づかない読者のための明示的な導線。縦向きスマホでは地図が原寸の約 0.2 倍まで
+   縮んで地名が読めないので、この導線は装飾ではなく機能の中核（要件 06-14） */
+#map-popup-open {
+  flex: none;
+  align-self: center;
+  padding: 0.3rem 0.9rem;
+  border: 1px solid #999;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+#map-popup-open:hover,
+#map-popup-open:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+/* 別タブで開く印。目次の外部リンク chip（toc.css の .idx-chip--ext::after）と同じ記号を使う */
+#map-popup-open::after {
+  content: '↗';
+  font-size: 10px;
+  margin-inline-start: 0.3em;
+}
+
+/* 画像の読み込みに失敗したとき map.ts が差し替える文言（リンクは取り除かれる） */
+#map-popup-error {
+  margin: 0;
+  padding: 1.5rem 0;
+  color: #aaa;
+  font-size: 0.9rem;
+  text-align: center;
+}
