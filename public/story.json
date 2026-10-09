@@ -45,6 +45,9 @@
       {
         "id": 4,
         "title": "街へいこうよ",
+        "coverFile": "title04.avif",
+        "coverPositionX": "65%",
+        "coverPositionY": "50%",
         "preview": { "text": "2026年10/16(金)より順次公開" },
         "sections": [
           { "id": 1, "published": false },
