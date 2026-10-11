@@ -8,8 +8,10 @@
        - og:image は public/ogp.png（1200×630px 推奨）。**画像を差し替えたらクエリ ?v=N の N を上げる**
          ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
        - og:description は設定しない
-       - 本文・タイトルの各シェル（public/contents/*.html）にも同じ OGP 設定を揃える
+       - 全シェル（目次・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
+         src/head-contract.test.ts が全シェル間でバイト比較する（<title> は範囲外＝ページ種別で変えてよい）
   -->
+  <!-- head-contract:meta:start -->
   <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
@@ -17,11 +19,12 @@
   <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=3" />
   <meta name="twitter:card" content="summary_large_image" />
+  <!-- head-contract:meta:end -->
   <title>輝くもの《リルメナ》</title>
   <!-- 目次の favicon は stage に応じて index.ts が差し替える（stage N → vol N の favicon[N].png、
        stage story.length+1（物語完結）→ 最終 vol の favicon[story.length+1].png）。初期値は vol1 のフォールバック -->
   <link id="app-favicon" rel="icon" href="vol01/favicon1.png" />
-  <!-- PWA（インストール可能化）。**3 テンプレ共通**で同じものを置く＝1 行足すときは 3 箇所とも足すこと（同期を見る機械検査は無い）。
+  <!-- PWA（インストール可能化）。**全シェル共通**で同じものを置く＝1 行足すときは全シェルに足すこと（有無と href の深さは src/head-contract.test.ts が見る）。
        - manifest は全ページで 1 ファイル。favicon のような vol 別・stage 別の切替はしない＝**アプリアイコンは stage 連動しない**
          （WebAPK のアイコンはインストール時に端末へ焼き込まれ OS が持つ。stage は読者ごとに違い manifest は全読者共通なので構造的に不可能）
        - href を相対にするのは base（vite.config.ts）と二重にハードコードしないため。contents/ 配下は 1 階層下で固定なので ../ で足りる
@@ -33,12 +36,15 @@
        body 背景と文字色だけをインラインで先付ける。値は src/styles/toc.css の背景色と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
+  <!-- head-contract:fouc:start -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
+  <!-- head-contract:fouc:end -->
   <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
        - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
        - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新
        - data-story-stage: index.ts / main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュした値を先付け。
                            未設定は '1'（stage1・緑）にフォールバック。値は 1〜5 の文字列のみ許容。 -->
+  <!-- head-contract:early:start -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -53,6 +59,8 @@
       document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
+  <!-- head-contract:early:end -->
+  <!-- head-contract:ga:start -->
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（ローカルの dev/draft/エディタのプレビューと、?dev 付き＝開発モードでは送らない） -->
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -84,6 +92,7 @@
       gtag('config', 'G-D750N4MKZY');
     }
   </script>
+  <!-- head-contract:ga:end -->
 </head>
 <body>
   <!-- ヒーローエリア。body 直下の <header> なので ARIA ランドマーク banner はこれ 1 つだけ

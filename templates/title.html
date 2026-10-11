@@ -8,7 +8,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- OGP・メタ情報（作品名で静的固定・全ページ共通。og:image は public/ogp.png、og:description は設定しない。
        og:image のクエリ ?v=N は画像を差し替えたら上げる＝SNS のクローラは URL 単位でキャッシュするため。
-       theme-color は CSS 変数 --theme-color と2箇所で管理） -->
+       theme-color は CSS 変数 --theme-color と2箇所で管理。head-contract:* で囲んだ範囲は src/head-contract.test.ts が
+       全シェル間でバイト比較する＝<title> 以外は目次と同じ値を保つ） -->
+  <!-- head-contract:meta:start -->
   <meta name="theme-color" content="#080808" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
@@ -16,11 +18,12 @@
   <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=3" />
   <meta name="twitter:card" content="summary_large_image" />
+  <!-- head-contract:meta:end -->
   <title>輝くもの《リルメナ》</title>
   <!-- favicon は vol ごとに切替（vol 下に帰属）。pages() プラグインが {{faviconHref}} をそのページの vol の
        favicon 相対パスへ埋める -->
   <link rel="icon" href="{{faviconHref}}" />
-  <!-- PWA（インストール可能化）。**3 テンプレ共通**で同じものを置く＝1 行足すときは 3 箇所とも足すこと（同期を見る機械検査は無い）。
+  <!-- PWA（インストール可能化）。**全シェル共通**で同じものを置く＝1 行足すときは全シェルに足すこと（有無と href の深さは src/head-contract.test.ts が見る）。
        - manifest は全ページで 1 ファイル。favicon のような vol 別・stage 別の切替はしない＝**アプリアイコンは stage 連動しない**
          （WebAPK のアイコンはインストール時に端末へ焼き込まれ OS が持つ。stage は読者ごとに違い manifest は全読者共通なので構造的に不可能）
        - href を相対にするのは base（vite.config.ts）と二重にハードコードしないため。contents/ 配下は 1 階層下で固定なので ../ で足りる
@@ -32,10 +35,13 @@
        body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
+  <!-- head-contract:fouc:start -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
+  <!-- head-contract:fouc:end -->
   <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
        保存値が無ければ既定＝横書き／stage1（緑）。axis.ts/settings.ts と同じ lirmena.writingMode キー、
        stage は main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュする（1〜5 の文字列）。 -->
+  <!-- head-contract:early:start -->
   <script>
     try {
       var m = localStorage.getItem('lirmena.writingMode');
@@ -50,6 +56,8 @@
       document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
     } catch (e) {}
   </script>
+  <!-- head-contract:early:end -->
+  <!-- head-contract:ga:start -->
   <!-- Google tag (gtag.js)：本番ホストでのみ計測（ローカルの dev/draft/エディタのプレビューと、?dev 付き＝開発モードでは送らない） -->
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -81,6 +89,7 @@
       gtag('config', 'G-D750N4MKZY');
     }
   </script>
+  <!-- head-contract:ga:end -->
 </head>
 <body data-ep="{{ep}}" data-sec="{{sec}}">
   <!-- 背景レイヤー（CSS の黒背景フォールバック。title.ts が backgroundImage を設定） -->
