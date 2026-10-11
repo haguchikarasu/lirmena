@@ -47,12 +47,6 @@
   letter-spacing: 0.08em;
   color: var(--gl-muted);
 }
-#gl-lead {
-  margin-top: 0.9rem;
-  font-size: 0.82rem;
-  line-height: 1.8;
-  color: var(--gl-muted);
-}
 
 /* 検索と五十音は画面上端に貼り付ける */
 #gl-sticky {
