@@ -8,7 +8,7 @@
        - og:image は public/ogp.png（1200×630px 推奨）。**画像を差し替えたらクエリ ?v=N の N を上げる**
          ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
        - og:description は設定しない
-       - 全シェル（目次・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
+       - 全シェル（目次・用語集・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
          src/head-contract.test.ts が全シェル間でバイト比較する（<title> は範囲外＝ページ種別で変えてよい）
   -->
   <!-- head-contract:meta:start -->
@@ -175,7 +175,9 @@
             <!-- 地図は押してもページ遷移せずポップアップを開くので <a> ではなく <button>。
                  結線は initAppendixMap（同期・characters.json の取得結果に依存しない）＝disabled は要らない -->
             <button type="button" id="appendix-map" class="idx-chip">エシュカ地図</button>
-            <a id="appendix-glossary" class="idx-chip" hidden>用語集</a>
+            <!-- 用語集は別ページ（glossary.html）へ同じタブで遷移する＝<a>。href は index.ts の initAppendixGlossary が
+                 withQuery で付け直す（?dev の引き継ぎ）。素の値は JS が動かないとき用 -->
+            <a id="appendix-glossary" class="idx-chip" href="glossary.html">用語集</a>
           </p>
         </section>
 

@@ -194,11 +194,20 @@ let _shiftTapCandidate = false;
 function _onKeyDownForToggle(e: KeyboardEvent): void {
     if (e.key === 'Shift') {
         // 他の修飾キーが既に押されている／キーリピートでの再発火は tap として扱わない。
-        _shiftTapCandidate = !(e.ctrlKey || e.altKey || e.metaKey || e.repeat);
+        // 入力欄（用語集ポップアップの検索欄）での Shift 単独押しは日本語入力の英数／かな切替に使われるので、
+        // 候補を立てない＝裏の本文が選択モードに入らない（候補を倒す側は欄の中でも効かせる）。
+        _shiftTapCandidate = !(e.ctrlKey || e.altKey || e.metaKey || e.repeat || _isEditable(e.target));
         return;
     }
     // Shift 以外のキー押下が来た時点で tap ではなくなる（Shift+任意キーの組合せ）。
     _shiftTapCandidate = false;
+}
+
+// キー入力の宛先が文字入力の欄か（input / textarea / contenteditable）。
+// _isEditable(target: EventTarget | null): boolean
+function _isEditable(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
 }
 
 // keyup ハンドラ：Shift の解放時に候補が立っていれば選択モードをトグルする。

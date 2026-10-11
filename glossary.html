@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!-- 用語集ページ（付録カードの「用語集」から開く別ページ）。目次と同じ深さ（/lirmena/glossary.html）に置く。
+     <head> は index.html の複製：head-contract:* で囲んだ範囲は src/head-contract.test.ts が全シェル間でバイト比較する。
+     中身（一覧・検索・五十音）は glossary-page.ts が public/glossary.md を取得して glossary.ts で描く。 -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報
+       - theme-color は CSS 変数と2箇所で管理。変更時は両方合わせること
+       - og:image は public/ogp.png（1200×630px 推奨）。**画像を差し替えたらクエリ ?v=N の N を上げる**
+         ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
+       - og:description は設定しない
+       - 全シェル（目次・用語集・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
+         src/head-contract.test.ts が全シェル間でバイト比較する（<title> は範囲外＝ページ種別で変えてよい）
+  -->
+  <!-- head-contract:meta:start -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=3" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!-- head-contract:meta:end -->
+  <title>用語集｜輝くもの《リルメナ》</title>
+  <!-- 用語集ページの favicon は vol1 で固定（目次のような stage 連動はしない＝story.json の取得と volumes を
+       持ち込むほどの価値が無い。manifest・apple-touch-icon も vol1 固定なのでそれに揃う。design/modules/glossary-page.md） -->
+  <link rel="icon" href="vol01/favicon1.png" />
+  <!-- PWA（インストール可能化）。**全シェル共通**で同じものを置く＝1 行足すときは全シェルに足すこと（有無と href の深さは src/head-contract.test.ts が見る）。
+       - manifest は全ページで 1 ファイル。favicon のような vol 別・stage 別の切替はしない＝**アプリアイコンは stage 連動しない**
+         （WebAPK のアイコンはインストール時に端末へ焼き込まれ OS が持つ。stage は読者ごとに違い manifest は全読者共通なので構造的に不可能）
+       - href を相対にするのは base（vite.config.ts）と二重にハードコードしないため。contents/ 配下は 1 階層下で固定なので ../ で足りる
+       - apple-touch-icon は Safari 用（manifest の icons を見ないため）。iOS 実機は未検証
+       - 仕様の正典は design/requirements/07-ogp.md、入れ方の手順は ops/pwa.md（git 管理外） -->
+  <link rel="manifest" href="app.webmanifest" />
+  <link rel="apple-touch-icon" href="vol01/favicon1.png" />
+  <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
+       body 背景と文字色だけをインラインで先付ける。値は src/styles/toc.css の背景色と一致。
+       Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
+       極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
+  <!-- head-contract:fouc:start -->
+  <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
+  <!-- head-contract:fouc:end -->
+  <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+       - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
+       - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新
+       - data-story-stage: index.ts / main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュした値を先付け。
+                           未設定は '1'（stage1・緑）にフォールバック。値は 1〜5 の文字列のみ許容。 -->
+  <!-- head-contract:early:start -->
+  <script>
+    try {
+      var m = localStorage.getItem('lirmena.writingMode');
+      document.documentElement.setAttribute('data-writing-mode', m === 'vertical' ? 'vertical' : 'horizontal');
+    } catch (e) {}
+    try {
+      var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
+      document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
+    try {
+      var stg = localStorage.getItem('lirmena.storyStage');
+      document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
+    } catch (e) {}
+  </script>
+  <!-- head-contract:early:end -->
+  <!-- head-contract:ga:start -->
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（ローカルの dev/draft/エディタのプレビューと、?dev 付き＝開発モードでは送らない） -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    var blockGA = location.hostname !== 'haguchikarasu.github.io'
+               || new URLSearchParams(location.search).has('dev');
+    // GA を送らなかったことを <html data-dev> に出す（診断バッジの表示条件。CSS だけで拾えるよう属性で置く）。
+    // インストール後の PWA はアドレスバーが見えず、スマホでは開発者ツールも使えない＝画面に出す以外に確認手段が無い。
+    // 値で理由を分ける：query＝?dev 付き（＝開発モードが効いている）／host＝?dev は無いが本番ホストでもない
+    // （localhost・draft・エディタのプレビュー）。**ホスト名で分けてはいけない**：ローカルでは常に host になり、
+    // ?dev が効いているかをローカルで確かめられなくなる（確認できるのが本番だけになる）。
+    if (blockGA) document.documentElement.setAttribute('data-dev',
+      new URLSearchParams(location.search).has('dev') ? 'query' : 'host');
+    // ?dev のときは作者用 manifest（dev.webmanifest）を宣言し直す。この 1 行が作者用アプリを入れる唯一の
+    // 経路で（?dev 付きの目次を開いてインストールする）、無いと dev アプリ内の全ページが読者用 manifest
+    // （id=/lirmena/）を宣言し、Chrome の WebAPK 更新チェックが id の食い違いを見て start_url から ?dev を
+    // 落としうる（＝数日後に静かに計測へ戻る）。<link rel="manifest"> はこの script より前にあるので必ず居る。
+    // getAttribute で生の相対値を取るので、本文シェル側の ../ もそのまま活きる。
+    if (new URLSearchParams(location.search).has('dev')) {
+      var mf = document.querySelector('link[rel="manifest"]');
+      if (mf) mf.href = mf.getAttribute('href').replace('app.webmanifest', 'dev.webmanifest');
+    }
+    if (!blockGA) {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
+      document.head.appendChild(s);
+      gtag('js', new Date());
+      gtag('config', 'G-D750N4MKZY');
+    }
+  </script>
+  <!-- head-contract:ga:end -->
+</head>
+<body class="gl-root">
+  <!-- 開発モードの目印（<html data-dev> のときだけ toc.css が表示する。位置は glossary-page.css） -->
+  <span id="badge-dev">dev</span>
+
+  <header id="gl-page-head">
+    <!-- href は glossary-page.ts が './' + location.search に書き換える（?dev の引き継ぎ）。素の値は JS が動かないとき用 -->
+    <a id="gl-back" href="./">‹ 目次へ</a>
+    <section id="gl-title-row">
+      <h1 id="gl-title">用語集</h1>
+      <span id="gl-count"></span>
+    </section>
+    <p id="gl-lead">作中に登場する地名・組織・輝式などの用語をまとめています。本文中で気になった言葉を引くときにどうぞ。</p>
+  </header>
+
+  <!-- 検索と五十音は画面上端に貼り付ける（100 語を上下するのに、毎回ページ先頭へ戻らなくて済むように） -->
+  <nav id="gl-sticky" aria-label="用語集の検索と五十音">
+    <section id="gl-sticky-inner">
+      <input id="gl-search" class="gl-search" type="search" placeholder="用語を検索（ひらがな可）" aria-label="用語を検索" autocomplete="off" />
+      <section id="gl-kana" class="gl-kana"></section>
+    </section>
+  </nav>
+
+  <main id="gl-page-body">
+    <section id="gl-list" class="gl-list"></section>
+  </main>
+
+  <script type="module" src="src/glossary-page.ts"></script>
+</body>
+</html>

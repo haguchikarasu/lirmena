@@ -24,6 +24,7 @@ const ROOT = resolve(__dirname, '..');
 /** シェル HTML と、そのページが置かれる深さ（root＝/lirmena/ 直下、sub＝contents/ 配下に生成される雛形） */
 const SHELLS: { path: string; depth: 'root' | 'sub' }[] = [
     { path: 'index.html', depth: 'root' },
+    { path: 'glossary.html', depth: 'root' },
     { path: 'templates/reader.html', depth: 'sub' },
     { path: 'templates/title.html', depth: 'sub' },
 ];

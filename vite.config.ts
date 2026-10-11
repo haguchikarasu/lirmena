@@ -125,7 +125,10 @@ function pages(root: string): Plugin {
     // （serve では生成した実ファイルを dev サーバがそのまま配信＝middleware 不要）。
     config() {
       const pagePaths = generatePages(root)
-      return { build: { rollupOptions: { input: [resolve(root, 'index.html'), ...pagePaths] } } }
+      // 静的なページ（目次・用語集）はここに直書きする。この input は丸ごと上書きなので、足し忘れたページはビルドされない
+      // （dev は root の HTML をそのまま配信するので気づけない＝preview / 本番だけ 404 になる）
+      const staticPages = ['index.html', 'glossary.html'].map(p => resolve(root, p))
+      return { build: { rollupOptions: { input: [...staticPages, ...pagePaths] } } }
     },
     // dev：story.json / characters.json / テンプレの変更を監視し、再生成して full-reload する。
     // characters.json は生成には使わないが、story-integrity (o) の入力なので直したら検査を走らせ直す。

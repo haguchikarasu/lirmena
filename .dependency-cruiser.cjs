@@ -5,7 +5,7 @@
 // design/architecture.md「依存グラフに現れない結線」が持つ。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
 
-const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map)';
+const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map|glossary)';
 
 module.exports = {
   forbidden: [
@@ -19,11 +19,11 @@ module.exports = {
     {
       name: 'no-orphans',
       severity: 'error',
-      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
+      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index/glossary-page）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
       from: {
         orphan: true,
         pathNot: [
-          '(^|/)src/(main|title|index)\\.ts$',
+          '(^|/)src/(main|title|index|glossary-page)\\.ts$',
           '(^|/)src/types\\.ts$',
           '(^|/)src/vite-env\\.d\\.ts$',
           '(^|/)src/bg-stub\\.ts$',
@@ -57,7 +57,7 @@ module.exports = {
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 15 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
+      comment: 'リーフ 16 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',
@@ -75,7 +75,10 @@ module.exports = {
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
-    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|characters|map|volumes)\\.ts$' } },
+    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|characters|map|glossary|volumes)\\.ts$' } },
+    // 用語集ページのエントリは glossary だけを読む（本文側の依存を持ち込まない）。隔離ルールを別に立てないのは、
+    // allowed に無い辺は allowedSeverity: 'error' で止まるため＝この 1 行が隔離の実体
+    { from: { path: '(^|/)src/glossary-page\\.ts$' }, to: { path: '(^|/)src/glossary\\.ts$' } },
     { from: { path: '(^|/)src/reader\\.ts$' },   to: { path: '(^|/)src/(state|progress|opening|bookmark)\\.ts$' } },
     { from: { path: '(^|/)src/opening\\.ts$' },  to: { path: '(^|/)src/(axis|state|nav)\\.ts$' } },
     { from: { path: '(^|/)src/renderer\\.ts$' }, to: { path: '(^|/)src/parser\\.ts$' } },

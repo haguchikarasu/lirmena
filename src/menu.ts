@@ -2,7 +2,7 @@
  * menu.ts
  * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理（キャラクター紹介ポップアップの中身は characters.ts）
  * export: init(characters: CharactersData): void
- * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）, map.ts（エシュカ地図ポップアップ）
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）, map.ts（エシュカ地図ポップアップ）, glossary.ts（用語集ポップアップ）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
@@ -10,6 +10,7 @@
  *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
  *   キャラクター紹介  → _openCharactersPopup()（そのページの Stage を charaPopup.open() に渡す）
  *   エシュカ地図      → mapPopup.open(_toggle)（作品世界の資料なのでキャラクター紹介の直後に置く）
+ *   用語集            → glossary.open(_toggle)（同じく作品世界の資料なので地図の直後。あとがきページでも出す）
  *   設定を開く        → settings.open() を呼ぶ
  *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
  *
@@ -29,12 +30,18 @@
  *
  * キャラクター紹介ポップアップ（中身の生成・背景クリック・閉じるボタンは characters.ts）：
  *   - _openCharactersPopup(): void — 現ページの Stage を特定して charaPopup.open() に渡す
- *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → 地図 → メニューの順に閉じる）。characters.ts は Escape を持たない
+ *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → 地図 → 用語集 → メニューの順に閉じる）。characters.ts は Escape を持たない
  *
  * エシュカ地図ポップアップ（中身の生成・背景クリック・閉じるボタンは map.ts）：
  *   - メニュー項目から mapPopup.open(_toggle) を呼ぶ。閉じたときのフォーカス戻り先に _toggle（メニューボタン）を
  *     渡すのは、makeBtn が handler の前に _close() する＝押されたメニュー項目がもう hidden の中にいるため
  *   - Escape の順は上と同じ。map.ts も Escape を持たない
+ *
+ * 用語集ポップアップ（中身の生成・md の取得・背景クリック・閉じるボタンは glossary.ts）：
+ *   - 地図と同じく glossary.open(_toggle) で開く
+ *   - Escape の順は上と同じ。ただし用語集の分岐だけ 2 つの例外を持つ：日本語変換中（e.isComposing）の Escape は
+ *     変換の取り消しなので何もしない／検索欄に文字が入っているときはブラウザ標準の「Escape で欄をクリア」に任せて
+ *     閉じない（glossary.isEditingSearch()。2 回目の Escape で閉じる）
  *
  * 共有ポップアップ（#share-popup）：
  *   - _buildSharePopup(): void — リンクをコピー / X でシェア / LINE でシェア / 閉じる を生成する
@@ -58,6 +65,7 @@ import * as transition from './transition';
 import * as tutorial from './tutorial';
 import * as charaPopup from './characters';
 import * as mapPopup from './map';
+import * as glossary from './glossary';
 import type { CharactersData } from './types';
 import type { StoryStage } from './volumes';
 
@@ -80,6 +88,7 @@ export function init(characters: CharactersData): void {
     _bookmark = document.querySelector<HTMLElement>('#bookmark-popup')!;
     charaPopup.init();
     mapPopup.init();
+    glossary.init();
     _buildItems();
     _buildSharePopup();
     _buildBookmarkPopup();
@@ -131,6 +140,11 @@ function _buildItems(): void {
         mapPopup.open(_toggle);
     });
 
+    // 戻り先に _toggle を渡す理由は地図と同じ
+    const btnGlossary = makeBtn('用語集', () => {
+        glossary.open(_toggle);
+    });
+
     const btnSettings = makeBtn('設定', () => {
         settings.open();
     });
@@ -141,7 +155,7 @@ function _buildItems(): void {
 
     const items: HTMLButtonElement[] = [btnIndex];
     if (btnBookmark) items.push(btnBookmark);
-    items.push(btnTutorial, btnCharacters, btnMap);
+    items.push(btnTutorial, btnCharacters, btnMap, btnGlossary);
     _panel.append(...items, sep(), btnSettings, btnShare);
     items.push(btnSettings, btnShare);
     _items = items;
@@ -343,6 +357,12 @@ function _registerEvents(): void {
             }
             if (mapPopup.isOpen()) {
                 mapPopup.close();
+                return;
+            }
+            if (glossary.isOpen()) {
+                // 変換の取り消し／検索欄のクリアに使われた Escape では閉じない（冒頭コメント）
+                if (e.isComposing || glossary.isEditingSearch()) return;
+                glossary.close();
                 return;
             }
             if (!_panel.hidden) {

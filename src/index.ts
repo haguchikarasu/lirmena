@@ -51,7 +51,9 @@
  *     （Stage から登録を引く規則は characters.ts。characters.json は initAppendix が自分で取得し、
  *     取得に失敗したらキャラクター紹介のボタンを隠す）。エシュカ地図ボタンは initAppendixMap が同期で結線し
  *     mapPopup.open() を呼ぶ（取得するデータが無いので initAppendix とは別関数＝その早期 return に巻き込まれない）。
- *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集。用語集だけ未公開＝hidden）と
+ *     用語集チップは別ページ（glossary.html）への <a> で、initAppendixGlossary が withQuery で href を付け直す
+ *     （?dev の引き継ぎ。story.json の取得より前に同期で行う）。
+ *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集）と
  *     「リンク」（X・カクヨム・小説家になろう）の 2 つ。Escape は initFab のキー処理が最優先で閉じる
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する
@@ -1600,7 +1602,7 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     }
 }
 
-// ----- 付録カード（キャラクター紹介・エシュカ地図） -----
+// ----- 付録カード（キャラクター紹介・エシュカ地図・用語集） -----
 
 // 付録カードのエシュカ地図ボタンを結線する（要件 06-14）。取得するデータが無いので同期で済み、
 // 押された側の要素を mapPopup.open() に渡して閉じたときのフォーカス戻り先にする。
@@ -1611,6 +1613,15 @@ function initAppendixMap(): void {
     const btn = document.getElementById('appendix-map');
     if (!btn) return;
     btn.addEventListener('click', () => mapPopup.open(btn));
+}
+
+// 付録カードの用語集チップ（<a href="glossary.html">）に現在のクエリを付け直す（要件 06-15）。用語集は
+// 別ページへの遷移なので、エピソード一覧と同じく withQuery で ?dev を引き継ぐ＝作者の閲覧を計測させない。
+// **initAppendix に同居させない**（地図と同じ理由：あちらは取得失敗で早期 return する）。
+// initAppendixGlossary(): void
+function initAppendixGlossary(): void {
+    const link = document.getElementById('appendix-glossary');
+    if (link instanceof HTMLAnchorElement) link.href = withQuery('glossary.html');
 }
 
 // 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、押された時点の Stage を
@@ -1656,6 +1667,8 @@ async function initAppendix(story: StoryVolume[]): Promise<void> {
 async function main(): Promise<void> {
     // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋割合化）を確実に走らせる。
     bookmark.init();
+    // 用語集チップの href に ?dev を引き継ぐ。story.json の取得を待たない（待つ間に押されると素の href で遷移する）
+    initAppendixGlossary();
 
     let story: StoryVolume[] = [];
     try {

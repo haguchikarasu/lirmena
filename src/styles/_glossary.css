@@ -1,0 +1,327 @@
+/* _glossary.css — 用語集の一覧（本文ポップアップと用語集ページで共用）＋ #glossary-overlay（本文ポップアップの器）
+   一覧の DOM は glossary.ts が生成する。読み込み元：本文・扉＝index.css（_map.css の次）／用語集ページ＝glossary-page.ts */
+
+/* ===================================================
+   アクセント色の合成（.gl-root ＝ポップアップの #glossary-popup／用語集ページの body）
+   - 色相 --stage-hue は**自分で定義しない**：本文は _base.css、用語集ページは toc.css が定義する
+   - **:root ではなく .gl-root の上で合成する**：:root で hsl(var(...)) を合成すると、子孫で基底の変数を
+     上書きしても効かない（_base.css の body[data-kind="afterword"] の設計注記と同じ罠）
+   - 上書き（stage 3〜5 の明度・あとがきの無彩色）も**同じ .gl-root に**、詳細度で勝つセレクタで書く。
+     親で上書きしても、.gl-root が自分で定義し直す値の方が継承より優先されて届かない
+=================================================== */
+.gl-root {
+  --gl-accent-l: 57%;
+  --gl-accent: hsl(var(--stage-hue) 91% var(--gl-accent-l));
+  --gl-accent-dim: hsl(var(--stage-hue) 40% 17%);
+  --gl-flash: hsl(var(--stage-hue) 60% 40% / 0.16);
+  --gl-term: #e8e4dc;
+  --gl-body: #b8b8b8;
+  --gl-muted: #8a8a8a;
+  --gl-line: #1c1c1c;
+}
+
+/* stage 3/4/5 は明度を持ち上げる（紫・赤は暗すぎる／黄は光を表現）。
+   **値は toc.css の --idx-accent-l（html[data-story-stage] の切替）の複製**で、同期を見る機械検査は無い */
+html[data-story-stage="3"] .gl-root { --gl-accent-l: 68%; }
+html[data-story-stage="4"] .gl-root { --gl-accent-l: 68%; }
+html[data-story-stage="5"] .gl-root { --gl-accent-l: 70%; }
+
+/* あとがきページは本文の色を無彩色に落とす規律（_base.css の body[data-kind="afterword"]）に揃える。
+   値はチュートリアルのあとがき色（--tut-accent）と同じ明度 */
+body[data-kind="afterword"] .gl-root {
+  --gl-accent: hsl(0 0% 78%);
+  --gl-accent-dim: hsl(0 0% 30%);
+  --gl-flash: hsl(0 0% 60% / 0.14);
+}
+
+/* ===== 五十音ナビ ===== */
+.gl-kana {
+  display: flex;
+  gap: 4px;
+}
+.gl-kana-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 2rem;
+  background: none;
+  border: 1px solid #2c2c2c;
+  border-radius: 2px;
+  color: #9a9a9a;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.gl-kana-btn:not(:disabled):hover,
+.gl-kana-btn:focus-visible {
+  color: var(--gl-accent);
+  border-color: var(--gl-accent-dim);
+  outline: none;
+}
+.gl-kana-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ===== 検索欄 ===== */
+.gl-search {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  background: #0e0e0e;
+  border: 1px solid #2c2c2c;
+  border-radius: 4px;
+  color: #e8e8e8;
+  font: inherit;
+  font-size: 0.95rem;
+}
+.gl-search::placeholder { color: #5a5a5a; }
+.gl-search:focus-visible {
+  outline: none;
+  border-color: var(--gl-accent-dim);
+}
+
+/* ===== 一覧 =====
+   見出し・段落・リスト・表の余白はここで全部持つ（用語集ページは toc.css の * リセット、本文は _base.css の
+   リセットの上に乗る。どちらにも依存しないよう margin / padding を明示する） */
+.gl-row-head {
+  margin: 0 0 0.4rem;
+  padding: 1.8rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0.5em;
+  color: var(--gl-muted);
+  border-bottom: 1px solid var(--gl-line);
+}
+
+.gl-entry {
+  padding: 1.1rem 0 1.2rem;
+  border-bottom: 1px solid var(--gl-line);
+  /* 相互参照・五十音ナビ・直リンクで飛んだとき、上の固定バーの下に隠れないように（用語集ページが値を入れる） */
+  scroll-margin-top: var(--gl-sticky-h, 0px);
+}
+.gl-entry:last-child { border-bottom: none; }
+.gl-group { scroll-margin-top: var(--gl-sticky-h, 0px); }
+
+/* 見出し行：見出し語の右に言語と綴りを添える（幅が足りなければ見出し語の下へ折り返す） */
+.gl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.9rem;
+}
+
+.gl-term {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--gl-term);
+}
+
+.gl-entry p,
+.gl-entry ol {
+  margin: 0.6rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.9;
+  color: var(--gl-body);
+}
+.gl-entry ol { padding-left: 1.6em; }
+.gl-entry ol li::marker { color: var(--gl-muted); }
+
+/* 言語と綴り：見出し語の補足なので本文より小さく暗く。
+   セレクタを .gl-entry .gl-langs にしているのは、上の .gl-entry p（本文段落）に勝つため
+   （.gl-langs 単独だと字の大きさ・色・上余白を本文段落の指定に上書きされ、本文と同じトーンに見える） */
+.gl-entry .gl-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #6e6e6e;
+}
+.gl-lang {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+/* 言語名は小さな枠付きラベル（本文の語ではなく「注記の種類」だと形で分かるように） */
+.gl-lang-name {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  padding: 0.05em 0.45em;
+  border: 1px solid #2c2c2c;
+  border-radius: 2px;
+  color: #777;
+}
+/* 綴りは欧文なので等幅にしない（声調の上付き数字が詰まらないように） */
+.gl-lang-word {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: #7e7e7e;
+}
+
+/* 相互参照リンク */
+.gl-ref {
+  color: var(--gl-accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gl-accent-dim);
+  padding: 0 0.1em;
+}
+.gl-ref:hover,
+.gl-ref:focus-visible {
+  border-bottom-style: solid;
+  border-bottom-color: var(--gl-accent);
+  outline: none;
+}
+
+/* 表（エシュカの時法） */
+.gl-table {
+  margin-top: 0.8rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  color: var(--gl-body);
+}
+.gl-table th,
+.gl-table td {
+  padding: 0.35rem 0.9rem 0.35rem 0;
+  border-bottom: 1px solid var(--gl-line);
+  text-align: left;
+  font-weight: 400;
+}
+.gl-table th {
+  color: var(--gl-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  border-bottom-color: #2a2a2a;
+}
+
+/* 相互参照で着地した項目を一瞬光らせる（glossary.ts の flash()） */
+@keyframes gl-flash {
+  from { background: var(--gl-flash); }
+  to   { background: transparent; }
+}
+.gl-flash { animation: gl-flash 1.4s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .gl-flash { animation: none; outline: 1px solid var(--gl-accent-dim); }
+}
+
+/* 「該当なし」と「読み込めませんでした」 */
+.gl-empty {
+  margin: 0;
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--gl-muted);
+  font-size: 0.9rem;
+}
+
+/* ===================================================
+   本文ポップアップの器（glossary.ts の init() が中身を生成。器は templates/reader.html）
+   器の作りは _map.css を雛形にした。高さは dvh（design/architecture.md「ビューポート高さの単位」(3)(4)）
+=================================================== */
+#glossary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  /* 縦書きコンテキストの外（縦書きなのは #main-container / #scene-content だけ）だが明示的にリセットしておく */
+  writing-mode: horizontal-tb;
+}
+
+#glossary-popup {
+  /* 文章を読む器なので地図（42rem）ほど広げない。スマホでは左右 1rem ずつだけ背景を残す */
+  width: min(calc(100vw - 2rem), 36rem);
+  /* max-height ではなく height：検索で件数が減るたびに器が縮んで閉じるボタンが動くのを防ぐ。
+     dvh 非対応環境（iOS Safari 15.3 以前）向けのフォールバック。下の @supports が上書きする */
+  height: 85vh;
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: serif;
+}
+
+@supports (height: 1dvh) {
+  #glossary-popup {
+    height: 85dvh;
+  }
+}
+
+#glossary-popup-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem 0.7rem;
+  border-bottom: 1px solid var(--gl-line);
+}
+#glossary-popup-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+#glossary-popup-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.4em;
+  color: var(--gl-term);
+}
+#glossary-popup-page,
+#glossary-popup-close {
+  flex: none;
+  padding: 0.3rem 0.8rem;
+  background: none;
+  border: 1px solid #999;
+  border-radius: 4px;
+  color: #ccc;
+  font: inherit;
+  font-size: 0.82rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+/* 別タブで開く印。地図の「原寸で開く」・目次の外部リンク chip と同じ記号 */
+#glossary-popup-page::after {
+  content: '↗';
+  font-size: 10px;
+  margin-inline-start: 0.3em;
+}
+#glossary-popup-page:hover, #glossary-popup-page:focus-visible,
+#glossary-popup-close:hover, #glossary-popup-close:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  outline: none;
+}
+
+/* 一覧だけがスクロールする。min-height: 0 が無いと flex item が内容より縮まず器を突き抜ける（_map.css と同じ罠）。
+   overscroll-behavior で、端まで来たスクロールが裏の本文へ伝わらないようにする */
+#glossary-popup-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1.2rem 1.5rem;
+}
+#glossary-popup-list .gl-row-head { padding-top: 1.2rem; }
+
+/* 横向きスマホ（高さ 390px 前後）：頭の 3 段で一覧が 100px ほどしか残らないので、
+   見出し・検索・ボタンを 1 行にまとめ、五十音は隠す（検索で足りる） */
+@media (max-height: 500px) {
+  #glossary-popup-head { flex-direction: row; align-items: center; padding-block: 0.6rem; }
+  #glossary-popup-bar { display: contents; }
+  #glossary-popup-title { flex: none; }
+  #glossary-search { order: 1; flex: 1; min-width: 0; padding-block: 0.4rem; }
+  #glossary-popup-page, #glossary-popup-close { order: 2; }
+  #glossary-kana { display: none; }
+}

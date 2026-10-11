@@ -17,7 +17,7 @@ const CHARACTERS = JSON.parse(
 const VOL1_COUNT = CHARACTERS.find(c => c.volume === 1)!.characters.length;
 
 test.describe('目次の付録カード', () => {
-    test('初期状態は閉じていて、未公開の項目（用語集）は見えない', async ({ page }) => {
+    test('初期状態は閉じていて、開くと設定の 3 項目が見える', async ({ page }) => {
         await page.goto('/lirmena/');
         const card = page.locator('#idx-appendix');
         await expect(card).toBeVisible();
@@ -28,7 +28,8 @@ test.describe('目次の付録カード', () => {
         await expect(page.locator('#appendix-chara-btn')).toBeVisible();
         // エシュカ地図は 2026-10-09 に公開済み（挙動は e2e/map-popup.spec.ts が見る）
         await expect(page.locator('#appendix-map')).toBeVisible();
-        await expect(page.locator('#appendix-glossary')).toBeHidden();
+        // 用語集は 2026-10-11 に公開（別ページへのリンク。挙動は e2e/glossary.spec.ts が見る）
+        await expect(page.locator('#appendix-glossary')).toBeVisible();
     });
 
     test('キャラクター紹介：今の Stage のキャラが出て、Escape・閉じるボタン・背景クリックで閉じる', async ({ page }) => {

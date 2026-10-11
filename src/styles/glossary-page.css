@@ -1,0 +1,92 @@
+/* glossary-page.css — 用語集ページ（glossary.html）だけの差分。
+   土台は toc.css（目次と同じ紙面：リセット・body・パレット・stage 別キーカラー・#badge-dev の表示切替）、
+   一覧の見た目は _glossary.css。ここには用語集ページの枠組み（見出し・固定バー・余白）だけを書く。
+   幅と左右の余白は目次の .idx-body（600px・1.5rem）に揃える＝目次から来た読者に同じ紙面に見せる */
+
+#gl-page-head,
+#gl-page-body {
+  max-width: 600px;
+  margin: 0 auto;
+  padding-inline: 1.5rem;
+}
+
+#gl-page-head { padding-top: 1.6rem; }
+
+#gl-back {
+  display: inline-block;
+  padding: 0.3rem 0;
+  color: var(--idx-text-date);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+}
+#gl-back:hover,
+#gl-back:focus-visible {
+  color: var(--gl-accent);
+  outline: none;
+}
+
+#gl-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 1.4rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid #181818;
+}
+/* 目次の .idx-sec-label（「栞」「更新履歴」）と同じ字間の見出し */
+#gl-title {
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.5em;
+  color: var(--idx-text-primary);
+}
+#gl-count {
+  font-size: 0.78rem;
+  font-family: monospace, sans-serif;
+  letter-spacing: 0.08em;
+  color: var(--gl-muted);
+}
+#gl-lead {
+  margin-top: 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: var(--gl-muted);
+}
+
+/* 検索と五十音は画面上端に貼り付ける */
+#gl-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-top: 1.2rem;
+  background: rgba(8, 8, 8, 0.96);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-bottom: 1px solid #141414;
+}
+#gl-sticky-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0.8rem 1.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#gl-page-body { padding-bottom: 5rem; }
+
+/* 開発モードの目印。表示の切替（<html data-dev> のときだけ出す）は toc.css が持つ。目次では版数バッジの器
+   （#idx-version-badges）の中に並べて位置が決まるが、このページにはその器が無いので本文ページ（_misc.css）と
+   同じく右上に固定する。固定バー（z-index 5）より上に出す */
+#badge-dev {
+  position: fixed;
+  top: 4px;
+  right: 6px;
+  z-index: 6;
+  pointer-events: none;
+  font-size: 0.6rem;
+  font-family: monospace, sans-serif;
+  color: #484848;
+  letter-spacing: 0.04em;
+}

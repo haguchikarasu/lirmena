@@ -175,6 +175,11 @@
        role="dialog" は見た目のためでなく、immersive.ts が [role="dialog"] で背景鑑賞モードを抑止するため -->
   <section id="map-overlay" hidden role="dialog" aria-label="エシュカ地図"></section>
 
+  <!-- 用語集ポップアップ（空の器。中身は glossary.ts の init() が生成し、menu.ts が開く。md は初回に開いたとき取得する）。
+       目次からは別ページ（glossary.html）で開くので、目次 index.html には器を置かない。
+       role="dialog" は地図と同じく immersive.ts の背景鑑賞モード抑止のため -->
+  <section id="glossary-overlay" hidden role="dialog" aria-label="用語集"></section>
+
   <!-- エラー表示（main.ts が操作） -->
   <p id="error-message" hidden role="alert"></p>
 
