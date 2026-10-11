@@ -49,6 +49,29 @@
                            未設定は '1'（stage1・緑）にフォールバック。値は 1〜5 の文字列のみ許容。 -->
   <!-- head-contract:early:start -->
   <script>
+    // localStorage が使えない環境（Cookie・サイトデータを全ブロックすると、読むだけで SecurityError）では
+    // window.localStorage をメモリ上の代用品に差し替える。全モジュールが素の localStorage を使うので、ここ 1 か所で
+    // 全部守れる＝表示は通常どおり・記録はそのページの間だけ（遷移・再読み込みで消える）。検出は読み取りで行う
+    // （書き込みで試すと、容量が一杯なだけの正常な環境まで代用品に落ちて既存の記録が見えなくなる）。
+    // 初回案内（firstrun の読み方選択・tutorial）は表示済み扱いで始める：記録が残らないので毎ページ「初回」と判定され、
+    // 選んでも次のページで忘れるダイアログを出し続けることになるため。キー名は firstrun.ts / tutorial.ts と同一
+    // （片方だけ改名すると毎ページ出る状態に戻る。検査は e2e/storage-blocked.spec.ts）。
+    (function () {
+      try { window.localStorage.getItem('lirmena.probe'); return; } catch (e) {}
+      try {
+        var mem = Object.create(null);
+        mem['lirmena.presetAsked'] = '1';
+        mem['lirmena.tutorialSeen'] = '1';
+        Object.defineProperty(window, 'localStorage', { configurable: true, enumerable: true, value: {
+          getItem: function (k) { k = String(k); return k in mem ? mem[k] : null; },
+          setItem: function (k, v) { mem[String(k)] = String(v); },
+          removeItem: function (k) { delete mem[String(k)]; },
+          clear: function () { mem = Object.create(null); },
+          key: function (i) { var ks = Object.keys(mem); return i < ks.length ? ks[i] : null; },
+          get length() { return Object.keys(mem).length; }
+        } });
+      } catch (e) {}
+    })();
     try {
       var m = localStorage.getItem('lirmena.writingMode');
       document.documentElement.setAttribute('data-writing-mode', m === 'vertical' ? 'vertical' : 'horizontal');

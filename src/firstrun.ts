@@ -34,6 +34,7 @@
 
 import * as settings from './settings';
 
+// 全シェルの <head> early ブロック（localStorage の代用品）もこのキー名を持つ＝改名するときは両方直す（design/architecture.md）
 const KEY_PRESET_ASKED = 'lirmena.presetAsked';
 
 let _popup: HTMLElement | null = null;

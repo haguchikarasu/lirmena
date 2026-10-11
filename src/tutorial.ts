@@ -35,6 +35,7 @@
 import * as axis from './axis';
 import * as settings from './settings';
 
+// 全シェルの <head> early ブロック（localStorage の代用品）もこのキー名を持つ＝改名するときは両方直す（design/architecture.md）
 const KEY_TUTORIAL_SEEN = 'lirmena.tutorialSeen';
 
 // 立ち絵（public/img/tutorial/）の参照ベース。menu.ts のキャラ画像と同じ import.meta.env.BASE_URL 流儀。
