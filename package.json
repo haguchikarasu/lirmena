@@ -20,7 +20,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.0.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.12",
     "dependency-cruiser": "^18.0.0",
     "eslint": "^10.6.0",
     "globals": "^17.7.0",
@@ -28,6 +28,6 @@
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.63.0",
     "vite": "^6.3.5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   }
 }
