@@ -1,0 +1,12 @@
+<!-- 共有ポップアップ（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の両方へ、ビルド時に
+     vite.config.ts の expandIncludes が差し込む。markup の持ち主はこのファイル 1 か所だけ）。
+     結線は src/ui/share.ts（data-share で引く）。aria-modal を付けない理由は parts/settings.html と同じ。 -->
+<section id="share-popup" hidden role="dialog" aria-label="共有">
+  <div class="settings-panel">
+    <div class="settings-panel__title">共有</div>
+    <button class="settings-action" type="button" data-share="copy">リンクをコピー</button>
+    <button class="settings-action" type="button" data-share="x">X でシェア</button>
+    <button class="settings-action" type="button" data-share="line">LINE でシェア</button>
+    <button class="settings-close" type="button">閉じる</button>
+  </div>
+</section>

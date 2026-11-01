@@ -252,17 +252,10 @@
     <button id="fab-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
   </nav>
 
-  <!-- 設定ポップアップ（index.ts が操作。templates/reader.html と同じ「空の器＋動的生成」方式）
-       aria-modal は付けない：フォーカストラップを実装していないので、付けると「支援技術には背景を隠す
-       のに Tab では背景へ出られる」不整合になる。本文シェル側の4ポップアップも同じ理由で付けていない。 -->
-  <section id="settings-popup" hidden role="dialog" aria-label="設定">
-    <!-- index.ts が動的生成 -->
-  </section>
-
-  <!-- 共有ポップアップ（index.ts が操作。aria-modal を付けない理由は上と同じ） -->
-  <section id="share-popup" hidden role="dialog" aria-label="共有">
-    <!-- index.ts が動的生成 -->
-  </section>
+  <!-- 設定・共有ポップアップ（本文シェル templates/reader.html と同じ断片をビルド時に差し込む。結線は index.ts が
+       ui/settings-panel・ui/share で行う）。本文シェル側のポップアップと同じく aria-modal は付けない（理由は断片の冒頭） -->
+  <!-- include: parts/settings.html -->
+  <!-- include: parts/share.html -->
 
   <!-- キャラクター紹介ポップアップ（空の器。中身は characters.ts の init() が生成し、付録カードのボタンで開く。
        本文シェル templates/reader.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->

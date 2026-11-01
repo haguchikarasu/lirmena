@@ -4,14 +4,16 @@
  *       チップを描画し、栞・オートセーブ（本編／あとがき独立）を並べ、stage に応じてヒーローカード画像を
  *       差し替える。設定ポップアップ／共有／FAB／変更履歴は既存流用。
  * export: なし（script type="module" としてロードされるエントリポイント）
- * 依存: bookmark.ts（スキーマ移行 init() のみ。read セットは loadReadKeys() で localStorage を直読みする
- *       ＝目次内で「読破状況をクリア」した直後に bookmark 側のメモリキャッシュが古いままになるのを避けるため。
- *       applyStoryStage 参照）、
- *       volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）、
- *       characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）、
- *       map.ts（付録カードから開くエシュカ地図ポップアップ＝同上）。
- *       src/ 内はこの4本のみ例外 import（目次の独立方針の緩和。bookmark・volumes は判定・移行ロジックの
- *       二重管理を避けるため、characters・map はポップアップの表示を二重実装しないため。design/modules/index.md）。
+ * 依存（目次は core と ui だけを読み、reader 層＝本文の読書の仕組みを読まない。.dependency-cruiser.cjs の層の規則）:
+ *   core: core/storage（栞・既読・読破・オートセーブの読み書きと移行 init()。read セットは storage.loadReadKeys() で毎回
+ *         localStorage を読み直す＝目次内で「読破状況をクリア」した直後の再計算で古い値を返さない。applyStoryStage 参照）、
+ *         core/settings-model（表示設定の値の規則）、core/query（withQuery）、core/preview（hasEffectivePreview）、
+ *         core/changelog（versionKind）、volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）
+ *   ui:   ui/settings-panel（設定ポップアップ。markup は templates/parts/settings.html）、ui/share（共有ポップアップ。
+ *         markup は templates/parts/share.html）、ruby.ts（ルビ展開）、
+ *         characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）、
+ *         map.ts（付録カードから開くエシュカ地図ポップアップ＝同上）
+ *   以前は「src/ に依存しない」方針で上の多くを複製して持っていた（design/modules/index.md）。
  *
  * 機能:
  *   - story.json を fetch して vol → ep → sec 一覧を動的生成
@@ -45,7 +47,7 @@
  *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
  *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
  *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
- *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts の inline 複製）
+ *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts）
  *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
  *     キャラクター紹介ボタンは、押された時点の Stage（computeStoryStage）を charaPopup.open() に渡す
  *     （Stage から登録を引く規則は characters.ts。characters.json は initAppendix が自分で取得し、
@@ -56,26 +58,19 @@
  *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集）と
  *     「リンク」（X・カクヨム・小説家になろう）の 2 つ。Escape は initFab のキー処理が最優先で閉じる
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
- *     ＝bookmark.ts と共有する localStorage キー "reached" / "read" をそのまま Set 化する
+ *     ＝core/storage の loadReachedKeys / loadReadKeys が localStorage キー "reached" / "read" をそのまま Set 化する
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
- *   - 続きから読む：loadLatestAutoSave で本編／あとがき union を取り、pendingJump または pendingJumpAfterword を書いて遷移
+ *   - 続きから読む：getLatestAutoSave（core/storage）で本編／あとがき union を取り、pendingJump または pendingJumpAfterword を書いて遷移
  *   - **コンテンツ更新履歴（要件 06-7）**：changelog/content-changelog.json を記述順のまま全件 li に描き、
- *     各 li に data-kind（versionKind＝title.ts の inline 複製）を付ける。#content-changelog-filter の
+ *     各 li に data-kind（versionKind＝core/changelog。title.ts と共有）を付ける。#content-changelog-filter の
  *     版種別スイッチ（メジャー／マイナー／パッチの独立トグル・aria-pressed。初期値メジャー＋マイナー・永続化しない）と
  *     「すべて表示」の展開状態から、_applyChangelogFilter が hidden・空表示・トグルボタンを一括で決める
  *     （初期 CHANGELOG_INITIAL_COUNT 件は絞り込み後に数える）
  *
- * localStorage キー（bookmark.ts と共有・変更時は両側を合わせる）:
- *   "reached"              : string[]         到達キー集合。"EP-SEC" と "vol[XX]-af" が混在
- *   "read"                : string[]         読了キー集合。同上
- *   "autosave"             : { ep, sec, ratio, savedAt }   本編の最新読書位置
- *   "autosaveAfterword"    : { vol, ratio, savedAt }        あとがきの最新読書位置（独立キー）
- *   "bookmarks"            : BookmarkEntry[]  手動栞（本編 sec のみ・あとがきは対象外）
- *   "pendingJump"          : { ep, sec, scene, ratio }     本編ジャンプ受け渡し
- *   "pendingJumpAfterword" : { vol, ratio }                あとがきジャンプ受け渡し
- *   "sceneRead"            : string[]         旧 "ep-sec-scene" 形式（移行前フォールバック）
- *   "lirmena.*"            : 表示設定（writingMode/lineGap/fontFamily/fontSize/fontWeight）
- *   "lirmena.readingAnchor": 読書点の位置（settings.ts が所有。目次は表示に使わず「設定をリセット」で消すだけ）
+ * localStorage キー:
+ *   栞・既読・読破・オートセーブ・pendingJump・schemaVersion の契約は core/storage.ts が持つ（本文側と共有）。
+ *   表示設定（"lirmena.*" の 5 項目と "lirmena.readingAnchor"）の契約は core/settings-model.ts が持つ。
+ *   目次だけが書くキー:
  *   "lirmena.heroCard"     : string   ヒーローカード画像の相対パス "vol[XX]/<file>"。applyStoryStage が書き、
  *                            index.html の早期 <script> が次回ロードのパース時点で読む（初期表示のちらつき回避）。
  *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
@@ -87,7 +82,15 @@
 import './styles/_characters.css';
 import './styles/_map.css';
 import './styles/toc.css';
-import * as bookmark from './bookmark';
+import * as storage from './core/storage';
+import type { LatestAutoSave } from './core/storage';
+import { loadSettings, removeSettings, saveSetting, saveSettings, PRESETS } from './core/settings-model';
+import { withQuery } from './core/query';
+import { hasEffectivePreview } from './core/preview';
+import { versionKind, type VersionKind } from './core/changelog';
+import * as settingsPanel from './ui/settings-panel';
+import * as share from './ui/share';
+import { applyRuby } from './ruby';
 import * as charaPopup from './characters';
 import * as mapPopup from './map';
 import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
@@ -98,17 +101,7 @@ import type { CharactersData } from './types';
 // 未着手 vol/ep に骨組みだけ置ける（story-integrity (j)(k)(k')(l)/(e) の判定も「非空 text」でのみ発火）。
 // 目次では sec chip の代わりにタイトル＋予告テキストを出す（ep）／summary 相当のヘッダのみ出す（vol）。
 type Preview = { text: string };
-// preview が定義されかつ text の trim が非空なら true。renderStory の描画分岐に使う。
-// **src/story-integrity.ts の同名関数と対の複製**（独立方針で import しない）。向こうはビルドを止める判定・
-// こちらは目次に描くかの判定なので、ズレると build は通るのに目次だけ壊れる（vol が丸ごと消える等）。
-// 片方を直したら必ず両方直すこと。
-// 実データは build 時 (j) 検査を通っているが、null/非オブジェクト/非 string text にも防御的に false を返す。
-function _hasEffectivePreview(preview: Preview | undefined): boolean {
-    if (preview === undefined || preview === null) return false;
-    if (typeof preview !== 'object') return false;
-    if (typeof preview.text !== 'string') return false;
-    return preview.text.trim() !== '';
-}
+// 「非空 text」の判定は core/preview の hasEffectivePreview（story-integrity と同じ関数）。
 type Episode = { id: number; title: string; sections: { id: number; published: boolean }[]; preview?: Preview };
 // story.json のトップレベル vol エントリ（index.ts の独立方針でローカル定義。詳細は types.ts の Volume）。
 // stage 判定・あとがき描画・ヒーローカード切替・予告描画に必要なフィールドを最小限持つ。
@@ -120,14 +113,6 @@ type StoryVolume = {
     afterword: { published: boolean };
     episodes: Episode[];
     preview?: Preview;
-};
-type BookmarkEntry = {
-    slot: number;
-    ep: number;
-    sec: number;
-    scene: number;
-    ratio: number;
-    savedAt: number;
 };
 type ContentChangelogEntry = {
     version: string;
@@ -142,38 +127,10 @@ type SiteChangelogEntry = {
     changes: string[];
 };
 
-// 本編／あとがきのオートセーブを union で表す。「続きから読む」は savedAt が新しい方を採用する。
-type LatestAutoSave =
-    | { kind: 'sec'; ep: number; sec: number; ratio: number; savedAt: number }
-    | { kind: 'afterword'; vol: number; ratio: number; savedAt: number };
-
-// localStorage キー（bookmark.ts / settings.ts と同一）
-const LS_REACHED               = 'reached';
-const LS_READ                  = 'read';
-const LS_AUTOSAVE              = 'autosave';
-const LS_AUTOSAVE_AFTERWORD    = 'autosaveAfterword';
-const LS_BOOKMARKS             = 'bookmarks';
-const LS_PENDING_JUMP          = 'pendingJump';
-const LS_PENDING_JUMP_AFTERWORD = 'pendingJumpAfterword';
-const LS_SCENE_READ            = 'sceneRead';
-const LS_FONT_SIZE             = 'lirmena.fontSize';
-const LS_FONT_FAMILY           = 'lirmena.fontFamily';
-const LS_LINE_GAP              = 'lirmena.lineGap';
-const LS_FONT_WEIGHT           = 'lirmena.fontWeight';
-const LS_WRITING_MODE          = 'lirmena.writingMode';
-// 読書点。目次は調整 UI も表示反映も持たないが「設定をリセット」の対象には入る（要件 06-4）。
-// そのため設定行の DEFAULTS / buildRow / refreshRows には現れず、リセットの removeItem にだけ現れる。
-const LS_READING_ANCHOR        = 'lirmena.readingAnchor';
 // ヒーローカード画像の相対パス（"vol[XX]/<file>"）。applyStoryStage と本文側 main.ts が書き、
 // index.html の早期 <script> が次回ロードのパース時点で読む＝初期表示のちらつき回避
 // （lirmena.storyStage と同じ流儀）。値の解決と検証規則は volumes.ts に置く（本文側と共用するため）。
 const LS_HERO_CARD             = 'lirmena.heroCard';
-
-const DEFAULTS = { fontSize: 'medium', fontFamily: 'serif', lineGap: 'on', fontWeight: 'normal', writingMode: 'horizontal' } as const;
-
-function clearAllBookmarkSlots(): void {
-    localStorage.removeItem(LS_BOOKMARKS);
-}
 
 const GITHUB_REPO = 'haguchikarasu/lirmena';
 // 短縮 sha の形。content-changelog.json の sha は「本体コミット確定後に手で入れる」運用なので、
@@ -184,94 +141,6 @@ let _episodes: Episode[] = [];
 const CHANGELOG_INITIAL_COUNT = 3;
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const withQuery = (path: string): string => path + location.search;
-
-// あとがきキー "vol01-af" を生成（bookmark.ts の afterwordKey と同じ形式・独立方針で複製）
-const afterwordKey = (vol: number): string => `vol${pad(vol)}-af`;
-
-// |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
-// src/ruby.ts の applyRuby と同一ロジック（独立方針で inline 複製・XSS 安全）。
-function applyRuby(text: string, el: HTMLElement): void {
-    const re = /\|([^《\n]+)《([^》\n]+)》/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-        if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
-        const ruby = document.createElement('ruby');
-        ruby.appendChild(document.createTextNode(m[1]));
-        const rt = document.createElement('rt');
-        rt.textContent = m[2];
-        ruby.appendChild(rt);
-        el.appendChild(ruby);
-        last = m.index + m[0].length;
-    }
-    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
-}
-
-// ----- localStorage ヘルパー -----
-
-function loadStringSet(key: string): Set<string> {
-    try {
-        const raw = localStorage.getItem(key);
-        if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch { /* ignore */ }
-    return new Set();
-}
-
-// 旧 "sceneRead" の完了マーカー "ep-sec-00" を "ep-sec" 集合として返す（移行前フォールバック）
-function loadLegacyDoneSections(): Set<string> {
-    const result = new Set<string>();
-    for (const k of loadStringSet(LS_SCENE_READ)) {
-        const parts = k.split('-');
-        if (parts.length === 3 && parts[2] === '00') result.add(`${parts[0]}-${parts[1]}`);
-    }
-    return result;
-}
-
-// 到達キー集合（本文 sec "EP-SEC" とあとがき "vol[XX]-af" が混在）＋旧 sceneRead フォールバック
-function loadReachedKeys(): Set<string> {
-    const result = loadStringSet(LS_REACHED);
-    for (const k of loadLegacyDoneSections()) result.add(k);
-    return result;
-}
-
-// 読了キー集合（同上）
-function loadReadKeys(): Set<string> {
-    const result = loadStringSet(LS_READ);
-    for (const k of loadLegacyDoneSections()) result.add(k);
-    return result;
-}
-
-function loadBookmarks(): BookmarkEntry[] {
-    try {
-        const raw = localStorage.getItem(LS_BOOKMARKS);
-        if (!raw) return [];
-        const list = JSON.parse(raw) as Array<Record<string, unknown>>;
-        const entries = list.map((o) => {
-            const addr = (o.address ?? o) as Record<string, unknown>;
-            const slotRaw = Number(o.slot);
-            const slot = (slotRaw === 1 || slotRaw === 2 || slotRaw === 3) ? slotRaw : 0;
-            const ratio = Number(o.ratio);
-            return {
-                slot,
-                ep: Number(addr.ep),
-                sec: Number(addr.sec),
-                scene: Number(addr.scene) || 0,
-                ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0,
-                savedAt: Number(o.savedAt) || Date.now(),
-            };
-        }).filter((b) => Number.isFinite(b.ep) && Number.isFinite(b.sec));
-
-        const taken = new Set(entries.filter(b => b.slot >= 1 && b.slot <= 3).map(b => b.slot));
-        for (const b of entries.filter(b => b.slot === 0).sort((a, b) => a.savedAt - b.savedAt)) {
-            for (let s = 1; s <= 3; s++) {
-                if (!taken.has(s)) { b.slot = s; taken.add(s); break; }
-            }
-        }
-        return entries;
-    } catch { /* ignore */ }
-    return [];
-}
 
 // ----- 既読/読破判定 -----
 
@@ -282,17 +151,12 @@ function isSectionInSet(ep: number, sec: number, set: Set<string>): boolean {
 
 // あとがきキー "vol[XX]-af" が集合に含まれるか
 function isAfterwordInSet(vol: number, set: Set<string>): boolean {
-    return set.has(afterwordKey(vol));
+    return set.has(storage.afterwordKey(vol));
 }
 
-function clearReached(): void {
-    localStorage.removeItem(LS_REACHED);
-    localStorage.removeItem(LS_SCENE_READ);
-}
-
+// 読破状況のクリア（core/storage の clearRead）に、目次だけが持つヒーローカードのキャッシュの削除を足す。
 function clearReadStatus(): void {
-    localStorage.removeItem(LS_READ);
-    localStorage.removeItem(LS_SCENE_READ);
+    storage.clearRead();
     // stage が 1 に戻るのでヒーローカードのキャッシュも捨てる。直後に applyStoryStage が呼ばれて上書き
     // されるが、story が空・heroFile 未解決のときは src を触らずに抜けるため古い値が残りうる。
     localStorage.removeItem(LS_HERO_CARD);
@@ -302,54 +166,12 @@ function confirmAndRun(msg: string, run: () => void): void {
     if (window.confirm(msg)) run();
 }
 
-// 本編オートセーブ（最新の読書位置）を読む
-function loadAutoSave(): { ep: number; sec: number; ratio: number; savedAt: number } | null {
-    try {
-        const raw = localStorage.getItem(LS_AUTOSAVE);
-        if (!raw) return null;
-        const o = JSON.parse(raw) as { ep?: unknown; sec?: unknown; ratio?: unknown; savedAt?: unknown };
-        const ep = Number(o.ep);
-        const sec = Number(o.sec);
-        if (Number.isFinite(ep) && Number.isFinite(sec)) {
-            const ratio = Number(o.ratio);
-            return { ep, sec, ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0, savedAt: Number(o.savedAt) || Date.now() };
-        }
-    } catch { /* ignore */ }
-    return null;
-}
-
-// あとがきオートセーブを読む（独立キー）
-function loadAutoSaveAfterword(): { vol: number; ratio: number; savedAt: number } | null {
-    try {
-        const raw = localStorage.getItem(LS_AUTOSAVE_AFTERWORD);
-        if (!raw) return null;
-        const o = JSON.parse(raw) as { vol?: unknown; ratio?: unknown; savedAt?: unknown };
-        const vol = Number(o.vol);
-        if (!Number.isFinite(vol)) return null;
-        const ratio = Number(o.ratio);
-        return { vol, ratio: Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0, savedAt: Number(o.savedAt) || Date.now() };
-    } catch { /* ignore */ }
-    return null;
-}
-
-// 本編／あとがきのうち savedAt が新しい方を union として返す。「続きから読む」ボタン／FAB／スロット0で使う。
-function loadLatestAutoSave(): LatestAutoSave | null {
-    const sec = loadAutoSave();
-    const aft = loadAutoSaveAfterword();
-    if (!sec && !aft) return null;
-    if (!aft) return { kind: 'sec', ep: sec!.ep, sec: sec!.sec, ratio: sec!.ratio, savedAt: sec!.savedAt };
-    if (!sec) return { kind: 'afterword', vol: aft.vol, ratio: aft.ratio, savedAt: aft.savedAt };
-    return sec.savedAt >= aft.savedAt
-        ? { kind: 'sec', ep: sec.ep, sec: sec.sec, ratio: sec.ratio, savedAt: sec.savedAt }
-        : { kind: 'afterword', vol: aft.vol, ratio: aft.ratio, savedAt: aft.savedAt };
-}
-
 // pendingJump（本編）または pendingJumpAfterword（あとがき）を書く（union 対応）
 function writeResumeJump(latest: LatestAutoSave): void {
     if (latest.kind === 'afterword') {
-        localStorage.setItem(LS_PENDING_JUMP_AFTERWORD, JSON.stringify({ vol: latest.vol, ratio: latest.ratio }));
+        storage.writePendingJumpAfterword({ vol: latest.vol, ratio: latest.ratio });
     } else {
-        localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep: latest.ep, sec: latest.sec, scene: 0, ratio: latest.ratio }));
+        storage.writePendingJump({ ep: latest.ep, sec: latest.sec, scene: 0, ratio: latest.ratio });
     }
 }
 
@@ -366,7 +188,7 @@ function resumeReading(latest: LatestAutoSave): void {
 function initResumeButton(): void {
     const btn = document.getElementById('idx-resume') as HTMLButtonElement | null;
     if (!btn) return;
-    const latest = loadLatestAutoSave();
+    const latest = storage.getLatestAutoSave();
     if (!latest) return;
     btn.hidden = false;
     btn.addEventListener('click', () => resumeReading(latest));
@@ -377,15 +199,15 @@ function initResumeButton(): void {
 // stage を <html data-story-stage> に反映し、対応するヒーローカード画像へ差し替える。
 // - stage N（1 ≤ N ≤ story.length） → story.find(v => v.volume === N)?.heroCard.file
 // - stage story.length + 1（物語完結） → 最終 vol（volume 番号最大）の heroCardCompleted.file
-// bookmark.getRead() は本文 sec キーとあとがきキーの混在配列だが、computeStoryStage が
+// read セットは本文 sec キーとあとがきキーの混在だが、computeStoryStage が
 // 本文 sec 用 regex でフィルタするためあとがきキーは stage 判定に影響しない。
 function applyStoryStage(story: StoryVolume[]): void {
     if (story.length === 0) return;
-    // localStorage を直読みして最新の read セットを取る。bookmark.getRead() は
-    // モジュール内メモリキャッシュ（bookmark.init 時に固定）を返すため、目次内で「読破状況を
-    // クリア」した直後の再計算では古いキャッシュを返してしまい stage / ヒーローカードが
-    // 更新されない。目次は他の表示 API も localStorage 直読みで統一しているのでこちらへ寄せる。
-    const read = Array.from(loadReadKeys());
+    // localStorage を直読みして最新の read セットを取る（storage.loadReadKeys）。storage.getRead() は
+    // モジュール内メモリキャッシュ（storage.init 時に固定）を返すため、目次内で「読破状況を
+    // クリア」した直後の再計算では古いキャッシュを返してしまう恐れがある。目次は他の表示 API も
+    // localStorage 直読みで統一しているのでこちらへ寄せる。
+    const read = Array.from(storage.loadReadKeys());
     // computeStoryStage は types.ts の StoryData を受けるが、index.ts のローカル StoryVolume は
     // 判定に必要なフィールド（volume, epRange, episodes.sections.published）を全て持つため構造的互換。
     const stage = computeStoryStage(read, story as unknown as Parameters<typeof computeStoryStage>[1]);
@@ -604,10 +426,7 @@ function _finishHeroSlide(): void {
 // 設定・共有ポップアップが開いているか。開いている間はギャラリーのキー操作を譲る。
 // _isPopupOpen(): boolean
 function _isPopupOpen(): boolean {
-    return ['#settings-popup', '#share-popup'].some((sel) => {
-        const el = document.querySelector<HTMLElement>(sel);
-        return el !== null && !el.hidden;
-    });
+    return settingsPanel.isOpen() || share.isOpen();
 }
 
 // クリック・キー・スワイプの登録。**1 度だけ**行う（applyStoryStage は再実行されるため）。
@@ -680,11 +499,11 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
             .map(ep => ({
                 ep,
                 publishedSecs: ep.sections.filter(s => s.published),
-                hasPreview: _hasEffectivePreview(ep.preview),
+                hasPreview: hasEffectivePreview(ep.preview),
             }))
             .filter(x => x.publishedSecs.length > 0 || x.hasPreview);
         const hasAfterword = vol.afterword?.published === true;
-        const hasVolPreview = _hasEffectivePreview(vol.preview);
+        const hasVolPreview = hasEffectivePreview(vol.preview);
         // vol 単位の非表示：表示可能な ep も vol.preview もあとがきも無い vol は巻カードを出さない
         if (visibleEps.length === 0 && !hasAfterword && !hasVolPreview) continue;
 
@@ -735,7 +554,7 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
 // クラス名で解決する（<summary> でないと <details> の開閉ハンドラが繋がらない）。
 // pill の中身は「完結 > 予告 > 連載中」の優先順位で決める（完結と予告の併存は integrity (e) 強化で禁止）。
 function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount: number): HTMLElement {
-    const hasVolPreview = _hasEffectivePreview(vol.preview);
+    const hasVolPreview = hasEffectivePreview(vol.preview);
     // 予告 vol は <header>、通常 vol は <summary>（<details> の toggle に必要）。同じ .idx-vol-head クラスを共有し、
     // CSS 側で .idx-vol-card--notice > .idx-vol-head の cursor/hover を打ち消す。
     // <header> は必ず <section class="idx-vol-card--notice"> の内側に置くこと：セクショニング要素の外に出すと
@@ -958,7 +777,7 @@ function renderBookmarks(): void {
     container.innerHTML = '';
 
     // スロット0：オートセーブ（本編／あとがきのうち savedAt が新しい方）
-    const latest = loadLatestAutoSave();
+    const latest = storage.getLatestAutoSave();
     if (latest) {
         const actions = document.createElement('div');
         actions.className = 'idx-bm-btns';
@@ -977,8 +796,8 @@ function renderBookmarks(): void {
         delBtn.textContent = '削除';
         // 削除は該当オートセーブ（本編／あとがき）のキーを消す
         delBtn.addEventListener('click', () => {
-            if (latest.kind === 'afterword') localStorage.removeItem(LS_AUTOSAVE_AFTERWORD);
-            else localStorage.removeItem(LS_AUTOSAVE);
+            if (latest.kind === 'afterword') storage.clearAutoSaveAfterword();
+            else storage.clearAutoSave();
             renderBookmarks();
         });
         actions.appendChild(delBtn);
@@ -992,7 +811,7 @@ function renderBookmarks(): void {
     }
 
     // スロット1〜3：手動栞（本編 sec のみ・あとがきは手動栞対象外）
-    const bySlot = new Map(loadBookmarks().map(b => [b.slot, b]));
+    const bySlot = new Map(storage.getBookmarksWithSlots().map(b => [b.slot, b]));
     for (let slot = 1; slot <= 3; slot++) {
         const entry = bySlot.get(slot);
         if (!entry) {
@@ -1009,7 +828,7 @@ function renderBookmarks(): void {
         jumpBtn.href = withQuery(`contents/${pad(ep)}-${pad(sec)}.html`);
         jumpBtn.textContent = 'ここから読む';
         jumpBtn.addEventListener('click', () => {
-            localStorage.setItem(LS_PENDING_JUMP, JSON.stringify({ ep, sec, scene, ratio: entry.ratio }));
+            storage.writePendingJump({ ep, sec, scene, ratio: entry.ratio });
         });
         actions.appendChild(jumpBtn);
 
@@ -1018,12 +837,7 @@ function renderBookmarks(): void {
         clearBtn.type = 'button';
         clearBtn.textContent = '削除';
         clearBtn.addEventListener('click', () => {
-            const remaining = loadBookmarks().filter(b => b.savedAt !== entry.savedAt);
-            if (remaining.length === 0) {
-                localStorage.removeItem(LS_BOOKMARKS);
-            } else {
-                localStorage.setItem(LS_BOOKMARKS, JSON.stringify(remaining));
-            }
+            storage.removeBookmark(entry.slot);
             renderBookmarks();
         });
         actions.appendChild(clearBtn);
@@ -1033,334 +847,43 @@ function renderBookmarks(): void {
     }
 }
 
-// ----- 設定ポップアップ -----
+// ----- 設定ポップアップ・共有ポップアップ -----
 
-// 本文ページ src/settings.ts の _buildPopup() と同じ markup・同じ localStorage キーを手で揃えた二重実装
-// （index.ts は settings.ts を import しない＝リーフ間非依存を保つため。.dependency-cruiser.cjs の
-//   index-src-isolation ルールが機械的に強制する。理由は design/modules/index.md）。
-// **行の並びは両ページで一致させること**（要件 06-4 の設定項目表の順）。
-// 設定行を足す・並びを変えるときは settings.ts 側と、このファイル内の次の6箇所を同時に直す：
-//   1) LS_* 定数  2) DEFAULTS  3) DISPLAY_SETTINGS（キー・既定値・有効値。refreshRows と一致判定が共用）
-//   4) buildRow の呼び出し順  5) 「設定をリセット」の removeItem  6) PRESETS の values（全プリセットに新項目を足す）
-// （さらにファイル冒頭 IF コメントの localStorage キー一覧）。並びのズレは e2e/settings-order.spec.ts が検出する。
-// 目次ページは本文を持たないので CSS 変数へは反映せず、localStorage 保存と .active トグルだけを行う。
-// なお読書点（lirmena.readingAnchor）は設定「行」を持たないので上記 1)〜4) には現れないが、
-// **5) のリセットには含める**：「設定をリセット」はグローバルな初期化であって表示設定だけの初期化ではない
-// （要件 06-4）。目次には読書点マーカーが無いため効果は次に本文ページを開いたときに現れる。
-// 本文側は setReadingAnchor(既定) ＝ setItem('45')、目次側は removeItem という非対称だが、
-// settings.ts の _loadReadingAnchor() が null を既定値 45 へ倒すので読み手にとっては同値。
-function buildSettingsPopup(story: StoryVolume[]): void {
-    const popup = document.getElementById('settings-popup');
-    if (!popup) return;
-
-    const optEntries = new Map<string, Array<{ btn: HTMLButtonElement; value: string }>>();
-    const presetEntries: Array<{ btn: HTMLButtonElement; id: string }> = [];
-
-    // 表示設定5項目の localStorage キー・既定値・有効値。行の並び順（要件 06-4）に合わせてある。
-    // 有効値を持つのは本文側 settings.ts の _readEnum に揃えるため——揃えないと lirmena.fontSize='huge' のような
-    // 残留値があったときに、本文は既定へ倒して目次は生値のまま扱い、両ページのプリセット選択表示がズレる。
-    const DISPLAY_SETTINGS: ReadonlyArray<{ key: string; def: string; valid: readonly string[] }> = [
-        { key: LS_WRITING_MODE, def: DEFAULTS.writingMode, valid: ['vertical', 'horizontal'] },
-        { key: LS_LINE_GAP,     def: DEFAULTS.lineGap,     valid: ['on', 'off'] },
-        { key: LS_FONT_FAMILY,  def: DEFAULTS.fontFamily,  valid: ['serif', 'sans'] },
-        { key: LS_FONT_SIZE,    def: DEFAULTS.fontSize,    valid: ['large', 'medium', 'small'] },
-        { key: LS_FONT_WEIGHT,  def: DEFAULTS.fontWeight,  valid: ['normal', 'bold'] },
-    ];
-
-    // 本文側 src/settings.ts の PRESETS と手で揃えた複製（settings.ts を import できないため）。
-    // ズレは e2e/settings-preset.spec.ts が両ページの表示文字列と localStorage の値マップを突き合わせて検出する。
-    const PRESETS: ReadonlyArray<{ id: string; name: string; desc: string; values: Record<string, string> }> = [
-        {
-            id: 'web', name: 'ウェブ小説風', desc: '横書き・空行あり / ゴシック体',
-            values: {
-                [LS_WRITING_MODE]: 'horizontal', [LS_LINE_GAP]: 'on', [LS_FONT_FAMILY]: 'sans',
-                [LS_FONT_SIZE]: 'medium', [LS_FONT_WEIGHT]: 'normal',
-            },
+// 設定ポップアップ（ui/settings-panel。markup は templates/parts/settings.html＝本文ページと同じ断片）の host を目次用に結ぶ。
+// 目次ページは本文を持たないので CSS 変数・<html data-writing-mode> へは反映せず、localStorage への保存だけを行う
+// （反映するのは本文側の settings.ts だけ＝目次が縦書きになる事故が構造的に起きない）。
+// 「設定をリセット」は表示設定 5 項目と読書点のキーを消す（removeSettings）。本文側は既定値を書くが、読み手が
+// null を既定へ倒すので読者にとっては同値（e2e/settings-reset.spec.ts が目次側のキーの網羅と、本文での解決を見る）。
+// Escape で閉じる順番は initFab のキー処理が決めるので、パネル自身には Escape を拾わせない。
+// initSettingsPopup(story: StoryVolume[]): void
+function initSettingsPopup(story: StoryVolume[]): void {
+    settingsPanel.init({
+        current: loadSettings,
+        select: saveSetting,
+        preset: (id) => {
+            const preset = PRESETS.find((p) => p.id === id);
+            if (preset) saveSettings(preset.values);
         },
-        {
-            id: 'book', name: '書籍風', desc: '縦書き・字下げ / 明朝体',
-            values: {
-                [LS_WRITING_MODE]: 'vertical', [LS_LINE_GAP]: 'off', [LS_FONT_FAMILY]: 'serif',
-                [LS_FONT_SIZE]: 'medium', [LS_FONT_WEIGHT]: 'normal',
-            },
-        },
-    ];
-
-    // 未設定・DISPLAY_SETTINGS に無い値は既定へ倒す（本文側 settings.ts の _readEnum と同じ役目）。
-    function readSetting(key: string, defaultVal: string): string {
-        const raw = localStorage.getItem(key);
-        if (raw === null) return defaultVal;
-        const spec = DISPLAY_SETTINGS.find((s) => s.key === key);
-        return !spec || spec.valid.includes(raw) ? raw : defaultVal;
-    }
-
-    // 表示設定1項目の現在値（既定値は DISPLAY_SETTINGS から引く）。
-    function currentOf(key: string): string {
-        const spec = DISPLAY_SETTINGS.find((s) => s.key === key);
-        return readSetting(key, spec?.def ?? '');
-    }
-
-    function buildRow(
-        label: string,
-        lsKey: string,
-        defaultVal: string,
-        opts: Array<{ value: string; label: string }>,
-    ): HTMLElement {
-        const row = document.createElement('div');
-        row.className = 'settings-row';
-
-        const labelEl = document.createElement('span');
-        labelEl.className = 'settings-row__label';
-        labelEl.textContent = label;
-        row.appendChild(labelEl);
-
-        const optsEl = document.createElement('div');
-        optsEl.className = 'settings-row__opts';
-
-        const current = readSetting(lsKey, defaultVal);
-        const entries: Array<{ btn: HTMLButtonElement; value: string }> = [];
-
-        for (const opt of opts) {
-            const btn = document.createElement('button');
-            btn.className = 'settings-opt';
-            btn.type = 'button';
-            btn.textContent = opt.label;
-            if (current === opt.value) btn.classList.add('active');
-            btn.addEventListener('click', () => {
-                localStorage.setItem(lsKey, opt.value);
-                for (const e of entries) {
-                    e.btn.classList.toggle('active', e.value === opt.value);
-                }
-                // 単一行の変更でプリセットとの一致が成立・崩壊するのでカードも更新する（永続化しない派生状態）。
-                refreshPresets();
-            });
-            optsEl.appendChild(btn);
-            entries.push({ btn, value: opt.value });
-        }
-        optEntries.set(lsKey, entries);
-        row.appendChild(optsEl);
-        return row;
-    }
-
-    function buildAction(label: string, handler: () => void): HTMLButtonElement {
-        const btn = document.createElement('button');
-        btn.className = 'settings-action';
-        btn.type = 'button';
-        btn.textContent = label;
-        btn.addEventListener('click', handler);
-        return btn;
-    }
-
-    function refreshRows(): void {
-        for (const { key } of DISPLAY_SETTINGS) {
-            const current = currentOf(key);
-            for (const e of optEntries.get(key) ?? []) {
-                e.btn.classList.toggle('active', e.value === current);
-            }
-        }
-    }
-
-    // プリセットの小見出しとカード2枚。本文側 settings.ts の _buildPresets と同じ markup・同じ表示文字列。
-    // カードは設定の「行」ではない（.settings-row / .settings-row__label を使わない）＝行順を検査する
-    // e2e/settings-order.spec.ts の対象外に保つ。
-    function buildPresets(): DocumentFragment {
-        const frag = document.createDocumentFragment();
-
-        const label = document.createElement('div');
-        label.className = 'settings-subtitle';
-        label.id = 'settings-preset-label';
-        label.textContent = 'プリセット';
-        frag.appendChild(label);
-
-        const box = document.createElement('section');
-        box.className = 'settings-preset';
-        box.setAttribute('aria-labelledby', 'settings-preset-label');
-
-        for (const preset of PRESETS) {
-            const btn = document.createElement('button');
-            btn.className = 'settings-preset__btn';
-            btn.type = 'button';
-
-            const name = document.createElement('span');
-            name.className = 'settings-preset__name';
-            name.textContent = preset.name;
-            btn.appendChild(name);
-
-            const desc = document.createElement('span');
-            desc.className = 'settings-preset__desc';
-            desc.textContent = preset.desc;
-            btn.appendChild(desc);
-
-            btn.addEventListener('click', () => {
-                for (const [key, val] of Object.entries(preset.values)) {
-                    localStorage.setItem(key, val);
-                }
-                // buildRow のクリックは自分の行しか更新しないので、複数キーを一括で変えたら refreshRows が要る。
-                refreshRows();
-                refreshPresets();
-            });
-            box.appendChild(btn);
-            presetEntries.push({ btn, id: preset.id });
-        }
-
-        frag.appendChild(box);
-        return frag;
-    }
-
-    // カードの .active を現在値との一致から導く（永続化しない派生状態。既定値はどちらとも一致しない）。
-    function refreshPresets(): void {
-        const hit = PRESETS.find((p) => Object.entries(p.values).every(([key, val]) => currentOf(key) === val));
-        for (const e of presetEntries) {
-            const on = hit !== undefined && e.id === hit.id;
-            e.btn.classList.toggle('active', on);
-            // .active は見た目だけなので、選択状態を支援技術にも伝える（本文側 settings.ts と同じ）。
-            e.btn.setAttribute('aria-pressed', String(on));
-        }
-    }
-
-    const panel = document.createElement('div');
-    panel.className = 'settings-panel';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'settings-panel__title';
-    titleEl.textContent = '表示設定';
-    panel.appendChild(titleEl);
-
-    panel.appendChild(buildPresets());
-    refreshPresets();
-
-    const presetDivider = document.createElement('div');
-    presetDivider.className = 'settings-divider';
-    panel.appendChild(presetDivider);
-
-    panel.appendChild(buildRow('書字方向', LS_WRITING_MODE, DEFAULTS.writingMode, [
-        { value: 'vertical',   label: '縦書き' },
-        { value: 'horizontal', label: '横書き' },
-    ]));
-    panel.appendChild(buildRow('段落間の空行', LS_LINE_GAP, DEFAULTS.lineGap, [
-        { value: 'on',  label: 'あり' },
-        { value: 'off', label: 'なし' },
-    ]));
-    panel.appendChild(buildRow('フォント', LS_FONT_FAMILY, DEFAULTS.fontFamily, [
-        { value: 'serif', label: '明朝体' },
-        { value: 'sans',  label: 'ゴシック体' },
-    ]));
-    panel.appendChild(buildRow('文字サイズ', LS_FONT_SIZE, DEFAULTS.fontSize, [
-        { value: 'small',  label: '小' },
-        { value: 'medium', label: '中' },
-        { value: 'large',  label: '大' },
-    ]));
-    panel.appendChild(buildRow('文字の太さ', LS_FONT_WEIGHT, DEFAULTS.fontWeight, [
-        { value: 'normal', label: '通常' },
-        { value: 'bold',   label: '太字' },
-    ]));
-
-    const divider = document.createElement('div');
-    divider.className = 'settings-divider';
-    panel.appendChild(divider);
-
-    panel.appendChild(buildAction('栞をクリア', () => {
-        confirmAndRun('保存した栞をすべて削除しますか？', () => {
-            clearAllBookmarkSlots();
+        reset: removeSettings,
+        clearBookmarks: () => {
+            storage.clearSlots();
             renderBookmarks();
-        });
-    }));
-    panel.appendChild(buildAction('既読をクリア', () => {
-        confirmAndRun('既読の記録をすべて削除しますか？', () => {
-            clearReached();
-            renderStory(story, loadReachedKeys(), loadReadKeys());
-        });
-    }));
-    panel.appendChild(buildAction('読破状況をクリア', () => {
-        confirmAndRun('読破の記録をすべて削除しますか？', () => {
+        },
+        clearReached: () => {
+            storage.clearReached();
+            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
+        },
+        clearRead: () => {
             clearReadStatus();
-            renderStory(story, loadReachedKeys(), loadReadKeys());
+            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
             applyStoryStage(story);
-        });
-    }));
-    panel.appendChild(buildAction('設定をリセット', () => {
-        localStorage.removeItem(LS_WRITING_MODE);
-        localStorage.removeItem(LS_LINE_GAP);
-        localStorage.removeItem(LS_FONT_FAMILY);
-        localStorage.removeItem(LS_FONT_SIZE);
-        localStorage.removeItem(LS_FONT_WEIGHT);
-        // 表示設定の行を持たないが対象に含める（要件 06-4「設定をリセットでデフォルトに戻す」）。
-        localStorage.removeItem(LS_READING_ANCHOR);
-        refreshRows();
-        // 既定値はどちらのプリセットとも一致しないので、リセット後は両カードとも非 active になるのが正。
-        refreshPresets();
-    }));
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'settings-close';
-    closeBtn.type = 'button';
-    closeBtn.textContent = '閉じる';
-    closeBtn.addEventListener('click', () => { popup.hidden = true; });
-    panel.appendChild(closeBtn);
-
-    popup.appendChild(panel);
-
-    popup.addEventListener('click', (e) => {
-        if (e.target === popup) popup.hidden = true;
-    });
-}
-
-// ----- 共有ポップアップ -----
-
-function buildSharePopup(sharePopup: HTMLElement): void {
-    const panel = document.createElement('div');
-    panel.className = 'settings-panel';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'settings-panel__title';
-    titleEl.textContent = '共有';
-    panel.appendChild(titleEl);
-
-    const makeAction = (label: string, handler: () => void): HTMLButtonElement => {
-        const btn = document.createElement('button');
-        btn.className = 'settings-action';
-        btn.type = 'button';
-        btn.textContent = label;
-        btn.addEventListener('click', () => { sharePopup.hidden = true; handler(); });
-        return btn;
-    };
-
-    const shareUrl = location.origin + location.pathname;
-    panel.append(
-        makeAction('リンクをコピー', () => {
-            navigator.clipboard.writeText(shareUrl).catch(() => {});
-        }),
-        makeAction('Xでシェア', () => {
-            window.open(
-                `https://x.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`,
-                '_blank', 'noopener,noreferrer',
-            );
-        }),
-        makeAction('LINEでシェア', () => {
-            window.open(
-                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}`,
-                '_blank', 'noopener,noreferrer',
-            );
-        }),
-    );
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'settings-close';
-    closeBtn.type = 'button';
-    closeBtn.textContent = '閉じる';
-    closeBtn.addEventListener('click', () => { sharePopup.hidden = true; });
-    panel.appendChild(closeBtn);
-
-    sharePopup.appendChild(panel);
-
-    sharePopup.addEventListener('click', (e) => {
-        if (e.target === sharePopup) sharePopup.hidden = true;
+        },
     });
 }
 
 // ----- FAB メニュー -----
 
-function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume[]): void {
+function initFab(story: StoryVolume[]): void {
     const toggleOrNull = document.getElementById('fab-toggle');
     const panelOrNull  = document.getElementById('fab-panel');
     if (!toggleOrNull || !panelOrNull) return;
@@ -1396,29 +919,29 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume
         panel.appendChild(li);
     }
 
-    const latest = loadLatestAutoSave();
+    const latest = storage.getLatestAutoSave();
     if (latest) addItem('続きから読む', () => { resumeReading(latest); });
     addItem('栞をすべてクリア', () => {
         confirmAndRun('保存した栞をすべて削除しますか？', () => {
-            clearAllBookmarkSlots();
+            storage.clearSlots();
             renderBookmarks();
         });
     });
     addItem('既読をクリア', () => {
         confirmAndRun('既読の記録をすべて削除しますか？', () => {
-            clearReached();
-            renderStory(story, loadReachedKeys(), loadReadKeys());
+            storage.clearReached();
+            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
         });
     });
     addItem('読破状況をクリア', () => {
         confirmAndRun('読破の記録をすべて削除しますか？', () => {
             clearReadStatus();
-            renderStory(story, loadReachedKeys(), loadReadKeys());
+            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
             applyStoryStage(story);
         });
     });
-    addItem('設定', () => { popup.hidden = false; });
-    addItem('共有', () => { sharePopup.hidden = false; });
+    addItem('設定', () => { settingsPanel.open(); });
+    addItem('共有', () => { share.open(); });
 
     toggle.addEventListener('click', () => { if (isOpen()) closeFab(); else openFab(); });
 
@@ -1448,27 +971,13 @@ function initFab(popup: HTMLElement, sharePopup: HTMLElement, story: StoryVolume
         // 両者は同時に開かないので相対順は実害が無いが、本文側（menu.ts）と並びを揃えてある
         if (charaPopup.isOpen()) { charaPopup.close(); return; }
         if (mapPopup.isOpen()) { mapPopup.close(); return; }
-        if (!sharePopup.hidden) { sharePopup.hidden = true; return; }
-        if (!popup.hidden) { popup.hidden = true; return; }
+        if (share.isOpen()) { share.close(); return; }
+        if (settingsPanel.isOpen()) { settingsPanel.close(); return; }
         if (isOpen()) closeFab(); else openFab();
     });
 }
 
 // ----- 更新履歴 -----
-
-type VersionKind = 'major' | 'minor' | 'patch';
-
-/**
- * 版番号 "x.y.z" の種別を返す。z≠0→patch、y≠0→minor、それ以外→major。欠けた桁は "0" とみなす。
- * versionKind(version: string): VersionKind
- * title.ts の versionKind と同一ロジック（目次の独立方針で inline 複製。同期は e2e/changelog-filter.spec.ts が見る）。
- */
-function versionKind(version: string): VersionKind {
-    const [, minor = '0', patch = '0'] = version.split('.');
-    if (Number(patch) !== 0) return 'patch';
-    if (Number(minor) !== 0) return 'minor';
-    return 'major';
-}
 
 // 版種別スイッチで ON の種別（初期値はメジャー＋マイナー。永続化しない＝ページを開くたびにこの値へ戻る）と、
 // 「すべて表示」の展開状態。どちらも _applyChangelogFilter が唯一の読み手。
@@ -1653,7 +1162,7 @@ async function initAppendix(story: StoryVolume[]): Promise<void> {
 
     btn.addEventListener('click', () => {
         const stage = computeStoryStage(
-            Array.from(loadReadKeys()),
+            Array.from(storage.loadReadKeys()),
             story as unknown as Parameters<typeof computeStoryStage>[1],
         );
         charaPopup.open(data, stage);
@@ -1665,8 +1174,8 @@ async function initAppendix(story: StoryVolume[]): Promise<void> {
 // ----- エントリポイント -----
 
 async function main(): Promise<void> {
-    // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋割合化）を確実に走らせる。
-    bookmark.init();
+    // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋割合化）を確実に走らせる（移行の持ち主は core/storage だけ）。
+    storage.init();
     // 用語集チップの href に ?dev を引き継ぐ。story.json の取得を待たない（待つ間に押されると素の href で遷移する）
     initAppendixGlossary();
 
@@ -1687,7 +1196,7 @@ async function main(): Promise<void> {
     }
 
     _episodes = story.flatMap(vol => vol.episodes);
-    renderStory(story, loadReachedKeys(), loadReadKeys());
+    renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
     renderBookmarks();
     applyStoryStage(story);
     _initChangelogControls();
@@ -1700,13 +1209,9 @@ async function main(): Promise<void> {
     initAppendixMap();
     void initAppendix(story);
 
-    const popup = document.getElementById('settings-popup');
-    const sharePopup = document.getElementById('share-popup');
-    if (popup && sharePopup) {
-        buildSettingsPopup(story);
-        buildSharePopup(sharePopup);
-        initFab(popup, sharePopup, story);
-    }
+    initSettingsPopup(story);
+    share.init();
+    initFab(story);
 }
 
 main();

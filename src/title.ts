@@ -16,7 +16,7 @@
  *   #title-screen-changelog  … 変更履歴の器。行は子の #title-screen-changelog-list に描く（無ければ「更新履歴なし」）。
  *                               1 件以上あれば #title-screen-changelog-head（版種別スイッチ：メジャー／マイナー／パッチの
  *                               独立トグル・初期値メジャー＋マイナー・永続化しない）を出し、絞り込みで 0 件なら
- *                               #title-screen-changelog-empty を出す。版種別の判定 versionKind は index.ts の inline 複製と同一
+ *                               #title-screen-changelog-empty を出す。版種別の判定 versionKind は core/changelog（目次と共有）
  *
  * 背景画像: {BASE_URL}vol[YY]/ep[XX]/{coverFile}（story.json のエピソード内 coverFile。省略時 title.avif）。存在しなければ CSS の黒背景にフォールバック。
  *   coverPositionX / coverPositionY（任意・例 "30%" / "left" / "top"）は CSS 変数 --cover-position-x / --cover-position-y に設定し、
@@ -34,6 +34,7 @@ import * as loader from './loader';
 import * as bookmark from './bookmark';
 import * as transition from './transition';
 import { applyRuby } from './ruby';
+import { versionKind, type VersionKind } from './core/changelog';
 import type { ChangelogEntry, StoryData } from './types';
 
 const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
@@ -157,19 +158,7 @@ function _wireButtons(): void {
     if (index) index.href = state.indexUrl();
 }
 
-type VersionKind = 'major' | 'minor' | 'patch';
 
-/**
- * 版番号 "x.y.z" の種別を返す。z≠0→patch、y≠0→minor、それ以外→major。欠けた桁は "0" とみなす。
- * versionKind(version: string): VersionKind
- * index.ts の versionKind と同一ロジック（目次の独立方針で inline 複製。同期は e2e/changelog-filter.spec.ts が見る）。
- */
-function versionKind(version: string): VersionKind {
-    const [, minor = '0', patch = '0'] = version.split('.');
-    if (Number(patch) !== 0) return 'patch';
-    if (Number(minor) !== 0) return 'minor';
-    return 'major';
-}
 
 // 版種別スイッチで ON の種別。初期値はメジャー＋マイナーで、永続化しない（ページを開くたびにこの値へ戻る）。
 const _changelogKinds = new Set<VersionKind>(['major', 'minor']);

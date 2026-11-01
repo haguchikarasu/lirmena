@@ -12,7 +12,7 @@
  *   エシュカ地図      → mapPopup.open(_toggle)（作品世界の資料なのでキャラクター紹介の直後に置く）
  *   用語集            → glossary.open(_toggle)（同じく作品世界の資料なので地図の直後。あとがきページでも出す）
  *   設定を開く        → settings.open() を呼ぶ
- *   共有              → _openShare()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有）
+ *   共有              → share.open()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有。ui/share.ts）
  *
  * ※ マシュマロは本文末の #btn-share-marshmallow に集約（feedback.ts が管理）。メニューからの導線は持たない
  *
@@ -44,9 +44,8 @@
  *     閉じない（glossary.isEditingSearch()。2 回目の Escape で閉じる）
  *
  * 共有ポップアップ（#share-popup）：
- *   - _buildSharePopup(): void — リンクをコピー / X でシェア / LINE でシェア / 閉じる を生成する
- *   - _openShare() / _closeShare(): void — 表示切替
- *   - 閉じる方法：背景クリック・Escape キー・閉じるボタン
+ *   - markup は差し込みの断片 templates/parts/share.html、結線（各ボタン・閉じるボタン・背景クリック）は ui/share.ts
+ *   - Escape で閉じるのはここ（上の Escape の順番）
  *
  * キーボード操作：
  *   - メニュー内で上下キーによる項目選択（disabled 項目はスキップ）
@@ -62,6 +61,7 @@ import * as state from './state';
 import * as bookmark from './bookmark';
 import * as settings from './settings';
 import * as transition from './transition';
+import * as share from './ui/share';
 import * as tutorial from './tutorial';
 import * as charaPopup from './characters';
 import * as mapPopup from './map';
@@ -71,7 +71,6 @@ import type { StoryStage } from './volumes';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
-let _share: HTMLElement;
 let _bookmark: HTMLElement;
 let _items: HTMLButtonElement[] = [];
 let _charactersData: CharactersData = [];
@@ -84,13 +83,12 @@ export function init(characters: CharactersData): void {
     _charactersData = characters;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
-    _share = document.querySelector<HTMLElement>('#share-popup')!;
     _bookmark = document.querySelector<HTMLElement>('#bookmark-popup')!;
     charaPopup.init();
     mapPopup.init();
     glossary.init();
     _buildItems();
-    _buildSharePopup();
+    share.init();
     _buildBookmarkPopup();
     _registerEvents();
 }
@@ -150,7 +148,7 @@ function _buildItems(): void {
     });
 
     const btnShare = makeBtn('共有', () => {
-        _openShare();
+        share.open();
     });
 
     const items: HTMLButtonElement[] = [btnIndex];
@@ -159,67 +157,6 @@ function _buildItems(): void {
     _panel.append(...items, sep(), btnSettings, btnShare);
     items.push(btnSettings, btnShare);
     _items = items;
-}
-
-// #share-popup に共有ポップアップのパネル（リンクをコピー / X でシェア / LINE でシェア / 閉じる）を生成する。
-// 設定ポップアップと同じ .settings-panel / .settings-action / .settings-close 様式を流用する。
-// _buildSharePopup(): void
-function _buildSharePopup(): void {
-    const panel = document.createElement('div');
-    panel.className = 'settings-panel';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'settings-panel__title';
-    titleEl.textContent = '共有';
-    panel.appendChild(titleEl);
-
-    const makeAction = (label: string, handler: () => void): HTMLButtonElement => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'settings-action';
-        b.textContent = label;
-        b.addEventListener('click', () => { _closeShare(); handler(); });
-        return b;
-    };
-
-    // 共有 URL は ?dev 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）
-    const shareUrl = location.origin + location.pathname;
-    panel.append(
-        makeAction('リンクをコピー', () => {
-            navigator.clipboard.writeText(shareUrl).catch(() => {});
-        }),
-        makeAction('X でシェア', () => {
-            window.open(
-                `https://x.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`,
-                '_blank', 'noopener,noreferrer',
-            );
-        }),
-        makeAction('LINE でシェア', () => {
-            window.open(
-                `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}`,
-                '_blank', 'noopener,noreferrer',
-            );
-        }),
-    );
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'settings-close';
-    closeBtn.textContent = '閉じる';
-    closeBtn.addEventListener('click', () => _closeShare());
-    panel.appendChild(closeBtn);
-
-    _share.appendChild(panel);
-}
-
-// 共有ポップアップを開く / 閉じる。
-// _openShare(): void / _closeShare(): void
-function _openShare(): void {
-    _share.hidden = false;
-}
-
-function _closeShare(): void {
-    _share.hidden = true;
 }
 
 // ── 栞ポップアップ（スロット選択） ─────────────────────────────────
@@ -347,8 +284,8 @@ function _registerEvents(): void {
                 _closeBookmarkPopup();
                 return;
             }
-            if (!_share.hidden) {
-                _closeShare();
+            if (share.isOpen()) {
+                share.close();
                 return;
             }
             if (charaPopup.isOpen()) {
@@ -391,12 +328,6 @@ function _registerEvents(): void {
         const target = e.target as Node;
         if (!_panel.hidden && !_toggle.contains(target) && !_panel.contains(target)) {
             _close();
-        }
-    });
-
-    _share.addEventListener('click', (e) => {
-        if (e.target === _share) {
-            _closeShare();
         }
     });
 

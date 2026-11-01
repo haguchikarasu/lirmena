@@ -1,3 +1,4 @@
+// @vitest-environment node
 /*
  * core/theme.test.ts
  * core/theme.ts（巻の素材のファイル名規約）の仕様駆動テスト。

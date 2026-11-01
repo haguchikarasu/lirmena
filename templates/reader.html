@@ -167,11 +167,10 @@
     <div id="menu-panel" hidden></div>
   </nav>
 
-  <!-- 設定ポップアップ（settings.ts が操作） -->
-  <section id="settings-popup" hidden role="dialog" aria-label="設定"></section>
-
-  <!-- 共有ポップアップ（menu.ts が操作） -->
-  <section id="share-popup" hidden role="dialog" aria-label="共有"></section>
+  <!-- 設定・共有ポップアップ（目次 index.html と同じ断片をビルド時に差し込む。結線は settings.ts＝ui/settings-panel と
+       menu.ts＝ui/share） -->
+  <!-- include: parts/settings.html -->
+  <!-- include: parts/share.html -->
 
   <!-- 栞ポップアップ：スロット選択（menu.ts が操作） -->
   <section id="bookmark-popup" hidden role="dialog" aria-label="栞に保存"></section>

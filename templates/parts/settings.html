@@ -1,0 +1,58 @@
+<!-- 設定ポップアップ（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の両方へ、ビルド時に
+     vite.config.ts の expandIncludes が差し込む。markup の持ち主はこのファイル 1 か所だけ）。
+     結線は src/ui/settings-panel.ts（data-key / data-value / data-action で引く）。プリセットのカードは
+     定義（src/core/settings-model.ts の PRESETS）から settings-panel が .settings-preset の中に組む。
+     ボタンの文字の前後に空白・改行を入れない（textContent で探すテストと e2e がある）。
+     aria-modal は付けない：フォーカストラップを実装していないので、付けると「支援技術には背景を隠す
+     のに Tab では背景へ出られる」不整合になる。 -->
+<section id="settings-popup" hidden role="dialog" aria-label="設定">
+  <div class="settings-panel">
+    <div class="settings-panel__title">表示設定</div>
+    <div class="settings-subtitle" id="settings-preset-label">プリセット</div>
+    <section class="settings-preset" aria-labelledby="settings-preset-label"></section>
+    <div class="settings-divider"></div>
+    <!-- 行の並びは要件 06-4 の設定項目表の順（書字方向→段落間の空行→フォント→文字サイズ→文字の太さ） -->
+    <div class="settings-row">
+      <span class="settings-row__label">書字方向</span>
+      <div class="settings-row__opts">
+        <button class="settings-opt" type="button" data-key="writingMode" data-value="vertical">縦書き</button>
+        <button class="settings-opt" type="button" data-key="writingMode" data-value="horizontal">横書き</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row__label">段落間の空行</span>
+      <div class="settings-row__opts">
+        <button class="settings-opt" type="button" data-key="lineGap" data-value="on">あり</button>
+        <button class="settings-opt" type="button" data-key="lineGap" data-value="off">なし</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row__label">フォント</span>
+      <div class="settings-row__opts">
+        <button class="settings-opt" type="button" data-key="fontFamily" data-value="serif">明朝体</button>
+        <button class="settings-opt" type="button" data-key="fontFamily" data-value="sans">ゴシック体</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row__label">文字サイズ</span>
+      <div class="settings-row__opts">
+        <button class="settings-opt" type="button" data-key="fontSize" data-value="small">小</button>
+        <button class="settings-opt" type="button" data-key="fontSize" data-value="medium">中</button>
+        <button class="settings-opt" type="button" data-key="fontSize" data-value="large">大</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row__label">文字の太さ</span>
+      <div class="settings-row__opts">
+        <button class="settings-opt" type="button" data-key="fontWeight" data-value="normal">通常</button>
+        <button class="settings-opt" type="button" data-key="fontWeight" data-value="bold">太字</button>
+      </div>
+    </div>
+    <div class="settings-divider"></div>
+    <button class="settings-action" type="button" data-action="clear-bookmarks">栞をクリア</button>
+    <button class="settings-action" type="button" data-action="clear-reached">既読をクリア</button>
+    <button class="settings-action" type="button" data-action="clear-read">読破状況をクリア</button>
+    <button class="settings-action" type="button" data-action="reset">設定をリセット</button>
+    <button class="settings-close" type="button">閉じる</button>
+  </div>
+</section>

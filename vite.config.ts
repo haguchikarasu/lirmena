@@ -14,6 +14,11 @@ import type { StoryData } from './src/types'
 // - 生成 HTML は Vite の MPA 入力として登録され、各ページの <script src="/src/{main,title}.ts"> を
 //   解決し、そこが import する CSS 込みでバンドルする。<script>/<link> は Vite が base 付き・ハッシュ名へ自動書換。
 // - 目次ページ index.html も MPA 入力（src/index.ts と目次 CSS を import）。
+// - ページをまたいで共通の静的な HTML（設定・共有のポップアップ）は templates/parts/*.html に 1 つずつ置き、
+//   各ページの `<!-- include: parts/xxx.html -->` の 1 行を expandIncludes が中身に置き換える。
+//   本文/タイトル/あとがきページは generatePages が**書き出す時点で**展開する（contents/*.html の実ファイルに
+//   中身が入る＝lirmena の plugins を通さないエディタのプレビューでもそのまま効く）。目次・用語集は
+//   transformIndexHtml（order: 'pre'）が dev・build の両方で展開する。
 // - 出力はハッシュ名（Vite 既定＝固定名指定を置かない）。固定名参照をやめたのでデプロイ直後のキャッシュ
 //   新旧不整合（HTML は新・JS は旧）が構造的に起きない。
 
@@ -36,6 +41,21 @@ function bodyAttrsAfterword(vol: number): string {
 // 併置し、それは index.ts の動的差し替えでのみ参照される＝本文/タイトル/あとがき静的埋め込みは vol.volume 番のみ）。
 function faviconHrefFor(vol: number): string {
   return `../vol${pad(vol)}/favicon${vol}.png`
+}
+
+// `<!-- include: parts/xxx.html -->` を templates/ からの相対パスのファイルの中身に置き換える（1 段だけ・入れ子なし）。
+// 名前は parts/ 直下の英小文字・数字・ハイフンだけ（templates の外を読ませない）。見つからなければ throw して
+// build を止める（差し込み漏れのまま設定ポップアップが空のページを出さない）。
+// expandIncludes(html: string, root: string): string
+export function expandIncludes(html: string, root: string): string {
+  return html.replace(/<!--\s*include:\s*(\S+?)\s*-->/g, (_m, rel: string) => {
+    if (!/^parts\/[a-z0-9-]+\.html$/.test(rel)) {
+      throw new Error(`include の指定が不正: ${rel}（parts/<名前>.html だけを受け付ける）`)
+    }
+    const file = resolve(root, 'templates', rel)
+    if (!existsSync(file)) throw new Error(`include の断片が無い: templates/${rel}`)
+    return readFileSync(file, 'utf-8').trim()
+  })
 }
 
 // reader.html の {{bodyAttrs}} / {{faviconHref}} プレースホルダを埋める
@@ -84,8 +104,8 @@ function generatePages(root: string): string[] {
     throw new Error(`story.json / characters.json 整合違反:\n  - ${errors.join('\n  - ')}`)
   }
 
-  const readerTpl = readFileSync(resolve(root, 'templates/reader.html'), 'utf-8')
-  const titleTpl = readFileSync(resolve(root, 'templates/title.html'), 'utf-8')
+  const readerTpl = expandIncludes(readFileSync(resolve(root, 'templates/reader.html'), 'utf-8'), root)
+  const titleTpl = expandIncludes(readFileSync(resolve(root, 'templates/title.html'), 'utf-8'), root)
 
   const outDir = resolve(root, 'contents')
   mkdirSync(outDir, { recursive: true })
@@ -132,14 +152,20 @@ function pages(root: string): Plugin {
       const staticPages = ['index.html', 'glossary.html'].map(p => resolve(root, p))
       return { build: { rollupOptions: { input: [...staticPages, ...pagePaths] } } }
     },
-    // dev：story.json / characters.json / テンプレの変更を監視し、再生成して full-reload する。
+    // dev：story.json / characters.json / テンプレ・差し込みの断片の変更を監視し、再生成して full-reload する。
     // characters.json は生成には使わないが、story-integrity (o) の入力なので直したら検査を走らせ直す。
+    // 断片（templates/parts/*.html）は起動時にあるものだけを見る（足したら dev を立て直す）。
     configureServer(server) {
+      const partsDir = resolve(root, 'templates/parts')
+      const parts = existsSync(partsDir)
+        ? readdirSync(partsDir).filter((f) => f.endsWith('.html')).map((f) => resolve(partsDir, f))
+        : []
       const watched = [
         resolve(root, 'public/story.json'),
         resolve(root, 'public/characters.json'),
         resolve(root, 'templates/reader.html'),
         resolve(root, 'templates/title.html'),
+        ...parts,
       ].map((p) => p.replace(/\\/g, '/'))
       for (const f of watched) server.watcher.add(f)
       server.watcher.on('change', (file) => {
@@ -149,6 +175,21 @@ function pages(root: string): Plugin {
         }
       })
     },
+    // 目次・用語集（root 直下の静的ページ）の差し込みを展開する。'pre' で Vite が HTML を解析する前に行う
+    // （断片の中の要素も通常の HTML として扱わせる）。生成ページは generatePages で展開済みなので素通りする。
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return expandIncludes(html, root)
+      },
+    },
+  }
+}
+
+// 本体 CSS の <link> を前へ寄せるプラグイン（pages() と分けたのは transformIndexHtml を順序違いで 2 つ持つため）。
+function cssFirst(): Plugin {
+  return {
+    name: 'lirmena-css-first',
     // 本体 CSS の <link rel="stylesheet"> を <script type="module"> より前に移動する（FOUC 回避）。
     // Vite 既定では script の後ろに link が置かれ、CSS の render blocking が効くまでの一瞬に body の
     // 生 DOM（配置未指定のボタン等）が見えることがある。link を先頭側へ寄せて旧シェル構成と同じ順序に戻す。
@@ -188,7 +229,7 @@ export default defineConfig({
   root: __dirname,
   // bgStub は制作用のスタブ背景（@@BG:stub=ラベル@@）を dev サーバでだけ返す。本体（src/）はこれを知らない
   // ＝結線はここだけ。仕様は src/bg-stub.ts 冒頭。
-  plugins: [pages(__dirname), bgStub()],
+  plugins: [pages(__dirname), cssFirst(), bgStub()],
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
   // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
   // port を固定し strictPort で空きポートへの自動ずらしを禁止する。

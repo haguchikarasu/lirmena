@@ -4,8 +4,21 @@
 // 設計意図と、依存辺に現れない結線（コールバック注入・複製・story-integrity の呼び出し元）は
 // design/architecture.md「依存グラフに現れない結線」が持つ。
 // 検証：npm run depcruise。fail で GitHub Actions がビルドを停止する（.github/workflows/deploy.yml）。
+//
+// ── 4 つの層（design/architecture.md「コードの層」）──────────────────────────
+//   core   … データと規則。document・要素に触らない（localStorage は可）。core の外を import しない
+//   ui     … どのページにも置ける部品。core と ui だけを import する（reader を読まない）
+//   reader … 本文ページの読書の仕組み（#main-container とスクロールが前提）。下の 2 層の残り全部
+//   入口   … ページごとのエントリ。目次（index）と資料ページ（glossary-page）は reader を読まない
+// 層はまずファイルの一覧（下の正規表現）で表す。フォルダ分けは新しく作るものだけ（src/core/・src/ui/）で、
+// 既存の部品は場所を変えていない。parser・renderer・bg-stub・story-integrity は src/ の外からパスで読まれるので動かさない。
+// 下の forbidden が層の向きを止め、allowed が個々の辺を許す（allowed に無い辺も allowedSeverity: 'error' で止まる）。
 
-const LEAF = '(transition|progress|parser|settings|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map|glossary)';
+const LEAF = '(transition|progress|parser|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map|glossary)';
+// core 層：types と volumes（stage の算出＝純関数）と src/core/ の全部。
+const CORE = '(^|/)src/((types|volumes)\\.ts|core/[^/]+\\.ts)$';
+// ui 層：src/ui/ の全部と、どのページにも置ける既存の部品。
+const UI = '(^|/)src/((ruby|characters|map|glossary|transition)\\.ts|ui/[^/]+\\.ts)$';
 
 module.exports = {
   forbidden: [
@@ -39,43 +52,57 @@ module.exports = {
       to: { path: '(^|/)src/bg-stub\\.ts$' },
     },
     {
-      name: 'index-src-isolation',
+      name: 'core-isolation',
       severity: 'error',
-      comment: 'index.ts は src/ 非依存（例外 bookmark・volumes・characters・map のみ。bookmark・volumes は stage 判定と栞スキーマ移行を二重管理しないため、characters・map はポップアップを二重実装しないための例外＝理由は design/modules/index.md「なぜ src/ から独立しているか」）',
-      from: { path: '(^|/)src/index\\.ts$' },
-      to: {
-        path: '(^|/)src/',
-        pathNot: [
-          '(^|/)src/bookmark\\.ts$',
-          '(^|/)src/volumes\\.ts$',
-          '(^|/)src/characters\\.ts$',
-          '(^|/)src/map\\.ts$',
-          '(^|/)src/types\\.ts$',
-        ],
-      },
+      comment: 'core 層は core の外（ui・reader・入口）を import しない。core は document・要素に触らない層で、その確認は core の単体テストを DOM の無い環境（node）で回すことで行う（src/core/*.test.ts の @vitest-environment node）',
+      from: { path: CORE },
+      to: { path: '(^|/)src/', pathNot: CORE },
+    },
+    {
+      name: 'ui-no-reader',
+      severity: 'error',
+      comment: 'ui 層は core と ui だけを import する（reader・入口を読まない）。部品が本文の読書の仕組みに依存すると、目次や資料ページに置けなくなる',
+      from: { path: UI },
+      to: { path: '(^|/)src/', pathNot: [CORE, UI] },
+    },
+    {
+      name: 'toc-no-reader',
+      severity: 'error',
+      comment: '目次（index.ts）と資料ページ（glossary-page.ts）は core と ui だけを import する（reader を読まない）。守りたいのは「読書の仕組みの変更が目次を壊さない」こと（以前の index-src-isolation＝src/ 全体からの独立を、壊れる場所＝reader 層との境界へ引き直した。design/modules/index.md）',
+      from: { path: '(^|/)src/(index|glossary-page)\\.ts$' },
+      to: { path: '(^|/)src/', pathNot: [CORE, UI] },
     },
     {
       name: 'leaf-no-src-import',
       severity: 'error',
-      comment: 'リーフ 16 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types のみ許可）。リーフ集約設計を機械的に守るためのルール',
+      comment: 'リーフ 15 モジュール（上の LEAF 定数が一覧）は src/ 内の他モジュールを import しない（types と core 層のみ許可）。リーフ集約設計を機械的に守るためのルール',
       from: { path: `(^|/)src/${LEAF}\\.ts$` },
       to: {
         path: '(^|/)src/',
         pathNot: [
           '(^|/)src/types\\.ts$',
+          '(^|/)src/core/[^/]+\\.ts$',
         ],
       },
     },
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/(bookmark|volumes|characters|map)\\.ts$' } },
+    // 目次は core（storage・settings-model・query・preview・changelog）と ui（settings-panel・share・ruby・characters・map）を読む。
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|characters|map|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share)\\.ts)$' } },
+    // core の中の辺は無い（各モジュールが types だけを読む）。ui の部品は core の値の規則を読む。
+    { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/core/settings-model\\.ts$' } },
+    // 本文側の窓口：bookmark は core/storage を丸ごと再 export する（history.state だけを自分で持つ）。
+    { from: { path: '(^|/)src/bookmark\\.ts$' }, to: { path: '(^|/)src/core/storage\\.ts$' } },
+    { from: { path: '(^|/)src/state\\.ts$' },    to: { path: '(^|/)src/core/query\\.ts$' } },
+    // settings（本文への反映）は値の規則（core）とパネルの結線（ui）を読む。
+    { from: { path: '(^|/)src/settings\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/settings-panel)\\.ts$' } },
     // characters → volumes は StoryStage の型だけ（tsPreCompilationDeps で型 import も辺に数える）。
     { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/(ruby|volumes)\\.ts$' } },
-    { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/(state|loader|bookmark|transition|ruby)\\.ts$' } },
+    { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/changelog\\.ts)$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
-    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/(axis|state|bookmark|settings|transition|tutorial|characters|map|glossary|volumes)\\.ts$' } },
+    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/((axis|state|bookmark|settings|transition|tutorial|characters|map|glossary|volumes)\\.ts|ui/share\\.ts)$' } },
     // 用語集ページのエントリは glossary だけを読む（本文側の依存を持ち込まない）。隔離ルールを別に立てないのは、
     // allowed に無い辺は allowedSeverity: 'error' で止まるため＝この 1 行が隔離の実体
     { from: { path: '(^|/)src/glossary-page\\.ts$' }, to: { path: '(^|/)src/glossary\\.ts$' } },
@@ -93,7 +120,8 @@ module.exports = {
     // story-integrity は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。
     { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
     // story-integrity → core/theme は巻の素材の規約（置き場所とファイル名）を二重管理しないための 1 本（検査 (q)）。
-    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/core/theme\\.ts$' } },
+    // story-integrity → core/preview は「予告が実効的に有効か」を目次と同じ関数で判定するための 1 本（(e)(k)(k')(l)）。
+    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/core/(theme|preview)\\.ts$' } },
   ],
   allowedSeverity: 'error',
   options: {

@@ -33,13 +33,14 @@
  * 【被依存】main / title / nav / menu / feedback / opening
  * 【注意】返す URL は contents/ 配下のページ（contents/[ep]-[sec].html など）から参照できる相対パス。
  *         本文・タイトル・あとがきは同一ディレクトリ、目次は "../"（ディレクトリ index を暗黙参照）。
- *         クエリ文字列（例 "?dev"）は _withQuery が現在ページから引き継ぐ。
+ *         クエリ文字列（例 "?dev"）は withQuery（core/query）が現在ページから引き継ぐ。
  * 【あとがき「次へ」の遷移先設計】
  *   次巻の sec01 本文ページに直接遷移せず、次巻タイトルページ経由（[epRange[0]2桁]-00.html）にする。
  *   要件「sec01 は ep 扉を経由させる／ep 境界はタイトルページへ」を維持することで、
  *   目次からのフルナビゲーションと同じ動線を保つ（変更履歴・扉背景をスキップしない）。
  */
 
+import { withQuery } from './core/query';
 import type {
     StoryData,
     Volume,
@@ -115,7 +116,7 @@ export function isPublished(ep: number, sec: number): boolean {
 
 /** 目次ページへの相対 URL（contents/ 配下から1階層上がる） */
 export function indexUrl(): string {
-    return _withQuery('../');
+    return withQuery('../');
 }
 
 /** 任意 ep/sec の本文ページ相対 URL（menu「続きから読む」用） */
@@ -250,24 +251,20 @@ function _pad(n: number): string {
     return String(n).padStart(2, '0');
 }
 
-/** 現在ページのクエリ文字列（例 "?dev"）を相対 URL に引き継ぐ */
-function _withQuery(path: string): string {
-    return path + location.search;
-}
 
 /** 本文ページ URL（同一ディレクトリ） */
 function _bodyPath(ep: number, sec: number): string {
-    return _withQuery(`${_pad(ep)}-${_pad(sec)}.html`);
+    return withQuery(`${_pad(ep)}-${_pad(sec)}.html`);
 }
 
 /** タイトルページ URL（同一ディレクトリ） */
 function _titlePath(ep: number): string {
-    return _withQuery(`${_pad(ep)}-00.html`);
+    return withQuery(`${_pad(ep)}-00.html`);
 }
 
 /** あとがきページ URL（同一ディレクトリ） */
 function _afterwordPath(vol: number): string {
-    return _withQuery(`vol${_pad(vol)}-afterword.html`);
+    return withQuery(`vol${_pad(vol)}-afterword.html`);
 }
 
 /** 同一 ep 内で sec より後の最初の公開 sec id */

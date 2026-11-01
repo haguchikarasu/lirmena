@@ -7,12 +7,20 @@
  *   - lineGap は --paragraph-margin と --paragraph-indent を**セットで**駆動する（空行と字下げの排他。
  *     片方だけ書くと両方効いて二重の段落区切りに戻る。3者にまたがり depcruise では守れないのでここで検査する）
  * 方針: 期待値は要件 06-4（連続 % 値・localStorage 保存・リセットで既定へ）と IF コメントから導出する（仕様駆動）。
- * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup が無い describe では _buildPopup が
- *   早期 return する（＝init だけを見る）。パネル操作を要する describe は beforeEach で #settings-popup を生成し afterEach で撤去する。
+ * 環境: jsdom（localStorage / documentElement.style を使用）。#settings-popup が無い describe ではパネルの結線
+ *   （ui/settings-panel）が早期 return する（＝init だけを見る）。パネル操作を要する describe は beforeEach で
+ *   #settings-popup を置き afterEach で撤去する。置くのは本番と同じ断片 templates/parts/settings.html
+ *   （ビルド時に本文シェルへ差し込まれる markup そのもの。以前は空の器を置き、settings.ts が中身を組んでいた）。
  *   各テストは localStorage.clear() ＋ init() で module 内 state（_readingAnchor）を再構築して隔離する。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { init, getReadingAnchor, setReadingAnchor, getSettings, getPresets, getActivePreset, applyPreset, isAllDefault } from './settings';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// 設定ポップアップの断片（本番で本文シェルへ差し込まれる markup）を body の末尾に置く。
+const SETTINGS_PART = readFileSync(resolve(__dirname, '../templates/parts/settings.html'), 'utf-8');
+const mountSettingsPopup = (): void => { document.body.insertAdjacentHTML('beforeend', SETTINGS_PART); };
 
 const NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
@@ -67,9 +75,7 @@ describe('setReadingAnchor（永続化＋CSS 変数反映）', () => {
 // リセットとは別経路（_saveAll ではなく setReadingAnchor(READING_ANCHOR_DEFAULT)）を通る＝取りこぼしやすい。
 describe('設定をリセット（読書点・要件 06-4）', () => {
     beforeEach(() => {
-        const popup = document.createElement('section');
-        popup.id = 'settings-popup';
-        document.body.appendChild(popup);
+        mountSettingsPopup();
     });
     afterEach(() => {
         document.getElementById('settings-popup')?.remove();
@@ -140,9 +146,7 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
 
     describe('トグル操作・リセット（#settings-popup 経由）', () => {
         beforeEach(() => {
-            const popup = document.createElement('section');
-            popup.id = 'settings-popup';
-            document.body.appendChild(popup);
+            mountSettingsPopup();
         });
         afterEach(() => {
             document.getElementById('settings-popup')?.remove();
@@ -220,9 +224,7 @@ describe('文字の太さ（fontWeight → CSS 変数 --font-weight）', () => {
 
     describe('トグル操作・リセット（#settings-popup 経由）', () => {
         beforeEach(() => {
-            const popup = document.createElement('section');
-            popup.id = 'settings-popup';
-            document.body.appendChild(popup);
+            mountSettingsPopup();
         });
         afterEach(() => {
             document.getElementById('settings-popup')?.remove();
@@ -292,9 +294,7 @@ describe('段落の区切り（lineGap → CSS 変数 --paragraph-margin / --par
 
     describe('トグル操作・リセット（#settings-popup 経由）', () => {
         beforeEach(() => {
-            const popup = document.createElement('section');
-            popup.id = 'settings-popup';
-            document.body.appendChild(popup);
+            mountSettingsPopup();
         });
         afterEach(() => {
             document.getElementById('settings-popup')?.remove();
@@ -335,9 +335,7 @@ describe('段落の区切り（lineGap → CSS 変数 --paragraph-margin / --par
 // 目次ページ（index.ts）は同じ並びを別実装で持つ。両ページの一致は e2e/settings-order.spec.ts が担保する。
 describe('表示設定の行順（要件 06-4）', () => {
     beforeEach(() => {
-        const popup = document.createElement('section');
-        popup.id = 'settings-popup';
-        document.body.appendChild(popup);
+        mountSettingsPopup();
     });
     afterEach(() => {
         document.getElementById('settings-popup')?.remove();
@@ -354,9 +352,7 @@ describe('表示設定の行順（要件 06-4）', () => {
 // キャンセル（confirm=false）なら callback を呼ばない＝localStorage も再描画も走らない。
 describe('クリアボタンの3系統 callback ルーティング＋confirm 承認', () => {
     beforeEach(() => {
-        const popup = document.createElement('section');
-        popup.id = 'settings-popup';
-        document.body.appendChild(popup);
+        mountSettingsPopup();
     });
     afterEach(() => {
         document.getElementById('settings-popup')?.remove();
@@ -465,9 +461,7 @@ describe('プリセットの定義（要件 06-4）', () => {
 // 適用は5項目を一括で反映し、**書字方向が変わらなくても**読書位置の復元コールバックを呼ぶ。
 describe('プリセットの適用と選択表示（要件 06-4）', () => {
     beforeEach(() => {
-        const popup = document.createElement('section');
-        popup.id = 'settings-popup';
-        document.body.appendChild(popup);
+        mountSettingsPopup();
     });
     afterEach(() => {
         document.getElementById('settings-popup')?.remove();

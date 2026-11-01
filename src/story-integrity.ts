@@ -6,7 +6,7 @@
  * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)(p)
  *         validateStoryFiles(story, opts): string[]    — (i)(o)(q) を含む合成版（fs 実在と characters.json の中身を opts で注入）
  * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE（(m) で参照）、
- *       core/theme.ts の素材の規約（(q) で参照）のみ。
+ *       core/theme.ts の素材の規約（(q) で参照）、core/preview.ts の「実効的に preview が有効か」（(e)(k)(k')(l)。目次と共有）のみ。
  *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
  * 検査項目：
@@ -74,6 +74,7 @@
 import type { StoryData, Volume, PreviewSpec } from './types';
 import { MAX_STORY_STAGE } from './volumes';
 import { THEME_FILES, themeDir, type ThemeKey } from './core/theme';
+import { hasEffectivePreview } from './core/preview';
 
 // preview フィールドの形式検査 (j)。null/配列/{}/text 型不一致を弾く。
 // **空文字（"" や空白のみ）は valid**：「preview 無し」と同義扱いにするため（事前配置テンプレ用途で
@@ -92,19 +93,6 @@ function _validatePreviewShape(preview: unknown): string | null {
     return null;
 }
 
-// 「実効的に preview が有効か」判定。preview が定義され、かつ text の trim が非空の場合のみ true。
-// (k)(l)(k')(e) の落とし忘れ検出と UI の hasPreview 判定はこの結果で分岐する。
-// 型検査は _validatePreviewShape が別途行う（形式不正は (j) で捕捉）が、_validatePreviewShape が
-// 走る前後どちらでも安全に呼べるよう、null/非オブジェクト/非 string text はすべて false を返す。
-// **src/index.ts の同名関数と対の複製**（目次は src/ を import しない独立方針のため）。こちらは
-// ビルドを止める判定・向こうは目次に描くかの判定なので、ズレると build は通るのに目次だけ壊れる
-// （vol が丸ごと消える等）。片方を直したら必ず両方直すこと。
-function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
-    if (preview === undefined || preview === null) return false;
-    if (typeof preview !== 'object') return false;
-    if (typeof preview.text !== 'string') return false;
-    return preview.text.trim() !== '';
-}
 
 // (n) 扉背景の位置指定の形式検査。定義されていて、パーセント表記（0〜100%）でも軸の合うキーワードでもなければ理由文字列。
 // @@BG の xpos / ypos（parser.ts の parsePosition）と受ける形は同じだが、あちらは不正値を黙って既定へ戻し、
@@ -262,11 +250,11 @@ function _checkVolumeAfterword(vol: Volume, errors: string[]): void {
                     errors.push(`(e) vol${vol.volume}: afterword.published=true だが ep${ep.id} sec${sec.id} が未公開`);
                 }
             }
-            if (_hasEffectivePreview(ep.preview)) {
+            if (hasEffectivePreview(ep.preview)) {
                 errors.push(`(e) vol${vol.volume}: afterword.published=true だが ep${ep.id} に非空 preview が残存している（完結 vol は予告テキストを持てない）`);
             }
         }
-        if (_hasEffectivePreview(vol.preview)) {
+        if (hasEffectivePreview(vol.preview)) {
             errors.push(`(e) vol${vol.volume}: afterword.published=true だが 非空 vol.preview が残存している（完結 vol は予告テキストを持てない）`);
         }
     }
@@ -305,7 +293,7 @@ function _checkVolumePreview(vol: Volume, errors: string[]): void {
         }
     }
 
-    const volPreviewActive = _hasEffectivePreview(vol.preview);
+    const volPreviewActive = hasEffectivePreview(vol.preview);
 
     // (k) 表示可能な ep（公開済み sec が1つ以上ある ep）を持つ vol は非空 vol.preview を持てない
     if (volPreviewActive) {
@@ -318,7 +306,7 @@ function _checkVolumePreview(vol: Volume, errors: string[]): void {
     // (k') 非空 vol.preview を持つ vol は episodes 内で非空 ep.preview を持てない（silently hidden 防止）
     if (volPreviewActive) {
         for (const ep of vol.episodes) {
-            if (_hasEffectivePreview(ep.preview)) {
+            if (hasEffectivePreview(ep.preview)) {
                 errors.push(`(k') vol${vol.volume} ep${ep.id}: 非空 vol.preview と同時に非空 ep.preview を持てない（vol.preview は body 未生成のため ep.preview が目次に出ない・どちらか一方で表現する）`);
             }
         }
@@ -326,7 +314,7 @@ function _checkVolumePreview(vol: Volume, errors: string[]): void {
 
     // (l) 公開済み sec が1つ以上ある ep は非空 ep.preview を持てない
     for (const ep of vol.episodes) {
-        if (_hasEffectivePreview(ep.preview) && ep.sections.some(s => s.published)) {
+        if (hasEffectivePreview(ep.preview) && ep.sections.some(s => s.published)) {
             errors.push(`(l) vol${vol.volume} ep${ep.id}: 公開済み sec があるのに非空 ep.preview が残存している（sec 公開時に ep.preview を空文字にするか削除すること）`);
         }
     }
