@@ -76,6 +76,8 @@ function generatePages(root: string): string[] {
   const errors = validateStoryFiles(story, {
     afterwordTxtExists: (vol) =>
       existsSync(resolve(root, `public/vol${pad(vol)}/vol${pad(vol)}-afterword.txt`)),
+    // 巻の素材（(q)）。path は public からの相対（規約は src/core/theme.ts が持つ）
+    themeFileExists: (path) => existsSync(resolve(root, 'public', path)),
     characters: readCharacters(root),
   })
   if (errors.length > 0) {

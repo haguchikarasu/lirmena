@@ -1,11 +1,14 @@
 /**
  * EpisodeSection: story.json の 1 sec エントリ。
  *   published … 公開状態（reader が開けるか）
+ *   scheduledAt … 公開予定日時（任意）。ISO 8601・日本時間の文字列（例 "2026-11-02T20:00+09:00"）。
+ *                 目次の「次回の更新」に、いまより後でいちばん早い予定を出す（要件 06-7）。
+ *                 未公開 sec にだけ書ける（公開済みに残っていたら消し忘れ＝story-integrity (p) が止める）
  * ステージ移行判定は volumes.ts の computeStoryStage が「最大読破位置 ≧ 各 vol の最終公開 sec 位置」＋
  * 「次巻冒頭 sec 公開済み」で動的判定する（end フィールドは撤廃）。詳細は
  * design/requirements/06-5-bookmark.md の「進捗バーの色（物語進行段階：5段階）」節。
  */
-export type EpisodeSection = { id: number; published: boolean };
+export type EpisodeSection = { id: number; published: boolean; scheduledAt?: string };
 /**
  * PreviewSpec: 目次ページで「公開前の予告テキスト」を表示するための任意フィールド。
  * ep レベル・vol レベル両方で使う。
@@ -27,6 +30,8 @@ export type PreviewSpec = { text: string };
  *   coverPositionX … "0%"〜"100%" / "left" / "right"。縦長画面（スマホ）のみ横位置に反映。横長・未指定は中央
  *   coverPositionY … "0%"〜"100%" / "top" / "bottom"。横長画面（PC）のみ縦位置に反映。縦長・未指定は中央
  *                    （X/Y とも形は story-integrity (n) が強制＝title.ts は CSS へ素通しする）
+ *   tocCoverPositionY … 目次の扉絵バナー（横長に切り出す帯）での縦位置。"0%"〜"100%" のみ（キーワード不可）。
+ *                    省略時 50%。形は story-integrity (n) が強制（要件 06-7）
  *   preview        … 目次で表示する予告テキスト（任意）。**非空** text のときのみ「予告あり」扱いで
  *                    目次に出す（公開済み sec がゼロの ep のみ有効＝story-integrity (l)）。
  *                    タイトルと予告テキストだけを目次に出し、sec chip は出さない（要件 06-7）。
@@ -38,6 +43,7 @@ export type Episode = {
     coverFile?: string;
     coverPositionX?: string;
     coverPositionY?: string;
+    tocCoverPositionY?: string;
     sections: EpisodeSection[];
     preview?: PreviewSpec;
 };
@@ -58,6 +64,8 @@ export type Afterword = { published: boolean };
 
 /**
  * HeroCardSpec: 目次のヒーローカード画像指定。stage に応じて JS 側で選ぶ。
+ *   **巻の素材のファイル名規約（core/theme.ts）へ移行中**：新しい目次が規約を読むようになったら
+ *   heroCard / heroCardCompleted ごと撤去する（それまでは併存）。
  *   file … public/cover/ 配下のファイル名（例 "vol01.avif"）
  */
 export type HeroCardSpec = { file: string };

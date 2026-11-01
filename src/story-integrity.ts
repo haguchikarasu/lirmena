@@ -3,9 +3,10 @@
  * 責務: story.json の整合を検査する純関数群。build 時（vite.config.ts の pages() プラグイン。
  *       config() フックなので build / dev / preview の全経路でブロッキング）と
  *       test 時（src/story-integrity.test.ts）で同じ関数を共有する。
- * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
- *         validateStoryFiles(story, opts): string[]    — (i)(o) を含む合成版（fs 実在と characters.json の中身を opts で注入）
- * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE のみ（(m) で参照）。
+ * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)(p)
+ *         validateStoryFiles(story, opts): string[]    — (i)(o)(q) を含む合成版（fs 実在と characters.json の中身を opts で注入）
+ * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE（(m) で参照）、
+ *       core/theme.ts の素材の規約（(q) で参照）のみ。
  *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
  * 検査項目：
@@ -43,23 +44,36 @@
  *   (n) ep.coverPositionX / ep.coverPositionY は定義されていれば「"0%"〜"100%" のパーセント表記」か
  *       「軸の合うキーワード」（X＝left/right、Y＝top/bottom。小文字のみ）の文字列であること。
  *       title.ts はこの値を CSS の background-position へ素通しするため、ここが唯一の形の関門になる
- *       （X に "top" が入ると CSS は `top center` を「縦＝top」と読み、横位置の指定として効かない。要件 06-1）
+ *       （X に "top" が入ると CSS は `top center` を「縦＝top」と読み、横位置の指定として効かない。要件 06-1）。
+ *       ep.tocCoverPositionY（目次の扉絵バナーの縦位置）も同じ関門で、こちらは "0%"〜"100%" だけ（キーワード不可。要件 06-7）
  *   (o) characters.json（validateStoryFiles のみ。opts.characters で注入）：配列で、各要素が整数の volume と
  *       配列の characters（各キャラは文字列の name / description / image）を持ち、volume は重複せず
  *       story.json に存在する巻だけ。**公開済み sec を持つ巻は
  *       characters を 1 件以上持つ**（その巻の Stage に到達できる読者に必ずキャラ紹介を出すため。
  *       Stage → 登録の対応規則は characters.ts の resolveCharacters。要件 06-8）
+ *   (p) sec.scheduledAt（公開予定日時）は定義されていれば「YYYY-MM-DDTHH:MM（:SS 可）+09:00」の実在する日時で、
+ *       **公開済み sec には書けない**（公開したら消す運用の消し忘れ検出。残っていても目次は過去の予定を
+ *       出さないので壊れはしないが、story.json の上で「どれが次の予定か」が読めなくなる。要件 06-7）。
+ *       日本時間に固定するのは、書く人が時差を意識しないため（Z や他の時差を混ぜると並べ替えを読み違える）
+ *   (q) 巻の素材（validateStoryFiles のみ。opts.themeFileExists で実在判定を注入）：公開済み sec を持つ巻は
+ *       public/vol[XX]/theme/ の 3 ファイル（core/theme.ts の THEME_FILES）が揃っている。最終巻の
+ *       afterword.published=true（＝物語完結の stage に到達できる）なら public/final/theme/ の 3 ファイルも
+ *       揃っている。規約で引くので story.json の書き損じでは見つからず、ここが唯一の関門になる
  *
  * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(o)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
  * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
  * 公開直前の差し替え忘れという別ミスを生むだけで根本的ポカヨケにならないため。story.json 上の
- * 記述整合（(f)(g)）のみ検査する。
+ * 記述整合（(f)(g)）のみ検査する。heroCard は (q) の規約へ移行中で、移行が済んだら (f)(g) ごと撤去する。
+ * (q) が実在を見てよいのは、対象を「その素材を表示しうるもの（公開済み sec を持つ巻・到達できる完結）」に
+ * 限るから＝未公開の巻にスタブを置かせない（上の懸念が当たらない）。
+ * (q) は dev サーバーの起動時だけ走る（素材を差し替えても再検査しない。(i) のあとがきと同じ割り切り）。
  */
 
 import type { StoryData, Volume, PreviewSpec } from './types';
 import { MAX_STORY_STAGE } from './volumes';
+import { THEME_FILES, themeDir, type ThemeKey } from './core/theme';
 
 // preview フィールドの形式検査 (j)。null/配列/{}/text 型不一致を弾く。
 // **空文字（"" や空白のみ）は valid**：「preview 無し」と同義扱いにするため（事前配置テンプレ用途で
@@ -97,7 +111,9 @@ function _hasEffectivePreview(preview: PreviewSpec | undefined): boolean {
 // こちらは build を止める（story.json は公開ゲート配下のデータなので、書き損じは公開前に直させる）。
 // _validateCoverPosition(value: unknown, keywords: readonly string[]): string | null
 function _validateCoverPosition(value: unknown, keywords: readonly string[]): string | null {
-    const allowed = `"0%"〜"100%" または ${keywords.map(k => `"${k}"`).join(' / ')}`;
+    const allowed = keywords.length === 0
+        ? '"0%"〜"100%"'
+        : `"0%"〜"100%" または ${keywords.map(k => `"${k}"`).join(' / ')}`;
     if (typeof value !== 'string') return `${allowed} の文字列である必要がある`;
     if (keywords.includes(value)) return null;
     const m = /^(\d+(?:\.\d+)?)%$/.exec(value);
@@ -147,6 +163,7 @@ export function validateStory(story: StoryData): string[] {
         _checkVolumeAfterword(vol, errors);
         _checkVolumePreview(vol, errors);
         _checkVolumeCoverPosition(vol, errors);
+        _checkVolumeSchedule(vol, errors);
     }
 
     return errors;
@@ -326,6 +343,62 @@ function _checkVolumeCoverPosition(vol: Volume, errors: string[]): void {
             const reason = _validateCoverPosition(ep.coverPositionY, ['top', 'bottom']);
             if (reason !== null) errors.push(`(n) vol${vol.volume} ep${ep.id}: coverPositionY ${reason}`);
         }
+        if (ep.tocCoverPositionY !== undefined) {
+            const reason = _validateCoverPosition(ep.tocCoverPositionY, []);
+            if (reason !== null) errors.push(`(n) vol${vol.volume} ep${ep.id}: tocCoverPositionY ${reason}`);
+        }
+    }
+}
+
+// (p) の形式検査。日本時間（+09:00）の ISO 8601 で、暦の上で実在する日時なら null、でなければ理由文字列。
+// 正規表現だけだと 2026-02-30 が通る＝Date に通して年月日時分秒が書いたとおりに戻るかで見る。
+// _validateScheduledAt(value: unknown): string | null
+function _validateScheduledAt(value: unknown): string | null {
+    const shape = '"YYYY-MM-DDTHH:MM+09:00"（秒は任意・日本時間）の文字列である必要がある';
+    if (typeof value !== 'string') return shape;
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?\+09:00$/.exec(value);
+    if (m === null) return `"${value}" は不正（${shape}）`;
+    const [y, mo, d, h, mi, sec] = m.slice(1).map(v => (v === undefined ? 0 : Number(v)));
+    // 日本時間の各値を UTC として組み立てて戻す（時差は固定なので +09:00 を外して比べてよい）
+    const t = new Date(Date.UTC(y, mo - 1, d, h, mi, sec));
+    const ok = t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d &&
+        t.getUTCHours() === h && t.getUTCMinutes() === mi && t.getUTCSeconds() === sec;
+    return ok ? null : `"${value}" は存在しない日時`;
+}
+
+// (p) — sec.scheduledAt の形式と「公開済み sec には書けない」
+function _checkVolumeSchedule(vol: Volume, errors: string[]): void {
+    for (const ep of vol.episodes) {
+        for (const sec of ep.sections) {
+            if (sec.scheduledAt === undefined) continue;
+            const where = `(p) vol${vol.volume} ep${ep.id} sec${sec.id}`;
+            const reason = _validateScheduledAt(sec.scheduledAt);
+            if (reason !== null) errors.push(`${where}: scheduledAt ${reason}`);
+            if (sec.published) {
+                errors.push(`${where}: 公開済みなのに scheduledAt が残っている（公開したら消すこと）`);
+            }
+        }
+    }
+}
+
+// (q) — 巻の素材が規約の場所に揃っているか。対象は「その素材を表示しうる」ものだけ：
+//   公開済み sec を持つ巻（その巻の stage に読者が到達できる）と、最終巻の afterword が公開済みのときの final。
+// _checkThemeFiles(story: StoryData, exists: (path: string) => boolean, errors: string[]): void
+function _checkThemeFiles(story: StoryData, exists: (path: string) => boolean, errors: string[]): void {
+    const check = (key: ThemeKey, label: string, why: string): void => {
+        const missing = THEME_FILES.filter(f => !exists(`${themeDir(key)}/${f}`));
+        if (missing.length > 0) {
+            errors.push(`(q) ${label}: ${why}のに public/${themeDir(key)}/ に ${missing.join(' / ')} が無い`);
+        }
+    };
+    for (const vol of story) {
+        if (vol.episodes.some(ep => ep.sections.some(s => s.published))) {
+            check(vol.volume, `vol${vol.volume}`, '公開済み sec がある');
+        }
+    }
+    const last = story.length === 0 ? undefined : story.reduce((a, b) => (b.volume > a.volume ? b : a));
+    if (last?.afterword?.published === true) {
+        check('final', 'final', `最終巻 vol${last.volume} のあとがきが公開済み（物語完結の stage に到達できる）`);
     }
 }
 
@@ -382,18 +455,21 @@ function _checkCharacters(story: StoryData, characters: unknown, errors: string[
     }
 }
 
-// (a)〜(i)・(o) の完全検査（ファイル実在検査と characters.json との整合を含む）。
+// (a)〜(q) の完全検査（ファイル実在検査と characters.json との整合を含む）。
 // fs 依存は呼び出し側に閉じ込める（exists 関数と読み込み済みの characters を注入する）。
+// themeFileExists は public からの相対パス（例 "vol01/theme/logo.webp"）を受ける。
 // validateStoryFiles(story, opts): string[]
 export function validateStoryFiles(
     story: StoryData,
     opts: {
         afterwordTxtExists: (vol: number) => boolean;
+        themeFileExists: (path: string) => boolean;
         characters: unknown;
     }
 ): string[] {
     const errors = validateStory(story);
     _checkCharacters(story, opts.characters, errors);
+    _checkThemeFiles(story, opts.themeFileExists, errors);
 
     for (const vol of story) {
         const volStr = String(vol.volume).padStart(2, '0');

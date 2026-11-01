@@ -92,6 +92,8 @@ module.exports = {
     // story-integrity → volumes は stage 上限 MAX_STORY_STAGE の二重管理を避けるための 1 本（検査 (m)）。
     // story-integrity は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。
     { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
+    // story-integrity → core/theme は巻の素材の規約（置き場所とファイル名）を二重管理しないための 1 本（検査 (q)）。
+    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/core/theme\\.ts$' } },
   ],
   allowedSeverity: 'error',
   options: {

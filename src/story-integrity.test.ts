@@ -1,21 +1,22 @@
 /*
  * story-integrity.test.ts
  * story-integrity.ts の仕様駆動テスト。
- * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)
- *     validateStoryFiles(story, opts): string[]    — (i)(o) を含む合成版（fs 実在検査と characters.json を注入）
+ * IF: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)(p)
+ *     validateStoryFiles(story, opts): string[]    — (i)(o)(q) を含む合成版（fs 実在検査と characters.json を注入）
  *
  * 網羅する観点：
  *   - 実データ（public/story.json）が validateStory の全ルール（(i) 以外）を満たす
  *   - 意図的に壊した story.json 断片で各違反 (a)〜(n) がメッセージに出る（回帰）
  *   - validateStoryFiles で (i) の実在検査が期待どおりトリガーする
  *   - (o) characters.json の形・重複・存在しない巻・公開済みの巻の登録漏れを検出する（実データ回帰を含む）
+ *   - (q) 巻の素材を規約の場所で引き、対象を公開済みの巻と到達できる final に限る
  *   - preview を持つ未執筆 vol/ep が (a)〜(l) を壊さない正常系
  *   - (m) は vol 数の境界（上限ちょうど／超過）で判定が切り替わる
  *   - 純関数の非破壊性（引数を破壊しない）
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateStory, validateStoryFiles } from './story-integrity';
 import { MAX_STORY_STAGE } from './volumes';
@@ -254,7 +255,36 @@ describe('validateStory — 壊したパターンで各違反が検出される'
         story[0].episodes[1].coverPositionY = '100%';
         story[1].episodes[0].coverPositionX = '0%';
         story[1].episodes[0].coverPositionY = '12.5%';
+        story[1].episodes[1].tocCoverPositionY = '35%';
         expect(validateStory(story).filter(e => e.startsWith('(n)'))).toEqual([]);
+    });
+
+    // (p) 公開予定日時。日本時間固定・実在する日時・公開済み sec には書けない
+    it('(p) 未公開 sec の正しい scheduledAt（秒あり・なし）は通る', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections[0].scheduledAt = '2026-11-02T20:00+09:00';
+        story[0].episodes[1].sections[0].scheduledAt = '2028-02-29T07:05:30+09:00'; // うるう日
+        expect(validateStory(story).filter(e => e.startsWith('(p)'))).toEqual([]);
+    });
+
+    it.each([
+        ['2026-11-02T20:00Z'],
+        ['2026-11-02T20:00+00:00'],
+        ['2026-11-02 20:00+09:00'],
+        ['2026-11-02'],
+        ['2026-02-30T20:00+09:00'],
+        ['2026-11-02T24:00+09:00'],
+        [20261102],
+    ] as const)('(p) scheduledAt=%s → (p) エラー', (value) => {
+        const story = _previewBaseStory();
+        (story[0].episodes[0].sections[0] as Record<string, unknown>).scheduledAt = value;
+        expect(validateStory(story).some(e => e.startsWith('(p)') && e.includes('scheduledAt'))).toBe(true);
+    });
+
+    it('(p) 公開済み sec に scheduledAt が残っている → (p) エラー（消し忘れ）', () => {
+        const story = _baseStory();
+        story[0].episodes[0].sections[0].scheduledAt = '2026-11-02T20:00+09:00';
+        expect(validateStory(story).some(e => e.startsWith('(p)') && e.includes('公開済み'))).toBe(true);
     });
 
     it.each([
@@ -266,6 +296,9 @@ describe('validateStory — 壊したパターンで各違反が検出される'
         ['coverPositionY', 'left'],
         ['coverPositionY', 'Bottom'],
         ['coverPositionY', 30],
+        ['tocCoverPositionY', 'top'],
+        ['tocCoverPositionY', '101%'],
+        ['tocCoverPositionY', '40px'],
     ] as const)('(n) %s=%s → (n) エラー', (field, value) => {
         const story = _baseStory();
         (story[0].episodes[0] as Record<string, unknown>)[field] = value;
@@ -420,6 +453,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         story[0].episodes[0].sections = [{ id: 1, published: false }]; // 全 sec 公開でない状態にする
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: () => true,
+            themeFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(errors.filter(e => e.startsWith('(i)'))).toEqual([]);
@@ -430,6 +464,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         story[0].afterword = { published: true }; // vol1 全 sec 公開なので (e') は起きない
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: (vol) => vol !== 1, // vol1 だけ不在
+            themeFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(errors.some(e => e.startsWith('(i)') && e.includes('vol1'))).toBe(true);
@@ -439,7 +474,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
 describe('validateStoryFiles — (o) characters.json との整合', () => {
     const only = (errors: string[]): string[] => errors.filter(e => e.startsWith('(o)'));
     const run = (story: StoryData, characters: unknown): string[] =>
-        only(validateStoryFiles(story, { afterwordTxtExists: () => true, characters }));
+        only(validateStoryFiles(story, { afterwordTxtExists: () => true, themeFileExists: () => true, characters }));
 
     it('実データ：public/story.json と public/characters.json は (o) を満たす（実データ回帰）', () => {
         const characters: unknown = JSON.parse(readFileSync(CHARACTERS_JSON_PATH, 'utf-8'));
@@ -500,6 +535,62 @@ describe('validateStoryFiles — (o) characters.json との整合', () => {
     });
 });
 
+describe('validateStoryFiles — (q) 巻の素材', () => {
+    // exists に渡ったパスを集めつつ、present に挙げたパスだけ「在る」と答える
+    const run = (story: StoryData, present: (path: string) => boolean): { errors: string[]; asked: string[] } => {
+        const asked: string[] = [];
+        const errors = validateStoryFiles(story, {
+            afterwordTxtExists: () => true,
+            themeFileExists: (p) => { asked.push(p); return present(p); },
+            characters: _charactersFor(story),
+        }).filter(e => e.startsWith('(q)'));
+        return { errors, asked };
+    };
+
+    it('実データ：public/story.json の公開済みの巻は public/ に素材が揃っている（実データ回帰）', () => {
+        const pub = resolve(__dirname, '../public');
+        expect(run(_loadRealStory(), p => existsSync(resolve(pub, p))).errors).toEqual([]);
+    });
+
+    it('公開済み sec を持つ巻の 3 ファイルを規約の場所で引く。揃っていれば通る', () => {
+        const { errors, asked } = run(_baseStory(), () => true);
+        expect(errors).toEqual([]);
+        expect(asked).toEqual([
+            'vol01/theme/hero-wide.avif', 'vol01/theme/logo.webp', 'vol01/theme/page-bg.avif',
+            'vol02/theme/hero-wide.avif', 'vol02/theme/logo.webp', 'vol02/theme/page-bg.avif',
+        ]);
+    });
+
+    it('1 ファイルでも欠けたら (q) エラー（巻と欠けたファイル名が出る）', () => {
+        const { errors } = run(_baseStory(), p => p !== 'vol02/theme/logo.webp');
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('vol2');
+        expect(errors[0]).toContain('logo.webp');
+    });
+
+    it('未公開の巻は見ない（スタブを置かせない）', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }]; // vol1 だけ公開を始める
+        const { errors, asked } = run(story, () => false);
+        expect(asked.every(p => p.startsWith('vol01/'))).toBe(true);
+        expect(errors).toHaveLength(1);
+    });
+
+    it('最終巻のあとがきが公開済みなら final/theme/ も見る', () => {
+        const story = _baseStory();
+        story[1].afterword = { published: true };
+        const { errors, asked } = run(story, p => !p.startsWith('final/'));
+        expect(asked).toContain('final/theme/hero-wide.avif');
+        expect(errors.some(e => e.startsWith('(q) final'))).toBe(true);
+    });
+
+    it('最終巻でない巻のあとがきが公開済みでも final は見ない', () => {
+        const story = _baseStory();
+        story[0].afterword = { published: true };
+        expect(run(story, () => true).asked.some(p => p.startsWith('final/'))).toBe(false);
+    });
+});
+
 describe('validateStory — 純関数の非破壊性', () => {
     it('呼び出し後に story 配列と内容が変わらない', () => {
         const story = _baseStory();
@@ -513,6 +604,7 @@ describe('validateStory — 純関数の非破壊性', () => {
         const snapshot = JSON.parse(JSON.stringify(story));
         validateStoryFiles(story, {
             afterwordTxtExists: () => true,
+            themeFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(story).toEqual(snapshot);
