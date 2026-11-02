@@ -5,7 +5,8 @@
  * export: withQuery(path: string, search?: string): string
  * 依存: なし（document・要素に触らない）。search を省くと location.search を読む＝ブラウザで呼ぶ前提。
  *       DOM の無い環境（core の単体テスト）では search を明示して渡す。
- *       呼び出し元：state.ts（本文の遷移先 URL）、index.ts（目次の各リンク）。
+ *       呼び出し元：state.ts（本文の遷移先 URL）、index.ts（目次の各リンク）、ui/world-nav（資料ページの帯）、
+ *       ui/world-sheet（資料シートの「ページで開く」）。
  */
 
 // path に search をそのまま連結する（search は "?" 付きの形。空文字ならそのまま path）。

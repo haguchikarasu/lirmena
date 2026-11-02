@@ -220,10 +220,31 @@ body {
 }
 
 /* 開発モードの目印。<html data-dev>（＝GA を送らなかった）のときだけ出す＝読者には出ない。
-   属性を付けるのは index.html の gtag.js 導入スニペット。値（query / host）は見ない＝どちらでも表示する。
-   #idx-version-badges が flex-direction: column なので版数バッジ 2 つの下に右寄せで並ぶ。 */
+   属性を付けるのは index.html の gtag.js 導入スニペット。どちらのトークン（query / host）でも表示する。
+   markup は版数バッジの器の中にあるが、表示は fixed で画面の右上（器の並びには入らない）。資料ページの帯も同じ規則。 */
 #badge-dev { display: none; }
-html[data-dev] #badge-dev { display: block; }
+/* 文字は <html data-dev> のトークンから出す：query（?dev 付き）→「?dev」、host（本番ホストではない）→「non-prod」。
+   両方付けば並ぶ（中身の空の span 1 つ）。見た目は作者が見落とさないための目立つ札で、
+   fixed＝流れの外に置くので、出ても出なくても他の部分のレイアウトは動かない。pointer-events: none で操作も奪わない。
+   位置は右上（top 基準。Chrome Android の fixed + bottom はアドレスバーの裏に回る） */
+html[data-dev] #badge-dev {
+  display: block;
+  position: fixed;
+  top: 4px;
+  right: 4px;
+  z-index: 29;
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #ffd400;
+  color: #000;
+  font: 700 11px/1.3 monospace, sans-serif;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+html[data-dev~="query"] #badge-dev::before { content: '?dev'; }
+html[data-dev~="host"] #badge-dev::after { content: 'non-prod'; }
+html[data-dev~="query"][data-dev~="host"] #badge-dev::after { margin-inline-start: 0.6em; }
 
 /* ===== 続きから読む（ヒーロー下・オートセーブがある時だけ表示） ===== */
 
@@ -532,17 +553,11 @@ ruby rt {
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
-#idx-appendix .idx-chip:not(:disabled):hover,
+#idx-appendix .idx-chip:hover,
 #idx-appendix .idx-chip:focus-visible {
   color: var(--idx-accent);
   border-color: var(--idx-border-accent);
   outline: none;
-}
-
-/* キャラクター紹介ボタンは characters.json を読み終えるまで disabled（index.ts の initAppendix） */
-#idx-appendix .idx-chip:disabled {
-  cursor: default;
-  opacity: 0.5;
 }
 
 /* 外部リンクは既読 ✓ の器（.idx-chip::after）を借りて ↗ を常時出す */

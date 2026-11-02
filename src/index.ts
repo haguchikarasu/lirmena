@@ -11,8 +11,8 @@
  *         core/changelog（versionKind）、volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）
  *   ui:   ui/settings-panel（設定ポップアップ。markup は templates/parts/settings.html）、ui/share（共有ポップアップ。
  *         markup は templates/parts/share.html）、ruby.ts（ルビ展開）、
- *         characters.ts（付録カードから開くキャラクター紹介ポップアップ＝本文ページと同じ部品）、
- *         map.ts（付録カードから開くエシュカ地図ポップアップ＝同上）
+ *         ui/sheet（シートの器）、ui/confirm（消す前の確認）
+ *         （資料＝人物・地図・用語は目次からはページへ移るだけで、資料シートも部品も読まない）
  *   以前は「src/ に依存しない」方針で上の多くを複製して持っていた（design/modules/index.md）。
  *
  * 機能:
@@ -49,16 +49,12 @@
  *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
  *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts）
  *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
- *     キャラクター紹介ボタンは資料シート（ui/world-sheet。断片 templates/parts/world.html）の人物のタブを開く。
- *     Stage は開いた時点の computeStoryStage を world-sheet に渡す（Stage から登録を引く規則は characters.ts。
- *     characters.json は initAppendix が自分で取得し、取得に失敗したらキャラクター紹介のボタンを隠す）。
- *     エシュカ地図ボタンは initAppendixMap が同期で結線して地図のタブを開く（取得するデータが無いので initAppendix
- *     とは別関数＝その早期 return に巻き込まれない）。
- *     用語集チップは別ページ（glossary.html）への <a> で、initAppendixGlossary が withQuery で href を付け直す
+ *     資料（キャラクター紹介・エシュカ地図・用語集）は 3 つとも資料ページ（characters.html・map.html・glossary.html）
+ *     への <a> で、同じタブで移る（目次 → ページ、本文 → シート）。initAppendixLinks が withQuery で href を付け直す
  *     （?dev の引き継ぎ。story.json の取得より前に同期で行う）。
  *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集）と
  *     「リンク」（X・カクヨム・小説家になろう）の 2 つ
- *   - **シート（設定・共有・資料）と確認は <dialog>**（ui/sheet・ui/confirm）。Escape は開いている一番上の
+ *   - **シート（設定・共有）と確認は <dialog>**（ui/sheet・ui/confirm）。Escape は開いている一番上の
  *     <dialog> をブラウザが閉じる＝initFab のキー処理は dialog[open] がある間は手を出さない
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝core/storage の loadReachedKeys / loadReadKeys が localStorage キー "reached" / "read" をそのまま Set 化する
@@ -79,13 +75,10 @@
  *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
  */
 
-// シートの見た目（_sheet.css）と中身の部品（人物・地図・用語）は本文と共用。シートは <dialog> の最前面の層に
-// 出るので、toc.css との読み込み順で重なりを調整する必要は無い（以前の z-index 200 の上書きは不要になった）。
+// シートの見た目（_sheet.css）は本文と共用。シートは <dialog> の最前面の層に出るので、toc.css との読み込み順で
+// 重なりを調整する必要は無い（以前の z-index 200 の上書きは不要になった）。
 import './styles/toc.css';
 import './styles/_sheet.css';
-import './styles/_characters.css';
-import './styles/_map.css';
-import './styles/_glossary.css';
 import * as storage from './core/storage';
 import type { LatestAutoSave } from './core/storage';
 import { loadSettings, removeSettings, saveSetting, saveSettings, PRESETS } from './core/settings-model';
@@ -95,11 +88,9 @@ import { versionKind, type VersionKind } from './core/changelog';
 import * as settingsPanel from './ui/settings-panel';
 import * as share from './ui/share';
 import * as sheet from './ui/sheet';
-import * as worldSheet from './ui/world-sheet';
 import { confirmDialog } from './ui/confirm';
 import { applyRuby } from './ruby';
 import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
-import type { CharactersData } from './types';
 
 // preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱いで
 // 目次に表示する。空 text（`{ text: "" }`）は「preview 無し」と同義扱いで、事前配置テンプレとして
@@ -1117,69 +1108,25 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
 
 // ----- 付録カード（キャラクター紹介・エシュカ地図・用語集） -----
 
-// 付録カードのエシュカ地図ボタンを結線する（要件 06-14）。取得するデータが無いので同期で済み、
-// 押された側の要素を world-sheet に渡して閉じたときのフォーカス戻り先にする。
-// **initAppendix に同居させない**：あちらは characters.json の取得失敗で早期 return するので、
-// 中に置くとネットワーク不調の読者に「見えるのに押しても何も起きない地図チップ」が残る。
-// initAppendixMap(): void
-function initAppendixMap(): void {
-    const btn = document.getElementById('appendix-map');
-    if (!btn) return;
-    btn.addEventListener('click', () => worldSheet.open('map', btn));
-}
-
-// 付録カードの用語集チップ（<a href="glossary.html">）に現在のクエリを付け直す（要件 06-15）。用語集は
-// 別ページへの遷移なので、エピソード一覧と同じく withQuery で ?dev を引き継ぐ＝作者の閲覧を計測させない。
-// **initAppendix に同居させない**（地図と同じ理由：あちらは取得失敗で早期 return する）。
-// initAppendixGlossary(): void
-function initAppendixGlossary(): void {
-    const link = document.getElementById('appendix-glossary');
-    if (link instanceof HTMLAnchorElement) link.href = withQuery('glossary.html');
-}
-
-// 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、資料シートの人物のタブを開く。
-// Stage は world-sheet が開くたびに _storyStage() を呼んで決める（変数に持ち回らない＝「読破を消す」で下がった後も追従する）。
-// story か characters.json が取れなければボタンを隠す（押しても何も出ないボタンを残さない）。その結果
-// 「設定」に見える項目が 1 つも無くなったら見出しごと隠す。
-// **後者の見出し隠しは 2026-10-09 以降は到達しない**：地図チップを公開したので「見える項目が 1 つも無い」
-// が成立しなくなった（要件 06-7 の条項ごと残してあるのは、将来また全項目が非公開になる場合に効くため）。
-// characters.json の取得を loader.ts に寄せないのは story.json と同じく目次の独立方針のため。
-// initAppendix(story: StoryVolume[]): Promise<void>
-async function initAppendix(story: StoryVolume[]): Promise<void> {
-    const section = document.getElementById('appendix-settings');
-    const btn = document.getElementById('appendix-chara-btn');
-    if (!section || !btn) return;
-
-    let data: CharactersData;
-    try {
-        const res = await fetch('characters.json');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        data = (await res.json()) as CharactersData;
-    } catch {
-        data = [];
+// 付録カードの資料の 3 つ（<a href="characters.html"> など）に現在のクエリを付け直す（要件 06-7・06-15）。
+// 資料ページへの遷移なので、エピソード一覧と同じく withQuery で ?dev を引き継ぐ＝作者の閲覧を計測させない。
+// 目次からはページへ移るだけ（資料シートは本文から開く）。以前は人物・地図だけ資料シートを開き、用語集だけ
+// ページへ移っていた＝同じ付録の中で開き方が混ざっていたので揃えた。
+// initAppendixLinks(): void
+function initAppendixLinks(): void {
+    for (const [id, page] of [['appendix-chara', 'characters.html'], ['appendix-map', 'map.html'], ['appendix-glossary', 'glossary.html']]) {
+        const link = document.getElementById(id);
+        if (link instanceof HTMLAnchorElement) link.href = withQuery(page);
     }
-    if (story.length === 0 || data.length === 0) {
-        btn.hidden = true;
-        if (!section.querySelector('.idx-chip:not([hidden])')) section.hidden = true;
-        return;
-    }
-
-    _charactersData = data;
-    btn.addEventListener('click', () => worldSheet.open('characters', btn));
-    // index.html では disabled で置いてある：結線が済むまで押せないようにする（読み込み中のクリックが空振りしないように）
-    (btn as HTMLButtonElement).disabled = false;
 }
-
-// 資料シートの人物のタブに渡す characters.json（initAppendix が取得する。取れるまで・取れなければ null）
-let _charactersData: CharactersData | null = null;
 
 // ----- エントリポイント -----
 
 async function main(): Promise<void> {
     // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋割合化）を確実に走らせる（移行の持ち主は core/storage だけ）。
     storage.init();
-    // 用語集チップの href に ?dev を引き継ぐ。story.json の取得を待たない（待つ間に押されると素の href で遷移する）
-    initAppendixGlossary();
+    // 付録の資料の href に ?dev を引き継ぐ。story.json の取得を待たない（待つ間に押されると素の href で遷移する）
+    initAppendixLinks();
 
     let story: StoryVolume[] = [];
     try {
@@ -1206,15 +1153,6 @@ async function main(): Promise<void> {
     loadChangelog('site');
 
     initResumeButton();
-    worldSheet.init({
-        characters: () => _charactersData,
-        stage: () => computeStoryStage(
-            Array.from(storage.loadReadKeys()),
-            story as unknown as Parameters<typeof computeStoryStage>[1],
-        ),
-    });
-    initAppendixMap();
-    void initAppendix(story);
 
     initSettingsPopup(story);
     share.init();

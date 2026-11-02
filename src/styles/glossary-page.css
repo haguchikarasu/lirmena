@@ -1,62 +1,23 @@
 /* glossary-page.css — 用語集ページ（glossary.html）だけの差分。
-   土台は toc.css（目次と同じ紙面：リセット・body・パレット・stage 別キーカラー・#badge-dev の表示切替）、
-   一覧の見た目は _glossary.css。ここには用語集ページの枠組み（見出し・固定バー・余白）だけを書く。
+   土台は toc.css（目次と同じ紙面：リセット・body・パレット・stage 別キーカラー）、上の帯と 1 画面に固定する枠組みは
+   world-page.css、一覧の見た目は _glossary.css。ここには検索欄・五十音の固定バーと一覧の器だけを書く。
    幅と左右の余白は目次の .idx-body（600px・1.5rem）に揃える＝目次から来た読者に同じ紙面に見せる */
 
-#gl-page-head,
 #gl-page-body {
   max-width: 600px;
   margin: 0 auto;
-  padding-inline: 1.5rem;
+  padding: 0 1.5rem 5rem;
 }
 
-#gl-page-head { padding-top: 1.6rem; }
-
-#gl-back {
-  display: inline-block;
-  padding: 0.3rem 0;
-  color: var(--idx-text-date);
-  font-size: 0.85rem;
-  letter-spacing: 0.1em;
-  text-decoration: none;
-}
-#gl-back:hover,
-#gl-back:focus-visible {
-  color: var(--gl-accent);
-  outline: none;
-}
-
-#gl-title-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-top: 1.4rem;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid #181818;
-}
-/* 目次の .idx-sec-label（「栞」「更新履歴」）と同じ字間の見出し */
-#gl-title {
-  font-size: 1.25rem;
-  font-weight: 400;
-  letter-spacing: 0.5em;
-  color: var(--idx-text-primary);
-}
-#gl-count {
-  font-size: 0.78rem;
-  font-family: monospace, sans-serif;
-  letter-spacing: 0.08em;
-  color: var(--gl-muted);
-}
-
-/* 検索と五十音は画面上端に貼り付ける */
+/* 検索と五十音：PC は最初から上の帯の真下に置き、そのまま貼り付ける（上に余白を空けると、五十音で飛んだとき
+   貼り付く位置まで「サッと上へ」動いて不自然）。貼り付く位置は帯の実際の高さ（--wp-top-h。ui/world-nav が測る） */
 #gl-sticky {
   position: sticky;
-  top: 0;
-  z-index: 5;
-  margin-top: 1.2rem;
-  background: rgba(8, 8, 8, 0.96);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  top: var(--wp-top-h, 57px);
+  z-index: 4;
+  background: rgba(8, 8, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid #141414;
 }
 #gl-sticky-inner {
@@ -67,20 +28,20 @@
   flex-direction: column;
   gap: 0.6rem;
 }
-
-#gl-page-body { padding-bottom: 5rem; }
-
-/* 開発モードの目印。表示の切替（<html data-dev> のときだけ出す）は toc.css が持つ。目次では版数バッジの器
-   （#idx-version-badges）の中に並べて位置が決まるが、このページにはその器が無いので本文ページ（_misc.css）と
-   同じく右上に固定する。固定バー（z-index 5）より上に出す */
-#badge-dev {
-  position: fixed;
-  top: 4px;
-  right: 6px;
-  z-index: 6;
-  pointer-events: none;
-  font-size: 0.6rem;
+#gl-search-row { display: flex; align-items: center; gap: 0.8rem; }
+#gl-search-row .gl-search { flex: 1; min-width: 0; }
+#gl-count {
+  flex: none;
+  font-size: 0.78rem;
   font-family: monospace, sans-serif;
-  color: #484848;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  color: var(--gl-muted);
+}
+
+/* スマホ：ページは動かさず、一覧の箱の中だけをスクロールさせる（world-page.css の「高さ」）。
+   一覧の箱の overscroll-behavior は既定（auto）のままにする：先頭でさらに下へ引くと、引きがページへ伝わって
+   「引っぱって更新」が効く（contain にすると伝わらず、更新できなくなる） */
+@media (max-width: 900px) {
+  #gl-sticky { flex: none; position: static; }
+  #gl-page-body { flex: 1; min-height: 0; width: 100%; overflow-y: auto; }
 }

@@ -1,8 +1,9 @@
 /*
  * 骨格 E2E：資料シートの「人物」タブ（要件 06-8）と目次の付録カード（要件 06-7）。
- * 人物の部品は characters.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて、本文ページ（右下メニュー）と
- * 目次ページ（付録カード）の両方から開く。見るのは「開く／人物が出る／選べる／閉じ方／閉じたあとのフォーカス／
- * 目次で FAB より手前」で、寸法・レイアウトは手動スモークに残す。
+ * 人物の部品は characters.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて本文ページ（右下メニュー）から開く。
+ * 目次の付録カードはシートを開かず資料ページへ移る（目次 → ページ、本文 → シート）。見るのは「開く／人物が出る／
+ * 選べる／閉じ方／閉じたあとのフォーカス」と、付録の 3 項目の行き先で、寸法・レイアウトは手動スモークに残す。
+ * 巻の選択は本番のデータが 1 巻だけで出ないので、src/characters.test.ts が見る。
  *
  * 期待するキャラ数は public/characters.json から読む（本番データの公開範囲は vol1 だけ＝読者は Stage 1）。
  */
@@ -23,53 +24,33 @@ test.describe('目次の付録カード', () => {
         const card = page.locator('#idx-appendix');
         await expect(card).toBeVisible();
         await expect(card).not.toHaveAttribute('open');
-        await expect(page.locator('#appendix-chara-btn')).toBeHidden();
+        await expect(page.locator('#appendix-chara')).toBeHidden();
 
         await page.locator('#idx-appendix > summary').click();
-        await expect(page.locator('#appendix-chara-btn')).toBeVisible();
-        // エシュカ地図は 2026-10-09 に公開済み（挙動は e2e/map-popup.spec.ts が見る）
+        await expect(page.locator('#appendix-chara')).toBeVisible();
         await expect(page.locator('#appendix-map')).toBeVisible();
-        // 用語集は 2026-10-11 に公開（別ページへのリンク。挙動は e2e/glossary.spec.ts が見る）
         await expect(page.locator('#appendix-glossary')).toBeVisible();
     });
 
-    test('キャラクター紹介：資料シートの人物のタブが開き、Escape・閉じるボタン・背景で閉じる', async ({ page }) => {
-        await page.goto('/lirmena/');
-        await page.locator('#idx-appendix > summary').click();
-
-        const sheet = page.locator('#world-sheet');
-        const panel = page.locator('#characters-overlay');
-        const open = async (): Promise<void> => {
-            await page.locator('#appendix-chara-btn').click();
-            await expect(panel).toBeVisible();
-        };
-
-        await open();
-        await expect(panel.locator('.cv-face')).toHaveCount(VOL1.length);
-        await expect(page.getByRole('tab', { name: '人物' })).toHaveAttribute('aria-selected', 'true');
-
-        // シートは <dialog> の最前面の層＝FAB の位置で一番上にあるのはシート
-        const onTop = await page.evaluate(() => {
-            const r = document.getElementById('fab-toggle')!.getBoundingClientRect();
-            const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            return document.getElementById('world-sheet')!.contains(el);
+    // 目次 → ページ、本文 → シート（要件 06-7）。3 つとも同じ開き方（以前は人物・地図だけシートを開いていた）
+    for (const [id, name] of [['appendix-chara', 'characters'], ['appendix-map', 'map'], ['appendix-glossary', 'glossary']] as const) {
+        test(`#${id} は ${name}.html へ同じタブで移り、?dev を引き継ぎ、‹ で目次へ戻る`, async ({ page }) => {
+            await page.goto('/lirmena/?dev');
+            await page.locator('#idx-appendix > summary').click();
+            const link = page.locator(`#${id}`);
+            await expect(link).toHaveAttribute('href', `${name}.html?dev`);
+            await expect(link).not.toHaveAttribute('target');
+            await link.click();
+            await expect(page).toHaveURL(new RegExp(`/lirmena/${name}\\.html\\?dev$`));
+            await expect(page.locator(`#wp-tab-${name}`)).toHaveAttribute('aria-current', 'page');
+            await page.locator('#wp-back').click();
+            await expect(page).toHaveURL(/\/lirmena\/\?dev$/);
         });
-        expect(onTop).toBe(true);
+    }
 
-        await page.keyboard.press('Escape');
-        await expect(sheet).toBeHidden();
-        // Escape はシートを閉じるだけで、FAB メニューを開かない
-        await expect(page.locator('#fab-panel')).toBeHidden();
-        // 閉じたら押したチップへフォーカスが戻る
-        await expect(page.locator('#appendix-chara-btn')).toBeFocused();
-
-        await open();
-        await sheet.getByRole('button', { name: '閉じる' }).click();
-        await expect(sheet).toBeHidden();
-
-        await open();
-        await page.mouse.click(5, 5);   // シートの外＝背景
-        await expect(sheet).toBeHidden();
+    test('目次には資料シートを置かない', async ({ page }) => {
+        await page.goto('/lirmena/');
+        await expect(page.locator('#world-sheet')).toHaveCount(0);
     });
 });
 

@@ -1,8 +1,8 @@
 /*
  * 骨格 E2E：資料シートの「地図」タブ（要件 06-14）。
- * 地図の部品は map.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて、目次ページ（付録カード）と本文ページ
- * （右下メニュー）の両方から開く。見るのは「開く／閉じる／画像が届く／＋−で拡大し端で押せなくなる／別タブ導線が
- * 生きている」で、寸法・レイアウトは手動スモークに残す（骨格導線しか見ない方針）。
+ * 地図の部品は map.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて本文ページ（右下メニュー）から開く
+ * （目次の付録カードは map.html へ移る＝e2e/characters-popup.spec.ts が見る）。見るのは「開く／閉じる／画像が届く／
+ * ＋−で拡大し端で押せなくなる／別タブ導線が生きている」で、寸法・レイアウトは手動スモークに残す（骨格導線しか見ない方針）。
  */
 
 import { test, expect } from './_fixtures';
@@ -19,35 +19,6 @@ async function expectMapReady(page: import('@playwright/test').Page): Promise<vo
     // 画像が実際に届いていること（404 なら map.ts が #map-popup-error に差し替えるので img が消える）
     await expect(page.locator('#map-popup img')).toBeVisible();
 }
-
-test.describe('目次の付録カード', () => {
-    test('エシュカ地図：資料シートの地図のタブが開き、Escape・閉じるボタン・背景で閉じる', async ({ page }) => {
-        await page.goto('/lirmena/');
-        await page.locator('#idx-appendix > summary').click();
-
-        const sheet = page.locator('#world-sheet');
-        const open = async (): Promise<void> => {
-            await page.locator('#appendix-map').click();
-            await expect(page.locator('#map-overlay')).toBeVisible();
-        };
-
-        await open();
-        await expectMapReady(page);
-
-        await page.keyboard.press('Escape');
-        await expect(sheet).toBeHidden();
-        // Escape はシートを閉じるだけで、FAB メニューを開かない
-        await expect(page.locator('#fab-panel')).toBeHidden();
-
-        await open();
-        await sheet.getByRole('button', { name: '閉じる' }).click();
-        await expect(sheet).toBeHidden();
-
-        await open();
-        await page.mouse.click(5, 5);
-        await expect(sheet).toBeHidden();
-    });
-});
 
 test('本文ページ：右下メニューのエシュカ地図が開き、＋／− で拡大・縮小できる', async ({ page }) => {
     await page.goto('/lirmena/contents/01-01.html');

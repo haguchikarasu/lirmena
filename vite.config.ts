@@ -147,9 +147,9 @@ function pages(root: string): Plugin {
     // （serve では生成した実ファイルを dev サーバがそのまま配信＝middleware 不要）。
     config() {
       const pagePaths = generatePages(root)
-      // 静的なページ（目次・用語集）はここに直書きする。この input は丸ごと上書きなので、足し忘れたページはビルドされない
+      // 静的なページ（目次・資料ページ 3 枚）はここに直書きする。この input は丸ごと上書きなので、足し忘れたページはビルドされない
       // （dev は root の HTML をそのまま配信するので気づけない＝preview / 本番だけ 404 になる）
-      const staticPages = ['index.html', 'glossary.html'].map(p => resolve(root, p))
+      const staticPages = ['index.html', 'characters.html', 'map.html', 'glossary.html'].map(p => resolve(root, p))
       return { build: { rollupOptions: { input: [...staticPages, ...pagePaths] } } }
     },
     // dev：story.json / characters.json / テンプレ・差し込みの断片の変更を監視し、再生成して full-reload する。
@@ -175,7 +175,7 @@ function pages(root: string): Plugin {
         }
       })
     },
-    // 目次・用語集（root 直下の静的ページ）の差し込みを展開する。'pre' で Vite が HTML を解析する前に行う
+    // 目次・資料ページ（root 直下の静的ページ）の差し込みを展開する。'pre' で Vite が HTML を解析する前に行う
     // （断片の中の要素も通常の HTML として扱わせる）。生成ページは generatePages で展開済みなので素通りする。
     transformIndexHtml: {
       order: 'pre',

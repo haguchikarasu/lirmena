@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<!-- 地図ページ（資料ページの 1 枚。上の帯のタブで人物・用語と行き来する）。目次と同じ深さ（/lirmena/map.html）に置く。
+     <head> は index.html の複製：head-contract:* で囲んだ範囲は src/head-contract.test.ts が全シェル間でバイト比較する。
+     上の帯は差し込みの断片 templates/parts/world-nav.html（vite.config.ts の expandIncludes が差し込む）。 -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- OGP・メタ情報
+       - theme-color は CSS 変数と2箇所で管理。変更時は両方合わせること
+       - og:image は public/ogp.png（1200×630px 推奨）。**画像を差し替えたらクエリ ?v=N の N を上げる**
+         ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
+       - og:description は設定しない
+       - 全シェル（目次・用語集・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
+         src/head-contract.test.ts が全シェル間でバイト比較する（<title> は範囲外＝ページ種別で変えてよい）
+  -->
+  <!-- head-contract:meta:start -->
+  <meta name="theme-color" content="#080808" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:title" content="輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
+  <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=3" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!-- head-contract:meta:end -->
+  <title>エシュカの地図｜輝くもの《リルメナ》</title>
+  <!-- 資料ページの favicon は vol1 で固定（用語集ページと同じ（目次のような stage 連動はしない＝story.json の取得と volumes を
+       持ち込むほどの価値が無い。manifest・apple-touch-icon も vol1 固定なのでそれに揃う。design/modules/glossary-page.md） -->
+  <link rel="icon" href="vol01/favicon1.png" />
+  <!-- PWA（インストール可能化）。**全シェル共通**で同じものを置く＝1 行足すときは全シェルに足すこと（有無と href の深さは src/head-contract.test.ts が見る）。
+       - manifest は全ページで 1 ファイル。favicon のような vol 別・stage 別の切替はしない＝**アプリアイコンは stage 連動しない**
+         （WebAPK のアイコンはインストール時に端末へ焼き込まれ OS が持つ。stage は読者ごとに違い manifest は全読者共通なので構造的に不可能）
+       - href を相対にするのは base（vite.config.ts）と二重にハードコードしないため。contents/ 配下は 1 階層下で固定なので ../ で足りる
+       - apple-touch-icon は Safari 用（manifest の icons を見ないため）。iOS 実機は未検証
+       - 仕様の正典は design/requirements/07-ogp.md、入れ方の手順は ops/pwa.md（git 管理外） -->
+  <link rel="manifest" href="app.webmanifest" />
+  <link rel="apple-touch-icon" href="vol01/favicon1.png" />
+  <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
+       body 背景と文字色だけをインラインで先付ける。値は src/styles/toc.css の背景色と一致。
+       Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
+       極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
+  <!-- head-contract:fouc:start -->
+  <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
+  <!-- head-contract:fouc:end -->
+  <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
+       - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
+       - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新
+       - data-story-stage: index.ts / main.ts が読了記録後に localStorage 'lirmena.storyStage' へキャッシュした値を先付け。
+                           未設定は '1'（stage1・緑）にフォールバック。値は 1〜5 の文字列のみ許容。 -->
+  <!-- head-contract:early:start -->
+  <script>
+    // localStorage が使えない環境（Cookie・サイトデータを全ブロックすると、読むだけで SecurityError）では
+    // window.localStorage をメモリ上の代用品に差し替える。全モジュールが素の localStorage を使うので、ここ 1 か所で
+    // 全部守れる＝表示は通常どおり・記録はそのページの間だけ（遷移・再読み込みで消える）。検出は読み取りで行う
+    // （書き込みで試すと、容量が一杯なだけの正常な環境まで代用品に落ちて既存の記録が見えなくなる）。
+    // 初回案内（firstrun の読み方選択・tutorial）は表示済み扱いで始める：記録が残らないので毎ページ「初回」と判定され、
+    // 選んでも次のページで忘れるダイアログを出し続けることになるため。キー名は firstrun.ts / tutorial.ts と同一
+    // （片方だけ改名すると毎ページ出る状態に戻る。検査は e2e/storage-blocked.spec.ts）。
+    (function () {
+      try { window.localStorage.getItem('lirmena.probe'); return; } catch (e) {}
+      try {
+        var mem = Object.create(null);
+        mem['lirmena.presetAsked'] = '1';
+        mem['lirmena.tutorialSeen'] = '1';
+        Object.defineProperty(window, 'localStorage', { configurable: true, enumerable: true, value: {
+          getItem: function (k) { k = String(k); return k in mem ? mem[k] : null; },
+          setItem: function (k, v) { mem[String(k)] = String(v); },
+          removeItem: function (k) { delete mem[String(k)]; },
+          clear: function () { mem = Object.create(null); },
+          key: function (i) { var ks = Object.keys(mem); return i < ks.length ? ks[i] : null; },
+          get length() { return Object.keys(mem).length; }
+        } });
+      } catch (e) {}
+    })();
+    try {
+      var m = localStorage.getItem('lirmena.writingMode');
+      document.documentElement.setAttribute('data-writing-mode', m === 'vertical' ? 'vertical' : 'horizontal');
+    } catch (e) {}
+    try {
+      var d = window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'sp' : 'pc';
+      document.documentElement.setAttribute('data-device', d);
+    } catch (e) {}
+    try {
+      var stg = localStorage.getItem('lirmena.storyStage');
+      document.documentElement.setAttribute('data-story-stage', stg && /^[1-5]$/.test(stg) ? stg : '1');
+    } catch (e) {}
+  </script>
+  <!-- head-contract:early:end -->
+  <!-- head-contract:ga:start -->
+  <!-- Google tag (gtag.js)：本番ホストでのみ計測（ローカルの dev/draft/エディタのプレビューと、?dev 付き＝開発モードでは送らない） -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    var blockGA = location.hostname !== 'haguchikarasu.github.io'
+               || new URLSearchParams(location.search).has('dev');
+    // GA を送らなかったことを <html data-dev> に出す（診断バッジの表示条件。CSS だけで拾えるよう属性で置く）。
+    // インストール後の PWA はアドレスバーが見えず、スマホでは開発者ツールも使えない＝画面に出す以外に確認手段が無い。
+    // 値は理由のトークン（空白区切り。両方付くこともある）：query＝?dev 付き（＝開発モードが効いている）／
+    // host＝本番ホストではない（localhost・draft・エディタのプレビュー・devtunnel）。札は CSS がトークンごとに
+    // 「dev」「localhost」と出し分ける。2 つを独立に持つ＝ローカルでも ?dev が効いているかを確かめられる
+    // （どちらか一方に丸めると、ローカルでは常に host になって確認できるのが本番だけになる）。
+    if (blockGA) {
+      var devWhy = [];
+      if (new URLSearchParams(location.search).has('dev')) devWhy.push('query');
+      if (location.hostname !== 'haguchikarasu.github.io') devWhy.push('host');
+      document.documentElement.setAttribute('data-dev', devWhy.join(' '));
+    }
+    // ?dev のときは作者用 manifest（dev.webmanifest）を宣言し直す。この 1 行が作者用アプリを入れる唯一の
+    // 経路で（?dev 付きの目次を開いてインストールする）、無いと dev アプリ内の全ページが読者用 manifest
+    // （id=/lirmena/）を宣言し、Chrome の WebAPK 更新チェックが id の食い違いを見て start_url から ?dev を
+    // 落としうる（＝数日後に静かに計測へ戻る）。<link rel="manifest"> はこの script より前にあるので必ず居る。
+    // getAttribute で生の相対値を取るので、本文シェル側の ../ もそのまま活きる。
+    if (new URLSearchParams(location.search).has('dev')) {
+      var mf = document.querySelector('link[rel="manifest"]');
+      if (mf) mf.href = mf.getAttribute('href').replace('app.webmanifest', 'dev.webmanifest');
+    }
+    if (!blockGA) {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
+      document.head.appendChild(s);
+      gtag('js', new Date());
+      gtag('config', 'G-D750N4MKZY');
+    }
+  </script>
+  <!-- head-contract:ga:end -->
+</head>
+<body class="wp-root" data-world="map">
+  <!-- include: parts/world-nav.html -->
+  <main id="wp-main">
+    <h1 class="wp-h1">地図</h1>
+    <!-- 中身は world-page.ts が部品で描く（map.ts の mount）。器の幅で並べ方が変わる（@container） -->
+    <section id="wp-panel"></section>
+  </main>
+
+  <script type="module" src="src/world-page.ts"></script>
+</body>
+</html>

@@ -6,25 +6,31 @@
  *         init(source: WorldSource): void
  *         open(tab: WorldTab, opener?: HTMLElement | null): void
  *         isOpen(): boolean
- * 依存: ui/sheet、characters・map・glossary（ui 層の部品）、types・volumes（型だけ）。ui 層＝reader 層を import しない。
- *       呼び出し元：menu.ts（本文の FAB）、index.ts（目次の付録カード）。
+ * 依存: ui/sheet、characters・map・glossary（ui 層の部品）、core/query、types・volumes（型だけ）。ui 層＝reader 層を import しない。
+ *       呼び出し元：menu.ts（本文の FAB）だけ。目次の付録カードは資料ページへ移る（シートを開かない）。
  *
- * 人物のデータと Stage は呼び出す側が渡す（WorldSource）：本文は「そのページが属する Stage」、目次は
- * 「読者の今の Stage」。人物のタブは開くたび・タブを選ぶたびに描き直す（目次で既読を消すと Stage が下がる）。
+ * 人物のデータと Stage は呼び出す側が渡す（WorldSource）：本文は「そのページが属する Stage」。
+ * 人物のタブは開くたび・タブを選ぶたびに描き直す。
  * 地図と用語は最初に開いたときだけ作る（画像・md を開くまで落とさない）。
  * Escape：用語のタブでは glossary.handleEscape が閉じる要求を止めることがある（日本語の変換中・検索欄に文字があるとき）。
+ * 「ページで開く」（#world-sheet-page）：いまのタブの資料ページ（<tab>.html）を指す。タブを切り替えるたびに href を
+ * 付け直す。?dev は core/query の withQuery で引き継ぐ（落ちると作者の閲覧が計測される）。同じタブで移る
+ * （別タブはスマホで気づかれにくく「戻る」も効かない。iOS の PWA では保存領域の別な Safari に出てしまう）。
+ * 戻るのはブラウザの「戻る」か、資料ページの帯の ‹（ui/world-nav）。
+ * シートだけが持つ（部品はページかシートかを知らない＝部品の中に置くと、資料ページの上で自分自身を指してしまう）。
  */
 
 import * as sheet from './sheet';
 import * as characters from '../characters';
 import * as map from '../map';
 import * as glossary from '../glossary';
+import { withQuery } from '../core/query';
 import type { CharactersData } from '../types';
 import type { StoryStage } from '../volumes';
 
 export type WorldTab = 'characters' | 'map' | 'glossary';
 
-// WorldSource: 人物のタブを描くのに要るもの。data が null（目次で characters.json の取得に失敗した）なら空で描く。
+// WorldSource: 人物のタブを描くのに要るもの。data が null（characters.json の取得に失敗した）なら空で描く。
 export type WorldSource = {
     characters: () => CharactersData | null;
     stage: () => StoryStage;
@@ -49,7 +55,7 @@ export function init(source: WorldSource): void {
 }
 
 // open(tab: WorldTab, opener?: HTMLElement | null): void
-// opener には閉じたときにフォーカスを戻す要素を渡す（本文＝#menu-toggle／目次＝押された付録チップ）。
+// opener には閉じたときにフォーカスを戻す要素を渡す（本文＝#menu-toggle）。
 export function open(tab: WorldTab, opener?: HTMLElement | null): void {
     if (!_dlg) return;
     sheet.open(_dlg, { opener });
@@ -75,6 +81,10 @@ function _show(tab: WorldTab): void {
         map: _dlg.querySelector('#map-overlay'),
         glossary: _dlg.querySelector('#glossary-overlay'),
     };
+    const pageLink = _dlg.querySelector<HTMLAnchorElement>('#world-sheet-page');
+    if (pageLink) {
+        pageLink.href = withQuery(`${import.meta.env.BASE_URL}${tab}.html`);
+    }
     for (const [key, panel] of Object.entries(panels)) {
         if (panel) panel.hidden = key !== tab;
     }

@@ -27,9 +27,7 @@
  *     判定し、ui/sheet の onEscape として閉じる要求を止める
  *   - 検索語とスクロール位置は閉じても残す（同じ語を引き直しやすい）。ページを移れば消える＝保存はしない
  *
- * 「ページで開く」と「目次へ」に location.search を付けるのは state.ts の _withQuery と同じ 1 行の複製
- * （リーフ／独立エントリなので state を import できない）。?dev が落ちると作者の閲覧が計測される。
- * 見張るのは e2e/glossary.spec.ts だけ（Playwright は CI に入っていない＝ローカルで回したときだけ効く）。
+ * 「ページで開く」はシートの帯（ui/world-sheet）が持つ（人物・地図のタブと同じ場所に 1 つ）。
  *
  * 読み込む側は `import * as glossary from './glossary'` とする。
  */
@@ -450,7 +448,7 @@ let _ui: GlossaryUi | null = null;
 let _mounted: Promise<void> | null = null;
 
 /**
- * 器 el（資料シートの「用語」タブの中身 #glossary-overlay）に、頭（「ページで開く」・検索欄・五十音）と一覧を作り、
+ * 器 el（資料シートの「用語」タブの中身 #glossary-overlay）に、頭（検索欄・五十音）と一覧を作り、
  * md を取得して描く。ui/world-sheet が用語のタブを開くたびに呼ぶ：1 回目だけ組み立てと取得をし、取得に失敗していたら
  * 取り直す（成功したあとは何もしない＝検索語とスクロール位置は閉じても残る。ページを移れば消える）。
  * 頭は一覧の外に置く（一覧だけがスクロールする）ので、五十音で飛んだ先の見出しが検索欄の裏に潜らない。
@@ -465,13 +463,6 @@ export function mountPanel(el: HTMLElement): void {
         const head = _el('header');
         head.id = 'glossary-popup-head';
 
-        // 別タブで用語集ページを開く（じっくり読みたい読者向け）。?dev を引き継ぐ（冒頭コメント）
-        const pageLink = _el('a', undefined, 'ページで開く');
-        pageLink.id = 'glossary-popup-page';
-        pageLink.href = `${import.meta.env.BASE_URL}glossary.html${location.search}`;
-        pageLink.target = '_blank';
-        pageLink.rel = 'noopener';
-
         _search = _el('input', 'gl-search');
         _search.id = 'glossary-search';
         _search.type = 'search';
@@ -482,7 +473,7 @@ export function mountPanel(el: HTMLElement): void {
         const kana = _el('nav', 'gl-kana');
         kana.id = 'glossary-kana';
         kana.setAttribute('aria-label', '五十音');
-        head.append(_search, pageLink, kana);
+        head.append(_search, kana);
 
         const list = _el('section', 'gl-list');
         list.id = 'glossary-popup-list';

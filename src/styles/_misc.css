@@ -40,7 +40,7 @@
 =================================================== */
 /* <html data-dev>（＝GA を送らなかった）のときだけ出す。属性を付けるのは reader.html の gtag.js 導入スニペット。
    インストールした PWA はアドレスバーが見えず、スマホでは開発者ツールも使えないので、画面に出す以外に
-   「?dev 付きで起動できているか」を確かめる手段が無い。値（query / host）は見ない＝どちらでも表示する。
+   「?dev 付きで起動できているか」を確かめる手段が無い。どちらのトークン（query / host）でも表示する。
    3 つの制約がある（どれも実装の都合ではなくこのサイト固有の理由）:
    - pointer-events: none は必須。pan.ts が pointerdown を #main-container に**直接**バインドしているので、
      body 直下の fixed 要素はその子孫ではない＝これが無いとバッジの上に乗った指のイベントがコンテナに届かず、
@@ -48,17 +48,27 @@
    - 位置は top 基準で取る。Chrome Android の fixed + bottom は ICB（アドレスバーが隠れた高さ）基準なので、
      通常ブラウザではアドレスバーの裏に回って見えない（architecture.md が記録している svh/dvh と同じ罠）
    - z-index は 30 未満。鑑賞モード（_bg.css の #bg-stack）が 30 で全画面を覆うため、それ以上だと絵の上に文字が残る */
-#badge-dev {
-  display: none;
+#badge-dev { display: none; }
+
+/* 文字は <html data-dev> のトークンから出す：query（?dev 付き）→「?dev」、host（本番ホストではない）→「non-prod」。
+   両方付けば並ぶ（中身の空の span 1 つ）。見た目は作者が見落とさないための目立つ札で、
+   fixed＝流れの外に置くので、出ても出なくても他の部分のレイアウトは動かない。pointer-events: none で操作も奪わない。
+   位置は右上（top 基準。Chrome Android の fixed + bottom はアドレスバーの裏に回る） */
+html[data-dev] #badge-dev {
+  display: block;
   position: fixed;
   top: 4px;
-  right: 6px;
-  z-index: 16;
-  pointer-events: none;
-  font-size: 0.6rem;
-  font-family: monospace, sans-serif;
-  color: #484848;
+  right: 4px;
+  z-index: 29;   /* 30 未満（上の注記：鑑賞モード） */
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #ffd400;
+  color: #000;
+  font: 700 11px/1.3 monospace, sans-serif;
   letter-spacing: 0.04em;
+  pointer-events: none;
 }
-
-html[data-dev] #badge-dev { display: block; }
+html[data-dev~="query"] #badge-dev::before { content: '?dev'; }
+html[data-dev~="host"] #badge-dev::after { content: 'non-prod'; }
+html[data-dev~="query"][data-dev~="host"] #badge-dev::after { margin-inline-start: 0.6em; }

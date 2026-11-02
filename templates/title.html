@@ -89,11 +89,16 @@
                || new URLSearchParams(location.search).has('dev');
     // GA を送らなかったことを <html data-dev> に出す（診断バッジの表示条件。CSS だけで拾えるよう属性で置く）。
     // インストール後の PWA はアドレスバーが見えず、スマホでは開発者ツールも使えない＝画面に出す以外に確認手段が無い。
-    // 値で理由を分ける：query＝?dev 付き（＝開発モードが効いている）／host＝?dev は無いが本番ホストでもない
-    // （localhost・draft・エディタのプレビュー）。**ホスト名で分けてはいけない**：ローカルでは常に host になり、
-    // ?dev が効いているかをローカルで確かめられなくなる（確認できるのが本番だけになる）。
-    if (blockGA) document.documentElement.setAttribute('data-dev',
-      new URLSearchParams(location.search).has('dev') ? 'query' : 'host');
+    // 値は理由のトークン（空白区切り。両方付くこともある）：query＝?dev 付き（＝開発モードが効いている）／
+    // host＝本番ホストではない（localhost・draft・エディタのプレビュー・devtunnel）。札は CSS がトークンごとに
+    // 「dev」「localhost」と出し分ける。2 つを独立に持つ＝ローカルでも ?dev が効いているかを確かめられる
+    // （どちらか一方に丸めると、ローカルでは常に host になって確認できるのが本番だけになる）。
+    if (blockGA) {
+      var devWhy = [];
+      if (new URLSearchParams(location.search).has('dev')) devWhy.push('query');
+      if (location.hostname !== 'haguchikarasu.github.io') devWhy.push('host');
+      document.documentElement.setAttribute('data-dev', devWhy.join(' '));
+    }
     // ?dev のときは作者用 manifest（dev.webmanifest）を宣言し直す。この 1 行が作者用アプリを入れる唯一の
     // 経路で（?dev 付きの目次を開いてインストールする）、無いと dev アプリ内の全ページが読者用 manifest
     // （id=/lirmena/）を宣言し、Chrome の WebAPK 更新チェックが id の食い違いを見て start_url から ?dev を

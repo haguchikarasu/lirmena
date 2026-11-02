@@ -9,7 +9,7 @@
 //   core   … データと規則。document・要素に触らない（localStorage は可）。core の外を import しない
 //   ui     … どのページにも置ける部品。core と ui だけを import する（reader を読まない）
 //   reader … 本文ページの読書の仕組み（#main-container とスクロールが前提）。下の 2 層の残り全部
-//   入口   … ページごとのエントリ。目次（index）と資料ページ（glossary-page）は reader を読まない
+//   入口   … ページごとのエントリ。目次（index）と資料ページ（world-page・glossary-page）は reader を読まない
 // 層はまずファイルの一覧（下の正規表現）で表す。フォルダ分けは新しく作るものだけ（src/core/・src/ui/）で、
 // 既存の部品は場所を変えていない。parser・renderer・bg-stub・story-integrity は src/ の外からパスで読まれるので動かさない。
 // 下の forbidden が層の向きを止め、allowed が個々の辺を許す（allowed に無い辺も allowedSeverity: 'error' で止まる）。
@@ -32,11 +32,11 @@ module.exports = {
     {
       name: 'no-orphans',
       severity: 'error',
-      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index/glossary-page）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
+      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index/world-page/glossary-page）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
       from: {
         orphan: true,
         pathNot: [
-          '(^|/)src/(main|title|index|glossary-page)\\.ts$',
+          '(^|/)src/(main|title|index|world-page|glossary-page)\\.ts$',
           '(^|/)src/types\\.ts$',
           '(^|/)src/vite-env\\.d\\.ts$',
           '(^|/)src/bg-stub\\.ts$',
@@ -68,8 +68,8 @@ module.exports = {
     {
       name: 'toc-no-reader',
       severity: 'error',
-      comment: '目次（index.ts）と資料ページ（glossary-page.ts）は core と ui だけを import する（reader を読まない）。守りたいのは「読書の仕組みの変更が目次を壊さない」こと（以前の index-src-isolation＝src/ 全体からの独立を、壊れる場所＝reader 層との境界へ引き直した。design/modules/index.md）',
-      from: { path: '(^|/)src/(index|glossary-page)\\.ts$' },
+      comment: '目次（index.ts）と資料ページ（world-page.ts・glossary-page.ts）は core と ui だけを import する（reader を読まない）。守りたいのは「読書の仕組みの変更が目次を壊さない」こと（以前の index-src-isolation＝src/ 全体からの独立を、壊れる場所＝reader 層との境界へ引き直した。design/modules/index.md）',
+      from: { path: '(^|/)src/(index|world-page|glossary-page)\\.ts$' },
       to: { path: '(^|/)src/', pathNot: [CORE, UI] },
     },
     {
@@ -88,14 +88,16 @@ module.exports = {
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    // 目次は core（storage・settings-model・query・preview・changelog）と ui（settings-panel・share・ruby・characters・map）を読む。
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share|sheet|world-sheet|confirm)\\.ts)$' } },
+    // 目次は core（storage・settings-model・query・preview・changelog）と ui（settings-panel・share・sheet・confirm・ruby）を読む。
+    // 資料（人物・地図・用語）は目次からはページへ移るだけなので、資料シートも部品も読まない。
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share|sheet|confirm)\\.ts)$' } },
     // core の中の辺は無い（各モジュールが types だけを読む）。ui の部品は core の値の規則を読む。
     // シートを使う ui（設定・共有・資料）は器の ui/sheet を読む。設定は消す・戻す前の確認（ui/confirm）も読む。
     { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/sheet|ui/confirm)\\.ts$' } },
     { from: { path: '(^|/)src/ui/share\\.ts$' }, to: { path: '(^|/)src/ui/sheet\\.ts$' } },
     // 資料シートは器（ui/sheet）と中身の部品（人物・地図・用語）を読む。volumes は StoryStage の型だけ。
-    { from: { path: '(^|/)src/ui/world-sheet\\.ts$' }, to: { path: '(^|/)src/((characters|map|glossary|volumes)\\.ts|ui/sheet\\.ts)$' } },
+    // core/query は「ページで開く」の href に ?dev を引き継ぐため。
+    { from: { path: '(^|/)src/ui/world-sheet\\.ts$' }, to: { path: '(^|/)src/((characters|map|glossary|volumes)\\.ts|ui/sheet\\.ts|core/query\\.ts)$' } },
     // 本文側の窓口：bookmark は core/storage を丸ごと再 export する（history.state だけを自分で持つ）。
     { from: { path: '(^|/)src/bookmark\\.ts$' }, to: { path: '(^|/)src/core/storage\\.ts$' } },
     { from: { path: '(^|/)src/state\\.ts$' },    to: { path: '(^|/)src/core/query\\.ts$' } },
@@ -108,9 +110,13 @@ module.exports = {
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
     // menu は資料シート（ui/world-sheet）・共有（ui/share）・栞シートの器（ui/sheet）を読む。人物・地図・用語の部品は world-sheet 経由。
     { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/((axis|state|bookmark|settings|transition|tutorial|volumes)\\.ts|ui/(share|sheet|world-sheet)\\.ts)$' } },
-    // 用語集ページのエントリは glossary だけを読む（本文側の依存を持ち込まない）。隔離ルールを別に立てないのは、
-    // allowed に無い辺は allowedSeverity: 'error' で止まるため＝この 1 行が隔離の実体
-    { from: { path: '(^|/)src/glossary-page\\.ts$' }, to: { path: '(^|/)src/glossary\\.ts$' } },
+    // 資料ページのエントリ。用語集ページは glossary と上の帯（ui/world-nav）だけを読む。人物・地図のページは部品と、
+    // 人物の Stage を出すための volumes（computeStoryStage）・core/storage（既読）を読む。本文側の依存を持ち込まない
+    // （allowed に無い辺は allowedSeverity: 'error' で止まる＝この 2 行が隔離の実体。層の向きは toc-no-reader も見る）
+    { from: { path: '(^|/)src/glossary-page\\.ts$' }, to: { path: '(^|/)src/(glossary|ui/world-nav)\\.ts$' } },
+    { from: { path: '(^|/)src/world-page\\.ts$' }, to: { path: '(^|/)src/((characters|map|volumes)\\.ts|core/storage\\.ts|ui/world-nav\\.ts)$' } },
+    // 上の帯は遷移先にクエリ（?dev）を引き継ぐ。
+    { from: { path: '(^|/)src/ui/world-nav\\.ts$' }, to: { path: '(^|/)src/core/query\\.ts$' } },
     { from: { path: '(^|/)src/reader\\.ts$' },   to: { path: '(^|/)src/(state|progress|opening|bookmark)\\.ts$' } },
     { from: { path: '(^|/)src/opening\\.ts$' },  to: { path: '(^|/)src/(axis|state|nav)\\.ts$' } },
     { from: { path: '(^|/)src/renderer\\.ts$' }, to: { path: '(^|/)src/parser\\.ts$' } },

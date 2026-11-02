@@ -1,7 +1,8 @@
 /* _map.css — 地図の部品（map.ts の mount が描く figure#map-popup.mv。要件 06-14）。本文・扉（index.css）と目次（index.ts）が読む
    枠（.mv）はスクロールしない。スクロールは中の .mv-scroll だけ。＋／−（.mv-zoom）は枠に absolute で置くので、
    拡大して絵をどの向きに動かしてもボタンは流れない（スクロールする箱の中に sticky で置くと、横に払ったとき絵と一緒に流れた）。
-   枠の高さは器（資料シートの地図のタブ＝.sheet-body）いっぱい。器の高さは _sheet.css が dvh で決める */
+   枠の高さは器いっぱい。資料シートの地図のタブ（.sheet-body）は _sheet.css が dvh で、資料ページ map.html は
+   world-page.css が svh で器の高さを決める */
 
 .sheet-body--map { overflow: hidden; }
 

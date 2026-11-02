@@ -1,0 +1,14 @@
+<!-- 資料ページの上の帯：戻る（来た元へ。無ければ目次）・タイトル・dev 札・人物／地図／用語のタブ（差し込みの断片＝資料ページ 3 枚
+     characters.html・map.html・glossary.html へ、ビルド時に vite.config.ts の expandIncludes が差し込む）。
+     タブはページ間のリンク（同じページの中で切り替えるタブではない）。いまのページの印（aria-current="page"）と、
+     href への ?dev などの引き継ぎは src/ui/world-nav.ts が付ける（どのページかは <body data-world> で決まる）。
+     素の href は JS が動かないとき用。見た目は src/styles/world-page.css（dev 札の表示切替は toc.css）。 -->
+<header id="wp-top">
+  <a id="wp-back" href="./" aria-label="戻る"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span id="wp-mark" aria-hidden="true">輝くもの《リルメナ》</span></a>
+  <span id="badge-dev"></span>
+  <nav id="wp-tabs" aria-label="資料">
+    <a id="wp-tab-characters" class="wp-tab" href="characters.html" data-world="characters"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="16.8" cy="9" r="2.5"/><path d="M15.5 14.3c3 .2 5.5 2.4 5.5 5.7"/></svg>人物</a>
+    <a id="wp-tab-map" class="wp-tab" href="map.html" data-world="map"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2.5 6 2.5 6-2.5v14.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 3.5v14.5M15 6v14.5"/></svg>地図</a>
+    <a id="wp-tab-glossary" class="wp-tab" href="glossary.html" data-world="glossary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.6-5-2-8-1.5v13.5c3-.5 6-.1 8 1.5 2-1.6 5-2 8-1.5V5c-3-.5-6-.1-8 1.5zM12 6.5V20"/></svg>用語</a>
+  </nav>
+</header>

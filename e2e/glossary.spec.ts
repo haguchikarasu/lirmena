@@ -25,7 +25,7 @@ test.describe('目次 → 用語集ページ', () => {
         await expect(page.locator('#gl-count')).toHaveText(`全 ${TERM_COUNT} 語`);
         await expect(page.locator('#gl-list .gl-entry')).toHaveCount(TERM_COUNT);
 
-        await page.locator('#gl-back').click();
+        await page.locator('#wp-back').click();
         await expect(page).toHaveURL(/\/lirmena\/$/);
     });
 
@@ -36,7 +36,7 @@ test.describe('目次 → 用語集ページ', () => {
         await page.locator('#appendix-glossary').click();
         await expect(page).toHaveURL(/\/lirmena\/glossary\.html\?dev$/);
 
-        await page.locator('#gl-back').click();
+        await page.locator('#wp-back').click();
         await expect(page).toHaveURL(/\/lirmena\/\?dev$/);
     });
 
@@ -90,10 +90,10 @@ test.describe('本文 → 用語集ポップアップ', () => {
 
         await openPopup(page);
         await expect(page.locator('#glossary-popup-list .gl-entry')).toHaveCount(TERM_COUNT);
-        // 「ページで開く」は別タブで用語集ページを指す
-        const pageLink = page.locator('#glossary-popup-page');
+        // シートの帯の「ページで開く」は、用語のタブでは用語集ページを指す（同じタブで移る）
+        const pageLink = page.locator('#world-sheet-page');
         await expect(pageLink).toHaveAttribute('href', '/lirmena/glossary.html');
-        await expect(pageLink).toHaveAttribute('target', '_blank');
+        await expect(pageLink).not.toHaveAttribute('target', /.+/);
 
         await page.keyboard.press('Escape');
         await expect(overlay).toBeHidden();
@@ -124,10 +124,15 @@ test.describe('本文 → 用語集ポップアップ', () => {
         await expect(page.locator('#glossary-overlay')).toBeHidden();
     });
 
-    test('?dev を「ページで開く」に引き継ぐ', async ({ page }) => {
+    test('「ページで開く」はいまのタブのページを指し、?dev を引き継ぐ', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html?dev');
         await expect(page.locator('#main-container')).toBeVisible();
         await openPopup(page);
-        await expect(page.locator('#glossary-popup-page')).toHaveAttribute('href', '/lirmena/glossary.html?dev');
+        const pageLink = page.locator('#world-sheet-page');
+        await expect(pageLink).toHaveAttribute('href', '/lirmena/glossary.html?dev');
+        await page.locator('#world-tab-map').click();
+        await expect(pageLink).toHaveAttribute('href', '/lirmena/map.html?dev');
+        await page.locator('#world-tab-characters').click();
+        await expect(pageLink).toHaveAttribute('href', '/lirmena/characters.html?dev');
     });
 });

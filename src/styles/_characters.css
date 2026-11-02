@@ -1,11 +1,13 @@
 /* _characters.css — 人物の部品（characters.ts の render が描く .cv）。本文・扉（index.css）と目次（index.ts）が読む
    並べ方は置かれた器の幅で決める（@container。器＝.sheet-body が container-type: inline-size を持つ）：
-     狭い器（シート）       … 上に顔の帯（横にスクロール）、下に全身の絵と紹介を横並び
+     狭い器（シート）       … 上に顔の帯（横にスクロール）と巻の選択、下に全身の絵と紹介を横並び
      シートを全画面にしたとき … 大きな絵（残りの高さいっぱい）→ 名前・紹介文 → 顔の帯（下端＝親指で押せる）
-     広い器（720px 以上）   … 左に顔の格子、右に大きな詳細（資料ページの PC。P3 で使う）
+       （スマホの資料ページ characters.html も同じ並び。器に data-cv-fill を付けたものを「全画面」と同じに扱う）
+     広い器（720px 以上）   … 左に顔の格子、右に大きな詳細（資料ページの PC。詳細が貼り付く位置は器が --cv-sticky-top で渡す）
    人物の絵は白い背景のまま使う（元画像の白＝#fafafa）。カードの地をその白に揃えて絵の縁を見せない */
 
-.cv { display: grid; grid-template-rows: auto 1fr; min-height: 100%; }
+/* 並びは 顔の帯 → 巻の選択 → 詳細（DOM の順。characters.ts の render） */
+.cv { display: grid; grid-template-rows: auto auto 1fr; min-height: 100%; }
 
 .cv-faces {
   display: flex;
@@ -77,25 +79,32 @@
 .cv-desc { margin: 0; font-size: 14px; line-height: 2; color: #d6d0c4; }
 .cv-desc rt { font-size: 0.5em; }
 .cv-empty { grid-column: 1 / -1; margin: 1.5rem 0; color: var(--sheet-dim, #9a968e); font-size: 14px; text-align: center; }
-.cv-vols { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+/* 巻の選択（characters.ts の冒頭）：顔の帯のすぐ下に小さく。主は最新の巻なので目立たせない。
+   字は小さいまま、押せる広さ（高さ 34px・幅 48px 以上）と間をとる＝指で隣の巻を押し違えない */
+.cv-vols { display: flex; align-items: center; gap: 8px; padding: 0 14px 8px; color: var(--sheet-dim, #9a968e); }
+.cv-vols[hidden] { display: none; }
+.cv-vols-ic { width: 16px; height: 16px; }
 .cv-vol {
-  min-width: 30px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--sheet-line, rgba(255, 255, 255, 0.12));
+  min-width: 48px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: none;
-  color: var(--sheet-dim, #9a968e);
+  /* 選んでいない巻も押せるものに見えるよう、ごく薄い地を敷く */
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
-.cv-vol[aria-pressed="true"] { color: #111; background: var(--sheet-accent, #2df590); border-color: var(--sheet-accent, #2df590); }
+.cv-vol:hover { color: var(--sheet-text, #e6e1d6); }
+.cv-vol[aria-pressed="true"] { color: var(--sheet-text, #e6e1d6); border-color: var(--sheet-line, rgba(255, 255, 255, 0.2)); }
+.cv-vol:focus-visible { outline: 2px solid var(--sheet-accent, #2df590); outline-offset: 1px; }
 
-/* ----- シートを全画面に広げたとき：画面を使い切る並び ----- */
+/* ----- シートを全画面に広げたとき・スマホの資料ページ：画面を使い切る並び ----- */
 @container (max-width: 719px) {
-  dialog.sheet[data-detent="full"] .cv { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  dialog.sheet[data-detent="full"] .cv-detail {
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-detail {
     order: 1;
     flex: 1;
     min-height: 0;
@@ -105,31 +114,43 @@
     padding: 12px 14px 14px;
   }
   /* 足りないときは絵が縮む（顔の帯を押し出さない） */
-  dialog.sheet[data-detent="full"] .cv-portrait { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; border-radius: 14px; }
-  dialog.sheet[data-detent="full"] .cv-name { margin: 2px 0 4px; font-size: 24px; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-portrait { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; border-radius: 14px; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-name { margin: 2px 0 4px; font-size: 24px; }
   /* 名前と紹介文：文が長い・文字が大きい設定でも顔の帯を押し出さないよう、高さの上限を決めてその中でスクロールさせる */
-  dialog.sheet[data-detent="full"] .cv-text { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; }
-  dialog.sheet[data-detent="full"] .cv-faces {
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-text { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-faces {
     order: 2;
     flex: none;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--sheet-line, rgba(255, 255, 255, 0.12));
     background: rgba(10, 10, 10, 0.92);
   }
-  dialog.sheet[data-detent="full"] .cv-face { width: 56px; }
-  dialog.sheet[data-detent="full"] .cv-face img,
-  dialog.sheet[data-detent="full"] .cv-face-initial { width: 56px; height: 56px; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face { width: 56px; }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face img,
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face-initial { width: 56px; height: 56px; }
+  /* 巻の選択は顔の帯のさらに下（同じ地）。下端の余白（safe-area）はこちらが持つ */
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-vols {
+    order: 3;
+    flex: none;
+    padding: 0 12px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(10, 10, 10, 0.92);
+  }
+  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv:has(.cv-vols:not([hidden])) .cv-faces { padding-bottom: 6px; }
 }
 
 /* ----- 広い器（資料ページの PC）：左に顔の格子、右に大きな詳細 ----- */
 @container (min-width: 720px) {
-  .cv { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: start; gap: 36px; }
+  .cv { grid-template-rows: auto 1fr; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: start; gap: 18px 36px; }
   .cv-faces { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 14px; overflow: visible; padding: 0; }
   .cv-face { width: auto; }
+  /* 左の列に 顔の格子 → 巻の選択、右の列に詳細（2 行にまたがる）。2 行目が余りを取る＝格子と選択の間が空かない */
+  .cv-faces { grid-column: 1; grid-row: 1; }
+  .cv-vols { grid-column: 1; grid-row: 2; align-self: start; padding: 0; }
+  .cv-detail { grid-column: 2; grid-row: 1 / span 2; }
   .cv-face img,
   .cv-face-initial { width: 100%; height: auto; aspect-ratio: 1; border-radius: 14px; }
   .cv-face-name { font-size: 13px; }
-  .cv-detail { grid-template-columns: 52% 1fr; padding: 0; position: sticky; top: 96px; }
+  .cv-detail { grid-template-columns: 52% 1fr; padding: 0; position: sticky; top: var(--cv-sticky-top, 96px); }
   .cv-portrait { border-radius: 14px; }
   .cv-name { margin-top: 12px; font-size: 30px; }
   .cv-desc { font-size: 15px; }

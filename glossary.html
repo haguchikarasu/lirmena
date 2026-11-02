@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<!-- 用語集ページ（付録カードの「用語集」から開く別ページ）。目次と同じ深さ（/lirmena/glossary.html）に置く。
+<!-- 用語集ページ（資料ページの 1 枚。付録カードの「用語集」から開き、上の帯のタブで人物・地図と行き来する）。
+     目次と同じ深さ（/lirmena/glossary.html）に置く。この URL と直リンク #g-見出し語 は外に出ているので変えない。
      <head> は index.html の複製：head-contract:* で囲んだ範囲は src/head-contract.test.ts が全シェル間でバイト比較する。
+     上の帯は差し込みの断片 templates/parts/world-nav.html（vite.config.ts の expandIncludes が差し込む）。
      中身（一覧・検索・五十音）は glossary-page.ts が public/glossary.md を取得して glossary.ts で描く。 -->
 <html lang="ja">
 <head>
@@ -95,11 +97,16 @@
                || new URLSearchParams(location.search).has('dev');
     // GA を送らなかったことを <html data-dev> に出す（診断バッジの表示条件。CSS だけで拾えるよう属性で置く）。
     // インストール後の PWA はアドレスバーが見えず、スマホでは開発者ツールも使えない＝画面に出す以外に確認手段が無い。
-    // 値で理由を分ける：query＝?dev 付き（＝開発モードが効いている）／host＝?dev は無いが本番ホストでもない
-    // （localhost・draft・エディタのプレビュー）。**ホスト名で分けてはいけない**：ローカルでは常に host になり、
-    // ?dev が効いているかをローカルで確かめられなくなる（確認できるのが本番だけになる）。
-    if (blockGA) document.documentElement.setAttribute('data-dev',
-      new URLSearchParams(location.search).has('dev') ? 'query' : 'host');
+    // 値は理由のトークン（空白区切り。両方付くこともある）：query＝?dev 付き（＝開発モードが効いている）／
+    // host＝本番ホストではない（localhost・draft・エディタのプレビュー・devtunnel）。札は CSS がトークンごとに
+    // 「dev」「localhost」と出し分ける。2 つを独立に持つ＝ローカルでも ?dev が効いているかを確かめられる
+    // （どちらか一方に丸めると、ローカルでは常に host になって確認できるのが本番だけになる）。
+    if (blockGA) {
+      var devWhy = [];
+      if (new URLSearchParams(location.search).has('dev')) devWhy.push('query');
+      if (location.hostname !== 'haguchikarasu.github.io') devWhy.push('host');
+      document.documentElement.setAttribute('data-dev', devWhy.join(' '));
+    }
     // ?dev のときは作者用 manifest（dev.webmanifest）を宣言し直す。この 1 行が作者用アプリを入れる唯一の
     // 経路で（?dev 付きの目次を開いてインストールする）、無いと dev アプリ内の全ページが読者用 manifest
     // （id=/lirmena/）を宣言し、Chrome の WebAPK 更新チェックが id の食い違いを見て start_url から ?dev を
@@ -120,23 +127,18 @@
   </script>
   <!-- head-contract:ga:end -->
 </head>
-<body class="gl-root">
-  <!-- 開発モードの目印（<html data-dev> のときだけ toc.css が表示する。位置は glossary-page.css） -->
-  <span id="badge-dev">dev</span>
+<body class="gl-root wp-root" data-world="glossary">
+  <!-- include: parts/world-nav.html -->
 
-  <header id="gl-page-head">
-    <!-- href は glossary-page.ts が './' + location.search に書き換える（?dev の引き継ぎ）。素の値は JS が動かないとき用 -->
-    <a id="gl-back" href="./">‹ 目次へ</a>
-    <section id="gl-title-row">
-      <h1 id="gl-title">用語集</h1>
-      <span id="gl-count"></span>
-    </section>
-  </header>
-
-  <!-- 検索と五十音は画面上端に貼り付ける（100 語を上下するのに、毎回ページ先頭へ戻らなくて済むように） -->
+  <!-- 検索と五十音：PC は上の帯の真下に貼り付ける（100 語を上下するのに、毎回ページ先頭へ戻らなくて済むように）。
+       スマホはページを 1 画面に固定し、一覧の箱の中だけをスクロールさせる（glossary-page.css） -->
   <nav id="gl-sticky" aria-label="用語集の検索と五十音">
     <section id="gl-sticky-inner">
-      <input id="gl-search" class="gl-search" type="search" placeholder="用語を検索（ひらがな可）" aria-label="用語を検索" autocomplete="off" />
+      <h1 id="gl-title" class="wp-h1">用語集</h1>
+      <section id="gl-search-row">
+        <input id="gl-search" class="gl-search" type="search" placeholder="用語を検索（ひらがな可）" aria-label="用語を検索" autocomplete="off" />
+        <span id="gl-count"></span>
+      </section>
       <section id="gl-kana" class="gl-kana"></section>
     </section>
   </nav>

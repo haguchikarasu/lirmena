@@ -2,7 +2,8 @@
  * characters.ts
  * 責務: 人物の部品（顔の帯＋選んだ人の詳細）。器（要素）とデータを受け取って描くだけで、自分がシートに置かれたか
  *       ページに置かれたかは知らない（並べ方は器の幅と CSS が決める。_characters.css）。
- *       いまの置き場所は資料シートの「人物」タブ（ui/world-sheet が呼ぶ。本文の menu.ts と目次の index.ts から開く）。
+ *       置き場所は 2 つ：資料シートの「人物」タブ（ui/world-sheet が呼ぶ。本文の menu.ts から開く）と、
+ *       資料ページ characters.html（world-page.ts が呼ぶ。器に data-cv-fill を付け、スマホでもシートの全画面と同じ並び）。
  * export: resolveCharacters(data: CharactersData, stage: StoryStage): CharacterEntry[]
  *         availableVolumes(data: CharactersData, stage: StoryStage): number[]
  *         faceImage(image: string): string
@@ -11,9 +12,14 @@
  *
  * 分担（要件 06-8・design/modules/characters.md）：
  *   - 「どの Stage の紹介を出すか」は呼び出す側が決める。本文は「そのページが属する Stage」
- *     （vol n のページ＝Stage n）、目次は「読者の今の Stage」（computeStoryStage）を渡す
+ *     （vol n のページ＝Stage n）、資料ページは「読者の今の Stage」（computeStoryStage）を渡す
  *   - 「Stage からどの登録を引くか」はここだけが持つ（resolveCharacters）。呼び出す側は巻番号を扱わない
- *   - Stage までの巻が 2 つ以上あれば「何巻時点の紹介か」を切り替えるボタンを出す（先の巻は存在ごと出さない）
+ *   - Stage までの巻が 2 つ以上あれば、以前の巻の紹介へ切り替えられる（先の巻は存在ごと出さない）。
+ *     選択は顔の帯（一覧全体）のすぐ下に小さく置く（.cv-vols。人ごとの詳細の中ではなく一覧全体の下＝紹介全体の
+ *     切り替えだとわかる。人物が増えても並びに混ざらないので崩れない）。最初は最新の巻。
+ *     切り替えても、選んでいた人がその巻にもいれば同じ人のまま（いなければ先頭の人）。
+ *     切り替えは履歴に積まない（ブラウザの「戻る」・資料ページの ‹ は巻の切り替えを遡らず、ページを離れる）。
+ *     巻の選択は同じ紹介の見え方の切り替えで、ページの移動ではないため（資料ページのタブを履歴に積まないのと同じ）
  *
  * 画像（public/chara/。作るのは tool/chara-crop）：
  *   - image（例 vol1_リッカ.avif）＝白い背景のままの全身（余白を詰めたもの）。顔は同じ名前に -face を足したもの
@@ -55,6 +61,9 @@ export function faceImage(image: string): string {
     return image.replace(/(\.[A-Za-z0-9]+)$/, '-face$1');
 }
 
+// 巻の選択の頭に置くアイコン（本が並んだ形。_sheet.css の .ic＝線画）
+const _IC_VOLS = '<svg class="ic cv-vols-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h3.5v15H4zM9.5 4.5H13v15H9.5z"/><path d="M15.2 5.6l3.4-.9 3.4 14.5-3.4.8z"/></svg>';
+
 const _src = (file: string): string => `${import.meta.env.BASE_URL}chara/${file}`;
 
 // render(el: HTMLElement, data: CharactersData, stage: StoryStage): void
@@ -72,18 +81,45 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
     faces.setAttribute('aria-label', '人物');
     const detail = document.createElement('section');
     detail.className = 'cv-detail';
-    root.append(faces, detail);
     el.appendChild(root);
 
     const list = (): CharacterEntry[] => data.find(e => e.volume === vol)?.characters ?? [];
 
-    if (vol === undefined || list().length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'cv-empty';
-        empty.textContent = '紹介できる人物はまだいません。';
-        detail.appendChild(empty);
-        return;
-    }
+    // 巻を切り替える（顔の帯と詳細を描き直す）。選んでいた人がその巻にもいれば同じ人のまま（巻ごとの紹介を
+    // 見比べるのが主な使い道）、いなければ先頭の人。巻のボタンは作り直さない（押したボタンにフォーカスを残す）
+    const switchTo = (v: number): void => {
+        if (v === vol) return;
+        const name = list()[sel]?.name;
+        vol = v;
+        const i = list().findIndex(c => c.name === name);
+        vnav.querySelectorAll('.cv-vol').forEach((b, j) => b.setAttribute('aria-pressed', String(vols[j] === vol)));
+        drawFaces();
+        faces.scrollLeft = 0;
+        select(i < 0 ? 0 : i);
+    };
+
+    // 巻の選択（紹介全体の下）。巻が 1 つなら出さない
+    const vnav = document.createElement('nav');
+    vnav.className = 'cv-vols';
+    vnav.setAttribute('aria-label', '何巻の時点の紹介か');
+    // 作るのは 1 回だけ（切り替えでは aria-pressed だけ付け替える＝switchTo）
+    const drawVols = (): void => {
+        vnav.hidden = vols.length < 2;
+        if (vnav.hidden) return;
+        vnav.insertAdjacentHTML('beforeend', _IC_VOLS);
+        for (const v of vols) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cv-vol';
+            b.textContent = `${v}巻`;
+            b.setAttribute('aria-pressed', String(v === vol));
+            b.addEventListener('click', () => switchTo(v));
+            vnav.appendChild(b);
+        }
+    };
+    // 並びは 顔の帯 → 巻の選択 → 詳細（巻の選択は顔の帯のすぐ下。シートの半分の高さでも最初から見える。
+    // 全画面・スマホの資料ページは CSS の order で 詳細 → 顔の帯 → 巻の選択 に並べ替える）
+    root.append(faces, vnav, detail);
 
     const drawFaces = (): void => {
         faces.textContent = '';
@@ -130,28 +166,6 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
         }
         const text = document.createElement('section');
         text.className = 'cv-text';
-        if (vols.length > 1) {
-            const nav = document.createElement('nav');
-            nav.className = 'cv-vols';
-            nav.setAttribute('aria-label', '何巻時点の紹介か');
-            for (const v of vols) {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'cv-vol';
-                b.textContent = String(v);
-                b.setAttribute('aria-label', `第${v}巻の時点`);
-                b.setAttribute('aria-pressed', String(v === vol));
-                b.addEventListener('click', () => {
-                    if (v === vol) return;
-                    vol = v;
-                    sel = 0;
-                    drawFaces();
-                    drawDetail();
-                });
-                nav.appendChild(b);
-            }
-            text.appendChild(nav);
-        }
         const name = document.createElement('h3');
         name.className = 'cv-name';
         applyRuby(c.name, name);
@@ -167,13 +181,14 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
         faces.querySelectorAll('.cv-face').forEach((b, j) => b.setAttribute('aria-pressed', String(j === sel)));
         drawDetail();
         // 選んだ人が帯の中で見えるように横へ送る（帯の外のページは動かさない）
-        const cur = faces.children[sel] as HTMLElement | undefined;
+        const cur = faces.querySelectorAll<HTMLElement>('.cv-face')[sel];
         if (cur && faces.scrollWidth > faces.clientWidth) {
             faces.scrollLeft = cur.offsetLeft - (faces.clientWidth - cur.offsetWidth) / 2;
         }
     };
 
     _wireWheel(faces);
+    drawVols();
     drawFaces();
     drawDetail();
 }

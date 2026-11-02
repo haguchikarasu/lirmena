@@ -1,0 +1,107 @@
+/* world-page.css — 資料ページ 3 枚（characters.html・map.html・glossary.html）の枠組み：上の帯 #wp-top と中身の器。
+   土台は toc.css（目次と同じ紙面：リセット・body・パレット・stage 別キーカラー・#badge-dev の表示切替）、
+   色の部品（--sheet-*）とアイコン（.ic）は _sheet.css（.wp-root の上で合成する）。
+   中身の見た目は部品の CSS（_characters.css・_map.css・_glossary.css）、用語集ページだけの差分は glossary-page.css。
+
+   高さ（design/architecture.md「ビューポート高さの単位」）：
+     - スマホ（幅 900px 以下）は 3 枚とも 1 画面に固定する：body を height: 100svh の flex にして、帯の残りを中身に配る。
+       長い中身（人物の紹介文・拡大した地図・用語の一覧）はその箱の中だけでスクロールする
+     - スクロールを止める指定（overflow: hidden・position: fixed）を body に使わない：ビューポートへ伝わり、
+       Chrome の「下に引っぱって更新」が死ぬ（同 (6)）。dvh も使わない（アドレスバーの出入りで中身の高さが揺れる＝同 (1)）
+     - min-height: 100vh（toc.css の body）を外す：height より勝ち、実機の Chrome ではアドレスバーの分はみ出す
+       （自動テストでは vh＝svh なので出ない＝実機で確かめる）
+     - PC はアドレスバーが出入りしないので固定しない（ページ全体がスクロールする）。地図だけはページが画面より
+       長くならない高さ（svh から帯と上下の余白を引く） */
+
+/* ===== 上の帯 ===== */
+#wp-top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 max(12px, calc(50% - 590px));
+  background: rgba(8, 8, 8, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--sheet-line);
+  font-family: sans-serif;
+}
+#wp-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 10px 0;
+  color: var(--sheet-dim);
+  text-decoration: none;
+}
+#wp-back:hover,
+#wp-back:focus-visible { color: var(--sheet-text); outline: none; }
+#wp-back:focus-visible .ic { outline: 2px solid var(--sheet-accent); outline-offset: 2px; border-radius: 4px; }
+#wp-mark {
+  font-family: serif;
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  color: var(--sheet-accent);
+  text-shadow: 0 0 10px hsl(var(--stage-hue) 91% 57% / 0.5);
+}
+/* dev 札は toc.css（fixed で右上。帯の並びには入らない） */
+#wp-tabs { display: flex; gap: 2px; min-width: 0; }
+/* タブの見た目はシートのタブ（_sheet.css の .sheet-tab）と同じ。こちらはページ間のリンクなので、印は aria-current */
+.wp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px 12px;
+  border-bottom: 2px solid transparent;
+  color: var(--sheet-dim);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.wp-tab:hover { color: var(--sheet-text); }
+.wp-tab[aria-current="page"] { color: var(--sheet-text); border-bottom-color: var(--sheet-accent); }
+.wp-tab[aria-current="page"] .ic { color: var(--sheet-accent); }
+.wp-tab:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
+
+/* ページの見出しは読み上げ用（見た目の見出しはタブが兼ねる） */
+.wp-h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== 中身の器（人物・地図） ===== */
+#wp-main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 80px; }
+/* 部品は器の幅で並べ方を変える（@container。人物は 720px 以上で格子＋大きな詳細） */
+#wp-panel { container-type: inline-size; }
+/* PC の人物：詳細は帯の下に貼り付く（_characters.css の --cv-sticky-top） */
+#wp-panel { --cv-sticky-top: calc(var(--wp-top-h, 57px) + 28px); }
+/* PC の地図：画面の高さから帯と上下の余白（28px＋28px）を引いた高さ＝ページがスクロールしない */
+body[data-world="map"] #wp-main { padding-bottom: 28px; }
+body[data-world="map"] #wp-panel .mv {
+  height: calc(100vh - var(--wp-top-h, 57px) - 56px);
+  height: calc(100svh - var(--wp-top-h, 57px) - 56px);
+  border: 1px solid var(--sheet-line);
+  border-radius: 12px;
+}
+
+/* ===== スマホ：3 枚とも 1 画面に固定（冒頭の「高さ」） ===== */
+@media (max-width: 900px) {
+  body.wp-root { display: flex; flex-direction: column; height: 100vh; height: 100svh; min-height: 0; }
+  #wp-top { flex: none; padding: 0 8px; }
+  #wp-mark { display: none; }
+  .wp-tab { padding: 13px 9px 11px; }
+  #wp-main { flex: 1; min-height: 0; width: 100%; padding: 0; }
+  #wp-panel { height: 100%; }
+  body[data-world="map"] #wp-main { padding-bottom: 0; }
+  body[data-world="map"] #wp-panel .mv { height: 100%; border: none; border-radius: 0; }
+}

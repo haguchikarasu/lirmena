@@ -1,8 +1,8 @@
 /*
  * map.ts
  * 責務: 地図の部品（エシュカの地図を器いっぱいに収めて、＋／− で拡大する）。器（要素）を受け取って描くだけで、
- *       自分がシートに置かれたかページに置かれたかは知らない。いまの置き場所は資料シートの「地図」タブ
- *       （ui/world-sheet が呼ぶ）。見た目は _map.css。
+ *       自分がシートに置かれたかページに置かれたかは知らない。置き場所は資料シートの「地図」タブ
+ *       （ui/world-sheet が呼ぶ）と資料ページ map.html（world-page.ts が呼ぶ）。見た目は _map.css。
  * export: mount(el: HTMLElement): void
  * 依存: なし（DOM と import.meta.env.BASE_URL だけを読むリーフ。.dependency-cruiser.cjs の LEAF に入れてある）
  *

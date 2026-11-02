@@ -155,8 +155,10 @@ function _wireDrag(dlg: HTMLDialogElement): void {
         if (!drag.on) {
             if (Math.abs(e.clientY - drag.y0) < SLOP_PX) return;
             _grab(drag);
-            swallowClick = true;
         }
+        // 動かしたあとの click は飲む。掴む所から直に掴んだときも要る：上限で止まった器の外で指を離すと、
+        // 捕まえた指の click が dialog 自身に来て、背景を押したと判定されて閉じる
+        if (Math.abs(e.clientY - drag.y0) >= SLOP_PX) swallowClick = true;
         const dt = e.timeStamp - drag.lastT;
         if (dt > 0) drag.v = (e.clientY - drag.lastY) / dt;
         drag.lastY = e.clientY;

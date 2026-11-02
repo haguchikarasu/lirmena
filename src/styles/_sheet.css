@@ -9,9 +9,11 @@
 
 /* ===== 色（キーカラーは --stage-hue。本文は _base.css、目次は toc.css が定義する） =====
    :root ではなく dialog の上で合成する（:root で合成すると子孫で基底の変数を上書きしても効かない。_glossary.css と同じ罠）。
+   資料ページ（.wp-root＝characters.html・map.html・glossary.html の body）も同じ色を使うので、ここに並べる。
    stage 3〜5 の明度の持ち上げは toc.css の --idx-accent-l と同じ値の複製（同期を見る機械検査は無い） */
 dialog.sheet,
-dialog.confirm {
+dialog.confirm,
+.wp-root {
   --sheet-accent-l: 57%;
   --sheet-accent: hsl(var(--stage-hue) 91% var(--sheet-accent-l));
   --sheet-accent-soft: hsl(var(--stage-hue) 91% var(--sheet-accent-l) / 0.1);
@@ -21,9 +23,9 @@ dialog.confirm {
   --sheet-dim: #9a968e;
   --sheet-danger: #e9a08f;
 }
-html[data-story-stage="3"] dialog.sheet, html[data-story-stage="3"] dialog.confirm { --sheet-accent-l: 68%; }
-html[data-story-stage="4"] dialog.sheet, html[data-story-stage="4"] dialog.confirm { --sheet-accent-l: 68%; }
-html[data-story-stage="5"] dialog.sheet, html[data-story-stage="5"] dialog.confirm { --sheet-accent-l: 70%; }
+html[data-story-stage="3"] dialog.sheet, html[data-story-stage="3"] dialog.confirm, html[data-story-stage="3"] .wp-root { --sheet-accent-l: 68%; }
+html[data-story-stage="4"] dialog.sheet, html[data-story-stage="4"] dialog.confirm, html[data-story-stage="4"] .wp-root { --sheet-accent-l: 68%; }
+html[data-story-stage="5"] dialog.sheet, html[data-story-stage="5"] dialog.confirm, html[data-story-stage="5"] .wp-root { --sheet-accent-l: 70%; }
 /* あとがきページは本文の色を無彩色に落とす規律（_base.css の body[data-kind="afterword"]）に揃える */
 body[data-kind="afterword"] dialog.sheet,
 body[data-kind="afterword"] dialog.confirm {
@@ -148,6 +150,27 @@ dialog.sheet[data-kind="settings"]::backdrop { background: rgba(0, 0, 0, 0.08); 
   background: none;
   color: var(--sheet-dim);
   cursor: pointer;
+}
+/* 資料シートの「ページで開く」（templates/parts/world.html。href と開き方は ui/world-sheet）。
+   タブの右・閉じるの左。幅の狭いシートでは文字を隠してアイコンだけにする（タブ 3 つと閉じるが 1 行に収まる幅を残す） */
+.sheet-page {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--sheet-dim);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sheet-page:hover { color: var(--sheet-text); background: rgba(255, 255, 255, 0.06); }
+.sheet-page:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
+@media (max-width: 520px) {
+  .sheet-page { padding: 8px; }
+  .sheet-page-label { display: none; }
 }
 .sheet-close:hover { color: var(--sheet-text); background: rgba(255, 255, 255, 0.06); }
 .sheet-close:focus-visible { outline: 2px solid var(--sheet-accent); }
