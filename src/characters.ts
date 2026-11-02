@@ -3,11 +3,15 @@
  * 責務: 人物の部品（顔の帯＋選んだ人の詳細）。器（要素）とデータを受け取って描くだけで、自分がシートに置かれたか
  *       ページに置かれたかは知らない（並べ方は器の幅と CSS が決める。_characters.css）。
  *       置き場所は 2 つ：資料シートの「人物」タブ（ui/world-sheet が呼ぶ。本文の menu.ts から開く）と、
- *       資料ページ characters.html（world-page.ts が呼ぶ。器に data-cv-fill を付け、スマホでもシートの全画面と同じ並び）。
+ *       資料ページ characters.html（world-page.ts が呼ぶ。器に data-cv-fill を付け、スマホでは画面を使い切る並び＝シートとは別の並び）。
  * export: resolveCharacters(data: CharactersData, stage: StoryStage): CharacterEntry[]
  *         availableVolumes(data: CharactersData, stage: StoryStage): number[]
  *         faceImage(image: string): string
- *         render(el: HTMLElement, data: CharactersData, stage: StoryStage): void
+ *         render(el: HTMLElement, data: CharactersData, stage: StoryStage, opts?: RenderOptions): void
+ *         viewToHash(view: CharacterView): string
+ *         viewFromHash(hash: string): Partial<CharacterView>
+ *         type CharacterView = { vol: number; name: string }
+ *         type RenderOptions = { initial?: Partial<CharacterView>; onChange?: (view: CharacterView) => void }
  * 依存: ruby.ts（キャラ名/説明のルビ展開）, types.ts, volumes.ts（StoryStage の型のみ）。ui 層＝reader 層を import しない
  *
  * 分担（要件 06-8・design/modules/characters.md）：
@@ -18,6 +22,9 @@
  *     選択は顔の帯（一覧全体）のすぐ下に小さく置く（.cv-vols。人ごとの詳細の中ではなく一覧全体の下＝紹介全体の
  *     切り替えだとわかる。人物が増えても並びに混ざらないので崩れない）。最初は最新の巻。
  *     切り替えても、選んでいた人がその巻にもいれば同じ人のまま（いなければ先頭の人）。
+ *   - いま見ている巻と人（CharacterView）は呼び出す側へ知らせ（onChange）、呼び出す側から最初の値を渡せる（initial）。
+ *     資料シートの「ページで開く」が、選んだ巻と人をページへ引き継ぐため（URL の # に載せる＝viewToHash／viewFromHash）。
+ *     initial の巻が Stage までに読める巻に無ければ使わない（先の巻を URL から開けない＝ネタバレしない）
  *     切り替えは履歴に積まない（ブラウザの「戻る」・資料ページの ‹ は巻の切り替えを遡らず、ページを離れる）。
  *     巻の選択は同じ紹介の見え方の切り替えで、ページの移動ではないため（資料ページのタブを履歴に積まないのと同じ）
  *
@@ -66,14 +73,47 @@ const _IC_VOLS = '<svg class="ic cv-vols-ic" viewBox="0 0 24 24" aria-hidden="tr
 
 const _src = (file: string): string => `${import.meta.env.BASE_URL}chara/${file}`;
 
-// render(el: HTMLElement, data: CharactersData, stage: StoryStage): void
-// el の中身を作り直して、Stage の紹介（最初の人を選んだ状態）を描く。開くたびに呼んでよい。
-export function render(el: HTMLElement, data: CharactersData, stage: StoryStage): void {
+// CharacterView: いま見ている紹介（何巻の時点か・誰か）。name は characters.json の name そのまま（ルビの記法ごと）。
+export type CharacterView = { vol: number; name: string };
+// RenderOptions: initial＝最初に見せる巻と人（無い・使えない値は既定＝最新の巻の 1 人目）。onChange＝描いた直後と、
+// 巻・人が替わるたびに呼ぶ。
+export type RenderOptions = { initial?: Partial<CharacterView>; onChange?: (view: CharacterView) => void };
+
+// 見ている紹介を URL の # の文字列にする純関数（先頭の # は付けない）。例：vol=1&who=%E3%83%AA%E3%83%83%E3%82%AB
+// viewToHash(view: CharacterView): string
+export function viewToHash(view: CharacterView): string {
+    return new URLSearchParams({ vol: String(view.vol), who: view.name }).toString();
+}
+
+// URL の #（先頭の # はあっても無くてもよい）から見る紹介を読む純関数。読めない項目は入れない。
+// viewFromHash(hash: string): Partial<CharacterView>
+export function viewFromHash(hash: string): Partial<CharacterView> {
+    const q = new URLSearchParams(hash.replace(/^#/, ''));
+    const view: Partial<CharacterView> = {};
+    const vol = Number(q.get('vol'));
+    if (Number.isInteger(vol) && vol > 0) view.vol = vol;
+    const who = q.get('who');
+    if (who) view.name = who;
+    return view;
+}
+
+// render(el: HTMLElement, data: CharactersData, stage: StoryStage, opts?: RenderOptions): void
+// el の中身を作り直して、Stage の紹介（最初の人を選んだ状態。opts.initial があればその巻と人）を描く。開くたびに呼んでよい。
+// 紹介できる人がいなければ（データが無い・その巻の登録が空）「紹介できる人物はまだいません。」だけを出す（要件 06-8）。
+export function render(el: HTMLElement, data: CharactersData, stage: StoryStage, opts: RenderOptions = {}): void {
     const vols = availableVolumes(data, stage);
-    let vol = vols[vols.length - 1];
+    const want = opts.initial?.vol;
+    let vol = want !== undefined && vols.includes(want) ? want : vols[vols.length - 1];
     let sel = 0;
 
     el.textContent = '';
+    if (vol === undefined || !(data.find(e => e.volume === vol)?.characters.length)) {
+        const empty = document.createElement('p');
+        empty.className = 'cv-empty';
+        empty.textContent = '紹介できる人物はまだいません。';
+        el.appendChild(empty);
+        return;
+    }
     const root = document.createElement('article');
     root.className = 'cv';
     const faces = document.createElement('nav');
@@ -84,6 +124,8 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
     el.appendChild(root);
 
     const list = (): CharacterEntry[] => data.find(e => e.volume === vol)?.characters ?? [];
+    const notify = (): void => opts.onChange?.({ vol, name: list()[sel].name });
+    if (opts.initial?.name !== undefined) sel = Math.max(0, list().findIndex(c => c.name === opts.initial!.name));
 
     // 巻を切り替える（顔の帯と詳細を描き直す）。選んでいた人がその巻にもいれば同じ人のまま（巻ごとの紹介を
     // 見比べるのが主な使い道）、いなければ先頭の人。巻のボタンは作り直さない（押したボタンにフォーカスを残す）
@@ -118,7 +160,7 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
         }
     };
     // 並びは 顔の帯 → 巻の選択 → 詳細（巻の選択は顔の帯のすぐ下。シートの半分の高さでも最初から見える。
-    // 全画面・スマホの資料ページは CSS の order で 詳細 → 顔の帯 → 巻の選択 に並べ替える）
+    // スマホの資料ページは CSS の order で 詳細 → 顔の帯 → 巻の選択 に並べ替える）
     root.append(faces, vnav, detail);
 
     const drawFaces = (): void => {
@@ -180,6 +222,7 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
         sel = i;
         faces.querySelectorAll('.cv-face').forEach((b, j) => b.setAttribute('aria-pressed', String(j === sel)));
         drawDetail();
+        notify();
         // 選んだ人が帯の中で見えるように横へ送る（帯の外のページは動かさない）
         const cur = faces.querySelectorAll<HTMLElement>('.cv-face')[sel];
         if (cur && faces.scrollWidth > faces.clientWidth) {
@@ -190,7 +233,7 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage)
     _wireWheel(faces);
     drawVols();
     drawFaces();
-    drawDetail();
+    select(sel);
 }
 
 // 顔の帯をマウスのホイール（縦の回転）で横へ送る。横にはみ出しているとき（スマホ・シートの幅の帯）だけ働き、

@@ -133,6 +133,7 @@ test.describe('本文 → 用語集ポップアップ', () => {
         await page.locator('#world-tab-map').click();
         await expect(pageLink).toHaveAttribute('href', '/lirmena/map.html?dev');
         await page.locator('#world-tab-characters').click();
-        await expect(pageLink).toHaveAttribute('href', '/lirmena/characters.html?dev');
+        // 人物のタブでは見ている巻と人を # に載せる（中身は e2e/world-page.spec.ts が見る）
+        await expect(pageLink).toHaveAttribute('href', /^\/lirmena\/characters\.html\?dev#vol=1&who=/);
     });
 });

@@ -1,8 +1,10 @@
 /* _characters.css — 人物の部品（characters.ts の render が描く .cv）。本文・扉（index.css）と目次（index.ts）が読む
    並べ方は置かれた器の幅で決める（@container。器＝.sheet-body が container-type: inline-size を持つ）：
-     狭い器（シート）       … 上に顔の帯（横にスクロール）と巻の選択、下に全身の絵と紹介を横並び
-     シートを全画面にしたとき … 大きな絵（残りの高さいっぱい）→ 名前・紹介文 → 顔の帯（下端＝親指で押せる）
-       （スマホの資料ページ characters.html も同じ並び。器に data-cv-fill を付けたものを「全画面」と同じに扱う）
+     狭い器（シート）       … 上に顔の帯（横にスクロール）と巻の選択、下に全身の絵と紹介を横並び。
+                              シートの高さ（半分・全画面・掴んで動かしている途中）では並びも絵の大きさも変えない
+                              （絵の大きさは器の幅だけで決まる。高くすると紹介文の続きが見えるだけ）
+     スマホの資料ページ     … 大きな絵（残りの高さいっぱい）→ 名前・紹介文 → 顔の帯（下端＝親指で押せる）
+       （characters.html の器に付けた data-cv-fill で選ぶ。ページは 1 画面に収める作りで、高さが動かない）
      広い器（720px 以上）   … 左に顔の格子、右に大きな詳細（資料ページの PC。詳細が貼り付く位置は器が --cv-sticky-top で渡す）
    人物の絵は白い背景のまま使う（元画像の白＝#fafafa）。カードの地をその白に揃えて絵の縁を見せない */
 
@@ -101,10 +103,12 @@
 .cv-vol[aria-pressed="true"] { color: var(--sheet-text, #e6e1d6); border-color: var(--sheet-line, rgba(255, 255, 255, 0.2)); }
 .cv-vol:focus-visible { outline: 2px solid var(--sheet-accent, #2df590); outline-offset: 1px; }
 
-/* ----- シートを全画面に広げたとき・スマホの資料ページ：画面を使い切る並び ----- */
+/* ----- スマホの資料ページ：画面を使い切る並び -----
+   以前はシートを全画面にしたときもこの並びにしていた（2026-11-02 まで）。掴んで高さを変えると、全画面の段に
+   入った所で並びが組み変わり、絵も残りの高さに合わせて伸び縮みして違和感が強かったので、シートからは外した */
 @container (max-width: 719px) {
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-detail {
+  [data-cv-fill] .cv { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  [data-cv-fill] .cv-detail {
     order: 1;
     flex: 1;
     min-height: 0;
@@ -114,28 +118,28 @@
     padding: 12px 14px 14px;
   }
   /* 足りないときは絵が縮む（顔の帯を押し出さない） */
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-portrait { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; border-radius: 14px; }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-name { margin: 2px 0 4px; font-size: 24px; }
+  [data-cv-fill] .cv-portrait { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; border-radius: 14px; }
+  [data-cv-fill] .cv-name { margin: 2px 0 4px; font-size: 24px; }
   /* 名前と紹介文：文が長い・文字が大きい設定でも顔の帯を押し出さないよう、高さの上限を決めてその中でスクロールさせる */
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-text { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-faces {
+  [data-cv-fill] .cv-text { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; }
+  [data-cv-fill] .cv-faces {
     order: 2;
     flex: none;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--sheet-line, rgba(255, 255, 255, 0.12));
     background: rgba(10, 10, 10, 0.92);
   }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face { width: 56px; }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face img,
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-face-initial { width: 56px; height: 56px; }
+  [data-cv-fill] .cv-face { width: 56px; }
+  [data-cv-fill] .cv-face img,
+  [data-cv-fill] .cv-face-initial { width: 56px; height: 56px; }
   /* 巻の選択は顔の帯のさらに下（同じ地）。下端の余白（safe-area）はこちらが持つ */
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv-vols {
+  [data-cv-fill] .cv-vols {
     order: 3;
     flex: none;
     padding: 0 12px calc(8px + env(safe-area-inset-bottom));
     background: rgba(10, 10, 10, 0.92);
   }
-  :is(dialog.sheet[data-detent="full"], [data-cv-fill]) .cv:has(.cv-vols:not([hidden])) .cv-faces { padding-bottom: 6px; }
+  [data-cv-fill] .cv:has(.cv-vols:not([hidden])) .cv-faces { padding-bottom: 6px; }
 }
 
 /* ----- 広い器（資料ページの PC）：左に顔の格子、右に大きな詳細 ----- */

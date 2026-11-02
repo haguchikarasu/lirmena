@@ -58,6 +58,22 @@ test.describe('資料ページ', () => {
         await expect(page).toHaveURL(/\/lirmena\/contents\/01-01\.html\?dev$/);
     });
 
+    test('本文のシートで選んだ人は「ページで開く」で人物のページへ引き継がれる', async ({ page }) => {
+        await page.goto('/lirmena/contents/01-01.html');
+        await expect(page.locator('#main-container')).toBeVisible();
+        await page.locator('#menu-toggle').click();
+        await page.getByRole('button', { name: 'キャラクター紹介' }).click();
+        await page.locator('#characters-overlay .cv-face').nth(2).click();
+        await page.locator('#world-sheet-page').click();
+        await expect(page).toHaveURL(/\/lirmena\/characters\.html#vol=1&who=/);
+        await expect(page.locator('#wp-panel .cv-face').nth(2)).toHaveAttribute('aria-pressed', 'true');
+        // ページで別の人を選ぶと # も付け直す（履歴には積まない）
+        const before = await page.evaluate(() => history.length);
+        await page.locator('#wp-panel .cv-face').nth(1).click();
+        await expect.poll(() => page.evaluate(() => new URLSearchParams(location.hash.slice(1)).get('who'))).toBe(VOL1[1].name);
+        expect(await page.evaluate(() => history.length)).toBe(before);
+    });
+
     test('人物：今の Stage の紹介が出て、顔を押すとその人になる', async ({ page }) => {
         await page.goto('/lirmena/characters.html');
         const faces = page.locator('#wp-panel .cv-face');

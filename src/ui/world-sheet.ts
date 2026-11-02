@@ -14,7 +14,8 @@
  * 地図と用語は最初に開いたときだけ作る（画像・md を開くまで落とさない）。
  * Escape：用語のタブでは glossary.handleEscape が閉じる要求を止めることがある（日本語の変換中・検索欄に文字があるとき）。
  * 「ページで開く」（#world-sheet-page）：いまのタブの資料ページ（<tab>.html）を指す。タブを切り替えるたびに href を
- * 付け直す。?dev は core/query の withQuery で引き継ぐ（落ちると作者の閲覧が計測される）。同じタブで移る
+ * 付け直す。?dev は core/query の withQuery で引き継ぐ（落ちると作者の閲覧が計測される）。人物のタブでは、いま見ている
+ * 巻と人を # に載せる（characters.viewToHash。人物のページが読んで同じ巻・同じ人で開く。巻・人が替わるたびに付け直す）。同じタブで移る
  * （別タブはスマホで気づかれにくく「戻る」も効かない。iOS の PWA では保存領域の別な Safari に出てしまう）。
  * 戻るのはブラウザの「戻る」か、資料ページの帯の ‹（ui/world-nav）。
  * シートだけが持つ（部品はページかシートかを知らない＝部品の中に置くと、資料ページの上で自分自身を指してしまう）。
@@ -40,6 +41,8 @@ let _dlg: HTMLDialogElement | null = null;
 let _source: WorldSource | null = null;
 let _tab: WorldTab = 'characters';
 let _mapMounted = false;
+// 人物のタブでいま見ている巻と人（「ページで開く」の # に載せる）。人物のタブを描くたびに部品から知らされる
+let _charView: characters.CharacterView | null = null;
 
 // init(source: WorldSource): void
 // 断片が無いページでは何もしない。
@@ -81,17 +84,17 @@ function _show(tab: WorldTab): void {
         map: _dlg.querySelector('#map-overlay'),
         glossary: _dlg.querySelector('#glossary-overlay'),
     };
-    const pageLink = _dlg.querySelector<HTMLAnchorElement>('#world-sheet-page');
-    if (pageLink) {
-        pageLink.href = withQuery(`${import.meta.env.BASE_URL}${tab}.html`);
-    }
     for (const [key, panel] of Object.entries(panels)) {
         if (panel) panel.hidden = key !== tab;
     }
     const panel = panels[tab];
     if (!panel) return;
+    _charView = null;
+    _setPageLink();
     if (tab === 'characters' && _source) {
-        characters.render(panel, _source.characters() ?? [], _source.stage());
+        characters.render(panel, _source.characters() ?? [], _source.stage(), {
+            onChange: (view) => { _charView = view; _setPageLink(); },
+        });
     } else if (tab === 'map' && !_mapMounted) {
         map.mount(panel);
         _mapMounted = true;
@@ -99,4 +102,13 @@ function _show(tab: WorldTab): void {
         glossary.mountPanel(panel);
     }
     panel.focus({ preventScroll: true });
+}
+
+// 「ページで開く」の行き先を、いまのタブの資料ページにする（人物のタブなら見ている巻と人を # に）。
+// _setPageLink(): void
+function _setPageLink(): void {
+    const link = _dlg?.querySelector<HTMLAnchorElement>('#world-sheet-page');
+    if (!link) return;
+    const hash = _tab === 'characters' && _charView ? `#${characters.viewToHash(_charView)}` : '';
+    link.href = withQuery(`${import.meta.env.BASE_URL}${_tab}.html`) + hash;
 }

@@ -12,6 +12,9 @@
  * 人物の Stage は目次と同じ「読者の今の Stage」（computeStoryStage(既読, story.json)。要件 06-8）。
  * story.json が取れなければ早期スクリプトが先付けた <html data-story-stage>（前回の目次・本文が残したキャッシュ）を使う。
  * characters.json が取れなければ空で描く（部品が「紹介できる人物はまだいません。」を出す）。
+ * URL の #（vol=巻&who=名前。資料シートの「ページで開く」が付ける）があれば、その巻と人で開く（読める巻に無ければ既定）。
+ * 開いたあと巻や人を替えたら # を付け直す（history.replaceState＝履歴に積まない。再読み込みで同じ紹介に戻る）。
+ * # が無く開いたときは、何か選ぶまで # を付けない（直に開いた URL を書き換えない）。
  */
 
 import './styles/toc.css';
@@ -62,5 +65,12 @@ async function _mountCharacters(el: HTMLElement): Promise<void> {
     } else {
         stage = Number(document.documentElement.dataset.storyStage ?? '1') as StoryStage;
     }
-    characters.render(el, data ?? [], stage);
+    let first = location.hash === '';
+    characters.render(el, data ?? [], stage, {
+        initial: characters.viewFromHash(location.hash),
+        onChange: (view) => {
+            if (first) { first = false; return; }
+            history.replaceState(history.state, '', `#${characters.viewToHash(view)}`);
+        },
+    });
 }

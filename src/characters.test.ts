@@ -5,7 +5,8 @@
  * IF: resolveCharacters(data: CharactersData, stage: StoryStage): CharacterEntry[]
  *     availableVolumes(data: CharactersData, stage: StoryStage): number[]
  *     faceImage(image: string): string
- *     render(el: HTMLElement, data: CharactersData, stage: StoryStage): void
+ *     render(el: HTMLElement, data: CharactersData, stage: StoryStage, opts?: RenderOptions): void
+ *     viewToHash(view: CharacterView): string ／ viewFromHash(hash: string): Partial<CharacterView>
  *
  * 網羅する観点：
  *   - Stage 1〜4 は同じ番号の巻の登録を返す
@@ -16,10 +17,13 @@
  *   - 顔の画像名は全身の画像名の拡張子の前に -face を足したもの（tool/chara-crop と同じ決まり）
  *   - 巻の選択：巻が 1 つなら出さない／最初は最新の巻／切り替えても選んでいた人がその巻にいれば同じ人のまま、
  *     いなければ先頭の人／押した巻のボタンにフォーカスが残る（ボタンを作り直さない）
+ *   - 見ている巻と人：描いた直後と替わるたびに onChange で知らせる／initial の巻と人で開く／読めない巻の initial は
+ *     使わない（先の巻を URL から開けない）／# の文字列は往復で元に戻り、壊れた値は捨てる
+ *   - 紹介できる人がいなければ「紹介できる人物はまだいません。」だけを出す
  */
 
 import { describe, expect, it } from 'vitest';
-import { availableVolumes, faceImage, render, resolveCharacters } from './characters';
+import { availableVolumes, faceImage, render, resolveCharacters, viewFromHash, viewToHash, type CharacterView } from './characters';
 import type { CharactersData } from './types';
 
 // 4 巻ぶんの登録。名前に巻番号を入れて、どの巻を引いたかを見分ける。
@@ -126,5 +130,63 @@ describe('render — 巻の選択', () => {
         expect(document.activeElement).toBe(b);
         expect(b.getAttribute('aria-pressed')).toBe('true');
         el.remove();
+    });
+});
+
+describe('render — 見ている巻と人（「ページで開く」で引き継ぐ）', () => {
+    const _who = (el: HTMLElement): string => el.querySelector('.cv-name')!.textContent ?? '';
+    const _data = (): CharactersData => [
+        { volume: 1, characters: ['甲', '乙'].map(name => ({ name, description: '', image: '' })) },
+        { volume: 2, characters: ['丙', '乙', '丁'].map(name => ({ name, description: '', image: '' })) },
+    ];
+
+    it('描いた直後と、人・巻が替わるたびに onChange で知らせる', () => {
+        const el = document.createElement('section');
+        const seen: CharacterView[] = [];
+        render(el, _data(), 2, { onChange: v => seen.push(v) });
+        el.querySelectorAll<HTMLButtonElement>('.cv-face')[1].click();
+        [...el.querySelectorAll<HTMLButtonElement>('.cv-vol')].find(b => b.textContent === '1巻')!.click();
+        expect(seen).toEqual([{ vol: 2, name: '丙' }, { vol: 2, name: '乙' }, { vol: 1, name: '乙' }]);
+    });
+
+    it('initial の巻と人で開く', () => {
+        const el = document.createElement('section');
+        render(el, _data(), 2, { initial: { vol: 1, name: '乙' } });
+        expect(_who(el)).toBe('乙');
+        expect(el.querySelector('.cv-vol[aria-pressed="true"]')!.textContent).toBe('1巻');
+    });
+
+    it('読めない巻（Stage より先）の initial は使わず、最新の読める巻で開く', () => {
+        const el = document.createElement('section');
+        render(el, _data(), 1, { initial: { vol: 2, name: '丁' } });
+        expect(_who(el)).toBe('甲');
+    });
+
+    it('initial の人がその巻にいなければ先頭の人', () => {
+        const el = document.createElement('section');
+        render(el, _data(), 2, { initial: { name: '甲' } });
+        expect(_who(el)).toBe('丙');
+    });
+
+    it('紹介できる人がいなければ案内だけを出す', () => {
+        const el = document.createElement('section');
+        render(el, [], 1);
+        expect(el.querySelector('.cv-empty')!.textContent).toBe('紹介できる人物はまだいません。');
+        expect(el.querySelector('.cv-face')).toBeNull();
+    });
+});
+
+describe('viewToHash／viewFromHash — URL の # の形', () => {
+    it('往復で元に戻る（ルビの記法を含む名前も）', () => {
+        const view = { vol: 2, name: '|竜《りゅう》' };
+        expect(viewFromHash(`#${viewToHash(view)}`)).toEqual(view);
+        expect(viewFromHash(viewToHash(view))).toEqual(view);
+    });
+
+    it('壊れた値は入れない', () => {
+        expect(viewFromHash('')).toEqual({});
+        expect(viewFromHash('#vol=abc&who=')).toEqual({});
+        expect(viewFromHash('#vol=0')).toEqual({});
+        expect(viewFromHash('#vol=1.5&who=甲')).toEqual({ name: '甲' });
     });
 });
