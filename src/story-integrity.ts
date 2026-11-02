@@ -6,7 +6,7 @@
  * export: validateStory(story: StoryData): string[]     — 純データ検査 (a)〜(h) + (j)(k)(k')(l)(m)(n)(p)
  *         validateStoryFiles(story, opts): string[]    — (i)(o)(q) を含む合成版（fs 実在と characters.json の中身を opts で注入）
  * 依存: 型（StoryData / Volume / PreviewSpec）と volumes.ts の MAX_STORY_STAGE（(m) で参照）、
- *       core/theme.ts の素材の規約（(q) で参照）、core/preview.ts の「実効的に preview が有効か」（(e)(k)(k')(l)。目次と共有）のみ。
+ *       core/theme.ts の素材の規約（(q) で参照）、core/chara.ts の人物の画像の規約（(o) で参照）、core/preview.ts の「実効的に preview が有効か」（(e)(k)(k')(l)。目次と共有）のみ。
  *       fs / DOM / localStorage 非依存。純関数（引数を破壊しない）。
  *
  * 検査項目：
@@ -50,7 +50,11 @@
  *       配列の characters（各キャラは文字列の name / description / image）を持ち、volume は重複せず
  *       story.json に存在する巻だけ。**公開済み sec を持つ巻は
  *       characters を 1 件以上持つ**（その巻の Stage に到達できる読者に必ずキャラ紹介を出すため。
- *       Stage → 登録の対応規則は characters.ts の resolveCharacters。要件 06-8）
+ *       Stage → 登録の対応規則は characters.ts の resolveCharacters。要件 06-8）。
+ *       公開済み sec を持つ巻の各キャラは、**紹介文が空でない**（空白だけも空）こと、image が "" でなければ
+ *       **全身と顔の画像が public/chara/ に実在する**こと（opts.charaFileExists で注入。顔の名前は core/chara の
+ *       faceImage）。image が "" は正規の状態（顔の所に名前の頭文字を出す）なので通す。未公開の巻は書きかけ
+ *       （draft）なので中身は見ない
  *   (p) sec.scheduledAt（公開予定日時）は定義されていれば「YYYY-MM-DDTHH:MM（:SS 可）+09:00」の実在する日時で、
  *       **公開済み sec には書けない**（公開したら消す運用の消し忘れ検出。残っていても目次は過去の予定を
  *       出さないので壊れはしないが、story.json の上で「どれが次の予定か」が読めなくなる。要件 06-7）。
@@ -74,6 +78,7 @@
 import type { StoryData, Volume, PreviewSpec } from './types';
 import { MAX_STORY_STAGE } from './volumes';
 import { THEME_FILES, themeDir, type ThemeKey } from './core/theme';
+import { charaPath, faceImage } from './core/chara';
 import { hasEffectivePreview } from './core/preview';
 
 // preview フィールドの形式検査 (j)。null/配列/{}/text 型不一致を弾く。
@@ -398,8 +403,10 @@ function _checkThemeFiles(story: StoryData, exists: (path: string) => boolean, e
 //   - 重複なし：同じ volume が 2 回出てこない（どちらを引くかが実装しだいになる）
 //   - 存在する巻だけ：story.json に無い巻の登録があると、Stage 5（完結）が最終巻ではなくそれを引く
 //   - 公開済みの巻には登録がある：公開済み sec を持つ巻＝その Stage に到達できる読者がいる巻
-// _checkCharacters(story: StoryData, characters: unknown, errors: string[]): void
-function _checkCharacters(story: StoryData, characters: unknown, errors: string[]): void {
+// 公開済みの巻のキャラは中身も見る（紹介文が空でない・画像の名前が書いてあれば全身と顔のファイルがある）。
+// 形が崩れたキャラは形のエラーだけを出し、中身は見ない（同じキャラに 2 つ出さない）。
+// _checkCharacters(story: StoryData, characters: unknown, exists: (path: string) => boolean, errors: string[]): void
+function _checkCharacters(story: StoryData, characters: unknown, exists: (path: string) => boolean, errors: string[]): void {
     if (!Array.isArray(characters)) {
         errors.push('(o) public/characters.json が読めない、または配列でない');
         return;
@@ -407,6 +414,8 @@ function _checkCharacters(story: StoryData, characters: unknown, errors: string[
 
     const storyVolumes = new Set(story.map(v => v.volume));
     const counts = new Map<number, number>(); // volume → characters の件数
+    type Chara = { name: string; description: string; image: string };
+    const valid = new Map<number, Chara[]>(); // volume → 形の正しいキャラ（中身の検査に使う）
     characters.forEach((entry: unknown, i) => {
         const e = entry as { volume?: unknown; characters?: unknown } | null;
         if (typeof e !== 'object' || e === null || !Number.isInteger(e.volume) || !Array.isArray(e.characters)) {
@@ -414,19 +423,23 @@ function _checkCharacters(story: StoryData, characters: unknown, errors: string[
             return;
         }
         const volume = e.volume as number;
+        const ok: Chara[] = [];
         // 各キャラの形：characters.ts は name / description をルビ展開し、image を "" か否かで分岐する
         e.characters.forEach((c: unknown, j) => {
             const ch = c as { name?: unknown; description?: unknown; image?: unknown } | null;
             if (typeof ch !== 'object' || ch === null ||
                 typeof ch.name !== 'string' || typeof ch.description !== 'string' || typeof ch.image !== 'string') {
                 errors.push(`(o) characters.json volume ${volume} の characters[${j}]: name / description / image は文字列である必要がある（画像が無ければ image は ""）`);
+                return;
             }
+            ok.push(ch as Chara);
         });
         if (counts.has(volume)) {
             errors.push(`(o) characters.json: volume ${volume} が重複している`);
             return;
         }
         counts.set(volume, e.characters.length);
+        valid.set(volume, ok);
         if (!storyVolumes.has(volume)) {
             errors.push(`(o) characters.json: volume ${volume} は story.json に存在しない巻`);
         }
@@ -440,23 +453,38 @@ function _checkCharacters(story: StoryData, characters: unknown, errors: string[
                 `（Stage ${vol.volume} の読者に出すキャラ紹介を public/characters.json に足すこと）`
             );
         }
+        if (!hasPublished) continue;
+        for (const c of valid.get(vol.volume) ?? []) {
+            if (c.description.trim() === '') {
+                errors.push(`(o) characters.json volume ${vol.volume} の ${c.name}: 紹介文（description）が空`);
+            }
+            if (c.image === '') continue;
+            const missing = [c.image, faceImage(c.image)].filter(f => !exists(charaPath(f)));
+            if (missing.length > 0) {
+                errors.push(
+                    `(o) characters.json volume ${vol.volume} の ${c.name}: public/chara/ に ${missing.join(' / ')} が無い` +
+                    `（画像が無いなら image は ""。画像は tool/chara-crop で作る）`
+                );
+            }
+        }
     }
 }
 
 // (a)〜(q) の完全検査（ファイル実在検査と characters.json との整合を含む）。
 // fs 依存は呼び出し側に閉じ込める（exists 関数と読み込み済みの characters を注入する）。
-// themeFileExists は public からの相対パス（例 "vol01/theme/logo.webp"）を受ける。
+// themeFileExists・charaFileExists は public からの相対パス（例 "vol01/theme/logo.webp"・"chara/vol1_リッカ.avif"）を受ける。
 // validateStoryFiles(story, opts): string[]
 export function validateStoryFiles(
     story: StoryData,
     opts: {
         afterwordTxtExists: (vol: number) => boolean;
         themeFileExists: (path: string) => boolean;
+        charaFileExists: (path: string) => boolean;
         characters: unknown;
     }
 ): string[] {
     const errors = validateStory(story);
-    _checkCharacters(story, opts.characters, errors);
+    _checkCharacters(story, opts.characters, opts.charaFileExists, errors);
     _checkThemeFiles(story, opts.themeFileExists, errors);
 
     for (const vol of story) {

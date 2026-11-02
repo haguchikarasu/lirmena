@@ -12,7 +12,7 @@
  *         viewFromHash(hash: string): Partial<CharacterView>
  *         type CharacterView = { vol: number; name: string }
  *         type RenderOptions = { initial?: Partial<CharacterView>; onChange?: (view: CharacterView) => void }
- * 依存: ruby.ts（キャラ名/説明のルビ展開）, types.ts, volumes.ts（StoryStage の型のみ）。ui 層＝reader 層を import しない
+ * 依存: ruby.ts（キャラ名/説明のルビ展開）, core/chara（画像の置き場所と顔の画像名の規約）, types.ts, volumes.ts（StoryStage の型のみ）。ui 層＝reader 層を import しない
  *
  * 分担（要件 06-8・design/modules/characters.md）：
  *   - 「どの Stage の紹介を出すか」は呼び出す側が決める。本文は「そのページが属する Stage」
@@ -38,6 +38,7 @@
  */
 
 import { applyRuby } from './ruby';
+import { charaPath, faceImage } from './core/chara';
 import type { CharactersData, CharacterEntry } from './types';
 import type { StoryStage } from './volumes';
 
@@ -62,16 +63,13 @@ export function availableVolumes(data: CharactersData, stage: StoryStage): numbe
     return data.filter(e => e.volume <= stage).map(e => e.volume).sort((a, b) => a - b);
 }
 
-// 全身の画像名から顔の画像名を作る純関数（拡張子の前に -face を足す）。
-// faceImage(image: string): string
-export function faceImage(image: string): string {
-    return image.replace(/(\.[A-Za-z0-9]+)$/, '-face$1');
-}
+// 顔の画像名の規約は core/chara が持つ（ビルド時の実在検査と共有）。ここからも export する（呼び出し側の互換）
+export { faceImage };
 
 // 巻の選択の頭に置くアイコン（本が並んだ形。_sheet.css の .ic＝線画）
 const _IC_VOLS = '<svg class="ic cv-vols-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h3.5v15H4zM9.5 4.5H13v15H9.5z"/><path d="M15.2 5.6l3.4-.9 3.4 14.5-3.4.8z"/></svg>';
 
-const _src = (file: string): string => `${import.meta.env.BASE_URL}chara/${file}`;
+const _src = (file: string): string => `${import.meta.env.BASE_URL}${charaPath(file)}`;
 
 // CharacterView: いま見ている紹介（何巻の時点か・誰か）。name は characters.json の name そのまま（ルビの記法ごと）。
 export type CharacterView = { vol: number; name: string };

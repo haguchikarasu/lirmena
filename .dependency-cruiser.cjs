@@ -104,7 +104,8 @@ module.exports = {
     // settings（本文への反映）は値の規則（core）とパネルの結線（ui）を読む。
     { from: { path: '(^|/)src/settings\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/settings-panel)\\.ts$' } },
     // characters → volumes は StoryStage の型だけ（tsPreCompilationDeps で型 import も辺に数える）。
-    { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/(ruby|volumes)\\.ts$' } },
+    // characters → core/chara は人物の画像の置き場所と顔の画像名の規約（ビルド時の実在検査と共有）。
+    { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/((ruby|volumes)\\.ts|core/chara\\.ts)$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/changelog\\.ts)$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
@@ -132,7 +133,8 @@ module.exports = {
     { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
     // story-integrity → core/theme は巻の素材の規約（置き場所とファイル名）を二重管理しないための 1 本（検査 (q)）。
     // story-integrity → core/preview は「予告が実効的に有効か」を目次と同じ関数で判定するための 1 本（(e)(k)(k')(l)）。
-    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/core/(theme|preview)\\.ts$' } },
+    // story-integrity → core/chara は人物の画像の規約を二重管理しないための 1 本（(o) の画像の実在検査）。
+    { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/core/(theme|preview|chara)\\.ts$' } },
   ],
   allowedSeverity: 'error',
   options: {

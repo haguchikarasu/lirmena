@@ -454,6 +454,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: () => true,
             themeFileExists: () => true,
+            charaFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(errors.filter(e => e.startsWith('(i)'))).toEqual([]);
@@ -465,6 +466,7 @@ describe('validateStoryFiles — (i) の実在検査', () => {
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: (vol) => vol !== 1, // vol1 だけ不在
             themeFileExists: () => true,
+            charaFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(errors.some(e => e.startsWith('(i)') && e.includes('vol1'))).toBe(true);
@@ -473,12 +475,12 @@ describe('validateStoryFiles — (i) の実在検査', () => {
 
 describe('validateStoryFiles — (o) characters.json との整合', () => {
     const only = (errors: string[]): string[] => errors.filter(e => e.startsWith('(o)'));
-    const run = (story: StoryData, characters: unknown): string[] =>
-        only(validateStoryFiles(story, { afterwordTxtExists: () => true, themeFileExists: () => true, characters }));
+    const run = (story: StoryData, characters: unknown, charaFileExists: (p: string) => boolean = () => true): string[] =>
+        only(validateStoryFiles(story, { afterwordTxtExists: () => true, themeFileExists: () => true, charaFileExists, characters }));
 
-    it('実データ：public/story.json と public/characters.json は (o) を満たす（実データ回帰）', () => {
+    it('実データ：public/story.json と public/characters.json は (o) を満たす（画像は public/ の実在で見る。実データ回帰）', () => {
         const characters: unknown = JSON.parse(readFileSync(CHARACTERS_JSON_PATH, 'utf-8'));
-        expect(run(_loadRealStory(), characters)).toEqual([]);
+        expect(run(_loadRealStory(), characters, p => existsSync(resolve(__dirname, '../public', p)))).toEqual([]);
     });
 
     it('公開済みの巻すべてに登録がある → (o) はトリガーしない', () => {
@@ -528,6 +530,47 @@ describe('validateStoryFiles — (o) characters.json との整合', () => {
         expect(run(story, [{ volume: 1, characters: 'x' }, { volume: 2, characters: [_CHARA] }]).some(e => e.includes('[0]'))).toBe(true);
     });
 
+    // 公開済みの巻のキャラの中身（紹介文・画像ファイル）。_baseStory は vol1・vol2 とも公開済み
+    const _withChara = (story: StoryData, c: CharacterEntry): CharactersData =>
+        _charactersFor(story).map(e => e.volume === 1 ? { ...e, characters: [c] } : e);
+
+    it('公開済みの巻のキャラの紹介文が空（空白だけも） → (o) エラー（キャラ名が出る）', () => {
+        const story = _baseStory();
+        expect(run(story, _withChara(story, { name: '甲', description: '', image: '' })).some(e => e.includes('甲') && e.includes('紹介文'))).toBe(true);
+        expect(run(story, _withChara(story, { name: '乙', description: ' \n　', image: '' })).some(e => e.includes('乙') && e.includes('紹介文'))).toBe(true);
+    });
+
+    it('未公開の巻のキャラは紹介文が空でも・画像が無くても通る（書きかけ）', () => {
+        const story = _previewBaseStory();
+        story[0].episodes[0].sections = [{ id: 1, published: true }]; // vol1 だけ公開を始める
+        const characters = [
+            { volume: 1, characters: [_CHARA] },
+            { volume: 2, characters: [{ name: '丙', description: '', image: 'vol2_丙.avif' }] },
+        ];
+        expect(run(story, characters, () => false)).toEqual([]);
+    });
+
+    it('画像の名前があるのに全身か顔のファイルが無い → (o) エラー（無いファイル名が出る）', () => {
+        const story = _baseStory();
+        const characters = _withChara(story, { name: '甲', description: '説明', image: 'vol1_甲.avif' });
+        const asked: string[] = [];
+        const onlyFull = (p: string): boolean => { asked.push(p); return p === 'chara/vol1_甲.avif'; };
+        const errors = run(story, characters, onlyFull);
+        expect(asked).toEqual(['chara/vol1_甲.avif', 'chara/vol1_甲-face.avif']);
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('vol1_甲-face.avif');
+        expect(errors[0]).not.toContain('vol1_甲.avif /');
+        expect(run(story, characters, () => false)[0]).toContain('vol1_甲.avif / vol1_甲-face.avif');
+        expect(run(story, characters, () => true)).toEqual([]);
+    });
+
+    it('image が "" のキャラはファイルを探さない（顔の所に頭文字を出す正規の状態）', () => {
+        const story = _baseStory();
+        const asked: string[] = [];
+        expect(run(story, _withChara(story, _CHARA), p => { asked.push(p); return false; })).toEqual([]);
+        expect(asked).toEqual([]);
+    });
+
     it('キャラの name / description / image が文字列でない → (o) エラー', () => {
         const story = _baseStory();
         const characters = [{ volume: 1, characters: [{ name: 'キャラ', description: '説明' }] }, { volume: 2, characters: [_CHARA] }];
@@ -542,6 +585,7 @@ describe('validateStoryFiles — (q) 巻の素材', () => {
         const errors = validateStoryFiles(story, {
             afterwordTxtExists: () => true,
             themeFileExists: (p) => { asked.push(p); return present(p); },
+            charaFileExists: () => true,
             characters: _charactersFor(story),
         }).filter(e => e.startsWith('(q)'));
         return { errors, asked };
@@ -605,6 +649,7 @@ describe('validateStory — 純関数の非破壊性', () => {
         validateStoryFiles(story, {
             afterwordTxtExists: () => true,
             themeFileExists: () => true,
+            charaFileExists: () => true,
             characters: _charactersFor(story),
         });
         expect(story).toEqual(snapshot);

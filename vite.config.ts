@@ -98,6 +98,8 @@ function generatePages(root: string): string[] {
       existsSync(resolve(root, `public/vol${pad(vol)}/vol${pad(vol)}-afterword.txt`)),
     // 巻の素材（(q)）。path は public からの相対（規約は src/core/theme.ts が持つ）
     themeFileExists: (path) => existsSync(resolve(root, 'public', path)),
+    // 人物の画像（(o)）。path は public からの相対（規約は src/core/chara.ts が持つ）
+    charaFileExists: (path) => existsSync(resolve(root, 'public', path)),
     characters: readCharacters(root),
   })
   if (errors.length > 0) {
