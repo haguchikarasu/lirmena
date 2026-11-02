@@ -1,58 +1,45 @@
 /*
  * menu.ts
- * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理（キャラクター紹介ポップアップの中身は characters.ts）
+ * 責務: 右下ナビゲーションメニューの開閉・各項目のイベント処理。資料（人物・地図・用語）・設定・共有・栞は
+ *       メニューから開くシート（<dialog>。器は ui/sheet、中身は各部品）で、本文の上に重なる＝ページも読書位置も動かない。
  * export: init(characters: CharactersData): void
- * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）, bookmark.ts, settings.ts, transition.ts, tutorial.ts, characters.ts（キャラクター紹介ポップアップ）, map.ts（エシュカ地図ポップアップ）, glossary.ts（用語集ポップアップ）
+ * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）,
+ *       bookmark.ts, settings.ts, transition.ts, tutorial.ts, ui/share.ts, ui/sheet.ts（栞シートの器と dialog[open] の判定）,
+ *       ui/world-sheet.ts（資料シート）
  *
  * メニュー項目と処理（順序は要件 06-2）：
  *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
- *   栞を追加          → _openBookmarkPopup()（スロット選択ポップアップを開き、選んだ slot へ保存）
+ *   栞を追加          → _openBookmarkPopup()（スロット選択のシートを開き、選んだ slot へ保存）
  *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
- *   キャラクター紹介  → _openCharactersPopup()（そのページの Stage を charaPopup.open() に渡す）
- *   エシュカ地図      → mapPopup.open(_toggle)（作品世界の資料なのでキャラクター紹介の直後に置く）
- *   用語集            → glossary.open(_toggle)（同じく作品世界の資料なので地図の直後。あとがきページでも出す）
- *   設定を開く        → settings.open() を呼ぶ
- *   共有              → share.open()（共有ポップアップを開く。リンクをコピー / X / LINE で現在の URL を共有。ui/share.ts）
+ *   キャラクター紹介  → worldSheet.open('characters', _toggle)（資料シートの人物のタブ。Stage はそのページの巻）
+ *   エシュカ地図      → worldSheet.open('map', _toggle)（同じシートの地図のタブ）
+ *   用語集            → worldSheet.open('glossary', _toggle)（同じシートの用語のタブ。あとがきページでも出す）
+ *   設定を開く        → settings.open(_toggle)
+ *   共有              → share.open(_toggle)（リンクをコピー / X / LINE で現在の URL を共有。ui/share.ts）
+ *   資料の 3 つ（キャラクター紹介・エシュカ地図・用語集）は区切りで挟み、キーカラーの印でまとめる（_ui.css）。
+ *   閉じたときのフォーカス戻り先に _toggle（メニューボタン）を渡すのは、項目を押すとメニューを閉じてから開く
+ *   ＝押されたメニュー項目はもう hidden の中にいるため。
  *
  * ※ マシュマロは本文末の #btn-share-marshmallow に集約（feedback.ts が管理）。メニューからの導線は持たない
  *
- * 栞ポップアップ（#bookmark-popup）：
- *   - _buildBookmarkPopup(): void — スロット1〜3のアクションボタン（各スロットの現在内容／空きを表示）＋閉じる を生成する
- *   - _openBookmarkPopup() / _closeBookmarkPopup(): void — 表示切替。開く直前にボタンラベルを最新内容で再生成する
+ * 栞シート（#bookmark-popup。器は templates/reader.html、見た目は _sheet.css）：
+ *   - スロット1〜3のボタンのラベルを開く度に最新内容で書き直す（_refreshSlotLabels）
  *   - スロット押下で bookmark.addBookmark(state.getCurrent(), ratio, slot)（ratio＝forward 進行 px ÷ 可動域＝スクロール範囲比 0〜1）を呼んで上書き保存する
  *   - 保存済みスロットのラベルは「スロット○：第N話 #S（NN%）　MM/DD HH:MM」形式で、位置は ratio×100 を四捨五入した百分率を丸括弧で示す（空きは「空き」のみ・％表示なし）
- *   - 閉じる方法：背景クリック・Escape キー・閉じるボタン
  *
  * 開閉制御（メニュー）：
  *   - メニューボタン押下でトグル
- *   - Escape キーで閉じる（ポップアップが閉じている場合）
+ *   - Escape キーで閉じる。ただしシートか確認（<dialog>）が開いている間は手を出さない＝一番上の <dialog> を
+ *     ブラウザが閉じる（以前はここに「栞→共有→キャラ→地図→用語→メニュー」の順番を手書きしていた）。
+ *     用語の検索欄・日本語の変換中の例外は glossary.handleEscape が ui/sheet の onEscape として持つ
  *   - メニュー外クリックで閉じる
- *
- * キャラクター紹介ポップアップ（中身の生成・背景クリック・閉じるボタンは characters.ts）：
- *   - _openCharactersPopup(): void — 現ページの Stage を特定して charaPopup.open() に渡す
- *   - Escape はここで拾う（栞 → 共有 → キャラ紹介 → 地図 → 用語集 → メニューの順に閉じる）。characters.ts は Escape を持たない
- *
- * エシュカ地図ポップアップ（中身の生成・背景クリック・閉じるボタンは map.ts）：
- *   - メニュー項目から mapPopup.open(_toggle) を呼ぶ。閉じたときのフォーカス戻り先に _toggle（メニューボタン）を
- *     渡すのは、makeBtn が handler の前に _close() する＝押されたメニュー項目がもう hidden の中にいるため
- *   - Escape の順は上と同じ。map.ts も Escape を持たない
- *
- * 用語集ポップアップ（中身の生成・md の取得・背景クリック・閉じるボタンは glossary.ts）：
- *   - 地図と同じく glossary.open(_toggle) で開く
- *   - Escape の順は上と同じ。ただし用語集の分岐だけ 2 つの例外を持つ：日本語変換中（e.isComposing）の Escape は
- *     変換の取り消しなので何もしない／検索欄に文字が入っているときはブラウザ標準の「Escape で欄をクリア」に任せて
- *     閉じない（glossary.isEditingSearch()。2 回目の Escape で閉じる）
- *
- * 共有ポップアップ（#share-popup）：
- *   - markup は差し込みの断片 templates/parts/share.html、結線（各ボタン・閉じるボタン・背景クリック）は ui/share.ts
- *   - Escape で閉じるのはここ（上の Escape の順番）
  *
  * キーボード操作：
  *   - メニュー内で上下キーによる項目選択（disabled 項目はスキップ）
  *   - Enter で実行
  *
  * 注意：
- *   - 「栞のクリア」「既読のクリア」は settings.ts のポップアップ内ボタンが担当する。
+ *   - 「栞をすべて消す」「既読を消す」は設定シート（ui/settings-panel）のボタンが担当する。
  *     settings.ts へのコールバック注入は main.ts が行う（menu.ts は関与しない）。
  */
 
@@ -62,16 +49,15 @@ import * as bookmark from './bookmark';
 import * as settings from './settings';
 import * as transition from './transition';
 import * as share from './ui/share';
+import * as sheet from './ui/sheet';
+import * as worldSheet from './ui/world-sheet';
 import * as tutorial from './tutorial';
-import * as charaPopup from './characters';
-import * as mapPopup from './map';
-import * as glossary from './glossary';
 import type { CharactersData } from './types';
 import type { StoryStage } from './volumes';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
-let _bookmark: HTMLElement;
+let _bookmark: HTMLDialogElement | null = null;
 let _items: HTMLButtonElement[] = [];
 let _charactersData: CharactersData = [];
 
@@ -83,13 +69,12 @@ export function init(characters: CharactersData): void {
     _charactersData = characters;
     _toggle = document.querySelector<HTMLButtonElement>('#menu-toggle')!;
     _panel = document.querySelector<HTMLElement>('#menu-panel')!;
-    _bookmark = document.querySelector<HTMLElement>('#bookmark-popup')!;
-    charaPopup.init();
-    mapPopup.init();
-    glossary.init();
+    const bm = document.getElementById('bookmark-popup');
+    _bookmark = bm instanceof HTMLDialogElement ? bm : null;
+    worldSheet.init({ characters: () => _charactersData, stage: _pageStage });
     _buildItems();
     share.init();
-    _buildBookmarkPopup();
+    _wireBookmarkPopup();
     _registerEvents();
 }
 
@@ -103,10 +88,10 @@ function _buildItems(): void {
         return el;
     };
 
-    const makeBtn = (label: string, handler: () => void): HTMLButtonElement => {
+    const makeBtn = (label: string, handler: () => void, cls?: string): HTMLButtonElement => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'menu-item';
+        b.className = cls ? `menu-item ${cls}` : 'menu-item';
         b.textContent = label;
         b.addEventListener('click', () => { _close(); handler(); });
         return b;
@@ -128,38 +113,38 @@ function _buildItems(): void {
         tutorial.open();
     });
 
-    const btnCharacters = makeBtn('キャラクター紹介', () => {
-        _openCharactersPopup();
-    });
-
     // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、
     // 押されたこのボタン自身はもう hidden のパネルの中にいる（戻しても見えない）
-    const btnMap = makeBtn('エシュカ地図', () => {
-        mapPopup.open(_toggle);
-    });
+    const btnCharacters = makeBtn('キャラクター紹介', () => {
+        worldSheet.open('characters', _toggle);
+    }, 'menu-item--world');
 
-    // 戻り先に _toggle を渡す理由は地図と同じ
+    const btnMap = makeBtn('エシュカ地図', () => {
+        worldSheet.open('map', _toggle);
+    }, 'menu-item--world');
+
     const btnGlossary = makeBtn('用語集', () => {
-        glossary.open(_toggle);
-    });
+        worldSheet.open('glossary', _toggle);
+    }, 'menu-item--world');
 
     const btnSettings = makeBtn('設定', () => {
-        settings.open();
+        settings.open(_toggle);
     });
 
     const btnShare = makeBtn('共有', () => {
-        share.open();
+        share.open(_toggle);
     });
 
-    const items: HTMLButtonElement[] = [btnIndex];
-    if (btnBookmark) items.push(btnBookmark);
-    items.push(btnTutorial, btnCharacters, btnMap, btnGlossary);
-    _panel.append(...items, sep(), btnSettings, btnShare);
-    items.push(btnSettings, btnShare);
-    _items = items;
+    const head: HTMLButtonElement[] = [btnIndex];
+    if (btnBookmark) head.push(btnBookmark);
+    head.push(btnTutorial);
+    const world = [btnCharacters, btnMap, btnGlossary];
+    const tail = [btnSettings, btnShare];
+    _panel.append(...head, sep(), ...world, sep(), ...tail);
+    _items = [...head, ...world, ...tail];
 }
 
-// ── 栞ポップアップ（スロット選択） ─────────────────────────────────
+// ── 栞シート（スロット選択） ─────────────────────────────────
 
 const _slotBtns: HTMLButtonElement[] = []; // index = slot(1..3) に対応する保存ボタン（ラベルは開く度に更新）
 
@@ -182,41 +167,23 @@ function _formatRatioPercent(ratio: number): string {
     return `${Math.round(ratio * 100)}%`;
 }
 
-// #bookmark-popup に「栞に保存」パネル（スロット1〜3のアクションボタン＋閉じる）を生成する。
-// 各スロットボタンの現在内容ラベルは _openBookmarkPopup() が開く度に最新化する。
-// _buildBookmarkPopup(): void
-function _buildBookmarkPopup(): void {
-    const panel = document.createElement('div');
-    panel.className = 'settings-panel';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'settings-panel__title';
-    titleEl.textContent = '栞に保存';
-    panel.appendChild(titleEl);
-
-    for (let slot = 1; slot <= 3; slot++) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'settings-action';
+// 栞シート（#bookmark-popup の静的 markup）のスロット1〜3のボタンに保存を結ぶ。器の開閉は ui/sheet。
+// _wireBookmarkPopup(): void
+function _wireBookmarkPopup(): void {
+    if (!_bookmark) return;
+    const dlg = _bookmark;
+    sheet.init(dlg);
+    for (const btn of dlg.querySelectorAll<HTMLButtonElement>('[data-slot]')) {
+        const slot = Number(btn.dataset.slot);
         btn.addEventListener('click', () => {
             const container = document.querySelector<HTMLElement>('#main-container')!;
             const range = axis.getProgressRange(container);
             const ratio = range > 0 ? axis.getProgress(container) / range : 0;
             bookmark.addBookmark(state.getCurrent(), ratio, slot);
-            _closeBookmarkPopup();
+            sheet.close(dlg);
         });
         _slotBtns[slot] = btn;
-        panel.appendChild(btn);
     }
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'settings-close';
-    closeBtn.textContent = '閉じる';
-    closeBtn.addEventListener('click', () => _closeBookmarkPopup());
-    panel.appendChild(closeBtn);
-
-    _bookmark.appendChild(panel);
 }
 
 // 各スロットボタンのラベルを現在の保存内容（または「空き」）で更新する。
@@ -228,19 +195,16 @@ function _refreshSlotLabels(): void {
         const detail = entry
             ? `第${entry.ep}話 #${entry.sec}（${_formatRatioPercent(entry.ratio)}）　${_formatSavedAt(entry.savedAt)}`
             : '空き';
-        _slotBtns[slot].textContent = `スロット${slot}：${detail}`;
+        if (_slotBtns[slot]) _slotBtns[slot].textContent = `スロット${slot}：${detail}`;
     }
 }
 
-// 栞ポップアップを開く / 閉じる。開く前にスロット内容を最新化する。
-// _openBookmarkPopup(): void / _closeBookmarkPopup(): void
+// 栞シートを開く。開く前にスロット内容を最新化する。
+// _openBookmarkPopup(): void
 function _openBookmarkPopup(): void {
+    if (!_bookmark) return;
     _refreshSlotLabels();
-    _bookmark.hidden = false;
-}
-
-function _closeBookmarkPopup(): void {
-    _bookmark.hidden = true;
+    sheet.open(_bookmark, { opener: _toggle });
 }
 
 // メニューを開く。最初の有効項目にフォーカスする。
@@ -258,20 +222,19 @@ function _close(): void {
     _toggle.setAttribute('aria-expanded', 'false');
 }
 
-// 現ページ（本文 ep、あとがきモードなら現在 vol）が属する Stage のキャラクター紹介を開く。
+// 現ページ（本文 ep、あとがきモードなら現在 vol）が属する Stage（資料シートの人物のタブに渡す）。
 // vol n のページは Stage n。巻が特定できない場合は Stage 1 にフォールバックする。
 // あとがきモードでは state.getCurrent().ep が 0 になるため、epRange の逆引きでは巻が特定できない
 // （以前は vol2+ のあとがきで誤って vol1 のキャストが出た）。state.getCurrentVolume() は本文／あとがき
 // 両モードで正しく解決するのでこちらを使う。
 // volume（number）を StoryStage に絞ってよいのは、巻数＋1 が Stage の上限を超えないことを
 // story-integrity の (m) がビルドで保証しているため（巻番号は常に 1〜巻数＝Stage の範囲内）。
-// _openCharactersPopup(): void
-function _openCharactersPopup(): void {
-    const stage = (state.getCurrentVolume()?.volume ?? 1) as StoryStage;
-    charaPopup.open(_charactersData, stage);
+// _pageStage(): StoryStage
+function _pageStage(): StoryStage {
+    return (state.getCurrentVolume()?.volume ?? 1) as StoryStage;
 }
 
-// メニューボタン・Escape・外部クリック・上下キー・ポップアップ閉じるのイベントを登録する。
+// メニューボタン・Escape・外部クリック・上下キーのイベントを登録する。
 // _registerEvents(): void
 function _registerEvents(): void {
     _toggle.addEventListener('click', () => {
@@ -280,28 +243,8 @@ function _registerEvents(): void {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            if (!_bookmark.hidden) {
-                _closeBookmarkPopup();
-                return;
-            }
-            if (share.isOpen()) {
-                share.close();
-                return;
-            }
-            if (charaPopup.isOpen()) {
-                charaPopup.close();
-                return;
-            }
-            if (mapPopup.isOpen()) {
-                mapPopup.close();
-                return;
-            }
-            if (glossary.isOpen()) {
-                // 変換の取り消し／検索欄のクリアに使われた Escape では閉じない（冒頭コメント）
-                if (e.isComposing || glossary.isEditingSearch()) return;
-                glossary.close();
-                return;
-            }
+            // シートか確認（<dialog>）が開いていれば、一番上のものをブラウザが閉じる（冒頭コメント）
+            if (sheet.anyOpen()) return;
             if (!_panel.hidden) {
                 _close();
                 _toggle.focus();
@@ -328,12 +271,6 @@ function _registerEvents(): void {
         const target = e.target as Node;
         if (!_panel.hidden && !_toggle.contains(target) && !_panel.contains(target)) {
             _close();
-        }
-    });
-
-    _bookmark.addEventListener('click', (e) => {
-        if (e.target === _bookmark) {
-            _closeBookmarkPopup();
         }
     });
 }

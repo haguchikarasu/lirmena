@@ -21,6 +21,15 @@ import { resolve } from 'node:path';
 // 設定ポップアップの断片（本番で本文シェルへ差し込まれる markup）を body の末尾に置く。
 const SETTINGS_PART = readFileSync(resolve(__dirname, '../templates/parts/settings.html'), 'utf-8');
 const mountSettingsPopup = (): void => { document.body.insertAdjacentHTML('beforeend', SETTINGS_PART); };
+// 消す・戻すボタンは確認（ui/confirm）を通ってから動く。確認は Promise で返るので、押したあと 1 回待つ
+const settle = (): Promise<void> => new Promise((r) => { setTimeout(r, 0); });
+// 確認で「戻す」「削除する」を押した扱いにして、ボタンを押し、結果が届くまで待つ
+const clickConfirmed = async (btn: HTMLButtonElement | undefined): Promise<void> => {
+    const spy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    btn?.click();
+    await settle();
+    spy.mockRestore();
+};
 
 const NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const cssVar = () => document.documentElement.style.getPropertyValue('--reading-anchor');
@@ -70,7 +79,7 @@ describe('setReadingAnchor（永続化＋CSS 変数反映）', () => {
     });
 });
 
-// 仕様（要件 06-4）：読書点の値は localStorage に保存し「設定をリセット」でデフォルトへ戻す。
+// 仕様（要件 06-4）：読書点の値は localStorage に保存し「設定を初期値に戻す」でデフォルトへ戻す。
 // 読書点は設定パネルに行を持たない（調整は画面上のマーカーのドラッグ）ため、表示設定5項目の
 // リセットとは別経路（_saveAll ではなく setReadingAnchor(READING_ANCHOR_DEFAULT)）を通る＝取りこぼしやすい。
 describe('設定をリセット（読書点・要件 06-4）', () => {
@@ -81,15 +90,14 @@ describe('設定をリセット（読書点・要件 06-4）', () => {
         document.getElementById('settings-popup')?.remove();
     });
 
-    it('リセットで読書点が既定（45）へ戻り localStorage と CSS 変数にも反映される', () => {
+    it('初期値に戻すと読書点が既定（45）へ戻り localStorage と CSS 変数にも反映される', async () => {
         localStorage.setItem('lirmena.readingAnchor', '70');
         init(NOOP);
         expect(getReadingAnchor()).toBe(70);
         expect(cssVar()).toBe('70%');
 
-        [...document.querySelectorAll<HTMLButtonElement>('.settings-action')]
-            .find((b) => b.textContent === '設定をリセット')
-            ?.click();
+        await clickConfirmed([...document.querySelectorAll<HTMLButtonElement>('.settings-action')]
+            .find((b) => b.textContent === '設定を初期値に戻す'));
 
         expect(getReadingAnchor()).toBe(45);
         expect(cssVar()).toBe('45%');
@@ -162,11 +170,11 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
             expect(mode()).toBe('horizontal');
         });
 
-        it('設定リセットで横書きへ戻る', () => {
+        it('初期値に戻すと横書きへ戻る', async () => {
             localStorage.setItem('lirmena.writingMode', 'vertical');
             init(NOOP);
             expect(mode()).toBe('vertical');
-            findByText('.settings-action', '設定をリセット')?.click();
+            await clickConfirmed(findByText('.settings-action', '設定を初期値に戻す'));
             expect(mode()).toBe('horizontal');
             expect(localStorage.getItem('lirmena.writingMode')).toBe('horizontal');
         });
@@ -250,11 +258,11 @@ describe('文字の太さ（fontWeight → CSS 変数 --font-weight）', () => {
             expect(weightVar()).toBe('var(--font-weight-normal)');
         });
 
-        it('設定リセットで通常へ戻る', () => {
+        it('初期値に戻すと通常へ戻る', async () => {
             localStorage.setItem('lirmena.fontWeight', 'bold');
             init(NOOP);
             expect(weightVar()).toBe('var(--font-weight-bold)');
-            findByText('.settings-action', '設定をリセット')?.click();
+            await clickConfirmed(findByText('.settings-action', '設定を初期値に戻す'));
             expect(weightVar()).toBe('var(--font-weight-normal)');
             expect(localStorage.getItem('lirmena.fontWeight')).toBe('normal');
         });
@@ -320,11 +328,11 @@ describe('段落の区切り（lineGap → CSS 変数 --paragraph-margin / --par
             expect(pair()).toEqual(空行あり);
         });
 
-        it('設定リセットで「あり」へ戻り、2 本とも書き換わる', () => {
+        it('初期値に戻すと「あり」へ戻り、2 本とも書き換わる', async () => {
             localStorage.setItem('lirmena.lineGap', 'off');
             init(NOOP);
             expect(pair()).toEqual(空行なし);
-            findByText('.settings-action', '設定をリセット')?.click();
+            await clickConfirmed(findByText('.settings-action', '設定を初期値に戻す'));
             expect(pair()).toEqual(空行あり);
             expect(localStorage.getItem('lirmena.lineGap')).toBe('on');
         });
@@ -341,15 +349,16 @@ describe('表示設定の行順（要件 06-4）', () => {
         document.getElementById('settings-popup')?.remove();
     });
 
-    it('書字方向→段落間の空行→フォント→文字サイズ→文字の太さ の順に並ぶ', () => {
+    it('書字方向→段落の空行→フォント→文字の大きさ→文字の太さ の順に並ぶ', () => {
         init(NOOP);
         const labels = [...document.querySelectorAll('.settings-row__label')].map((el) => el.textContent);
-        expect(labels).toEqual(['書字方向', '段落間の空行', 'フォント', '文字サイズ', '文字の太さ']);
+        expect(labels).toEqual(['書字方向', '段落の空行', 'フォント', '文字の大きさ', '文字の太さ']);
     });
 });
 
-// 仕様（要件 06-4）：3クリアボタン（栞・既読・読破状況）はそれぞれ独立の callback を呼ぶ＋実行前に window.confirm() で承認を取る。
-// キャンセル（confirm=false）なら callback を呼ばない＝localStorage も再描画も走らない。
+// 仕様（要件 06-4）：3つの消去ボタン（栞・既読・読破）はそれぞれ独立の callback を呼ぶ＋実行前に確認（ui/confirm）を通す。
+// やめた（confirm=false）なら callback を呼ばない＝localStorage も再描画も走らない。jsdom には確認の断片が無いので
+// ui/confirm は window.confirm に落ちる（その落ち方自体が「確認を飛ばして消さない」ことの検査になる）。
 describe('クリアボタンの3系統 callback ルーティング＋confirm 承認', () => {
     beforeEach(() => {
         mountSettingsPopup();
@@ -373,33 +382,37 @@ describe('クリアボタンの3系統 callback ルーティング＋confirm 承
         return calls;
     };
 
-    it('confirm=true のとき「栞をクリア」は onClearBookmarks のみを呼ぶ', () => {
+    it('confirm=true のとき「栞をすべて消す」は onClearBookmarks のみを呼ぶ', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         const calls = setupCallbacks();
-        findByText('.settings-action', '栞をクリア')?.click();
+        findByText('.settings-action', '栞をすべて消す')?.click();
+        await settle();
         expect(calls).toEqual({ bookmarks: 1, reached: 0, read: 0 });
     });
 
-    it('confirm=true のとき「既読をクリア」は onClearReached のみを呼ぶ', () => {
+    it('confirm=true のとき「既読を消す」は onClearReached のみを呼ぶ', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         const calls = setupCallbacks();
-        findByText('.settings-action', '既読をクリア')?.click();
+        findByText('.settings-action', '既読を消す')?.click();
+        await settle();
         expect(calls).toEqual({ bookmarks: 0, reached: 1, read: 0 });
     });
 
-    it('confirm=true のとき「読破状況をクリア」は onClearRead のみを呼ぶ', () => {
+    it('confirm=true のとき「読破を消す」は onClearRead のみを呼ぶ', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         const calls = setupCallbacks();
-        findByText('.settings-action', '読破状況をクリア')?.click();
+        findByText('.settings-action', '読破を消す')?.click();
+        await settle();
         expect(calls).toEqual({ bookmarks: 0, reached: 0, read: 1 });
     });
 
-    it('confirm=false のとき 3ボタンのどれを押しても callback は呼ばれない', () => {
+    it('confirm=false のとき 3ボタンのどれを押しても callback は呼ばれない', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(false);
         const calls = setupCallbacks();
-        findByText('.settings-action', '栞をクリア')?.click();
-        findByText('.settings-action', '既読をクリア')?.click();
-        findByText('.settings-action', '読破状況をクリア')?.click();
+        findByText('.settings-action', '栞をすべて消す')?.click();
+        findByText('.settings-action', '既読を消す')?.click();
+        findByText('.settings-action', '読破を消す')?.click();
+        await settle();
         expect(calls).toEqual({ bookmarks: 0, reached: 0, read: 0 });
     });
 });
@@ -410,7 +423,7 @@ describe('プリセットの定義（要件 06-4）', () => {
     // desc（カードの内訳）を values から導くための表。desc を手で書き換えたときに気づけるようにする。
     const LABEL = {
         writingMode: { vertical: '縦書き', horizontal: '横書き' },
-        lineGap: { on: '空行あり', off: '字下げ' },
+        lineGap: { on: '空行あり', off: '空行なし' },
         fontFamily: { serif: '明朝体', sans: 'ゴシック体' },
     } as const;
 
@@ -418,11 +431,11 @@ describe('プリセットの定義（要件 06-4）', () => {
         init(NOOP);
         expect(getPresets()).toEqual([
             {
-                id: 'web', name: 'ウェブ小説風', desc: '横書き・空行あり / ゴシック体',
+                id: 'web', name: 'ウェブ小説風', desc: '横書き・空行あり・ゴシック体',
                 values: { writingMode: 'horizontal', lineGap: 'on', fontFamily: 'sans', fontSize: 'medium', fontWeight: 'normal' },
             },
             {
-                id: 'book', name: '書籍風', desc: '縦書き・字下げ / 明朝体',
+                id: 'book', name: '書籍風', desc: '縦書き・空行なし・明朝体',
                 values: { writingMode: 'vertical', lineGap: 'off', fontFamily: 'serif', fontSize: 'medium', fontWeight: 'normal' },
             },
         ]);
@@ -431,7 +444,7 @@ describe('プリセットの定義（要件 06-4）', () => {
     it('カードの内訳（desc）が values から導ける文字列と一致する', () => {
         init(NOOP);
         for (const p of getPresets()) {
-            const expected = `${LABEL.writingMode[p.values.writingMode]}・${LABEL.lineGap[p.values.lineGap]} / ${LABEL.fontFamily[p.values.fontFamily]}`;
+            const expected = `${LABEL.writingMode[p.values.writingMode]}・${LABEL.lineGap[p.values.lineGap]}・${LABEL.fontFamily[p.values.fontFamily]}`;
             expect(p.desc).toBe(expected);
         }
     });
@@ -500,7 +513,7 @@ describe('プリセットの適用と選択表示（要件 06-4）', () => {
     it('プリセットを当てると5行の選択表示も追従する', () => {
         init(NOOP);
         applyPreset('book');
-        expect(activeRowValues()).toEqual(['縦書き', 'なし', '明朝体', '中', '通常']);
+        expect(activeRowValues()).toEqual(['縦書き', 'なし', '明朝', '中', '通常']);
     });
 
     it('当てたプリセットのカードだけが .active になる', () => {
@@ -519,10 +532,10 @@ describe('プリセットの適用と選択表示（要件 06-4）', () => {
         expect(activeCards()).toEqual([]);
     });
 
-    it('設定をリセットするとどちらのカードも .active でなくなる', () => {
+    it('初期値に戻すとどちらのカードも .active でなくなる', async () => {
         init(NOOP);
         applyPreset('book');
-        [...document.querySelectorAll<HTMLButtonElement>('.settings-action')].find((b) => b.textContent === '設定をリセット')?.click();
+        await clickConfirmed([...document.querySelectorAll<HTMLButtonElement>('.settings-action')].find((b) => b.textContent === '設定を初期値に戻す'));
         expect(isAllDefault()).toBe(true);
         expect(activeCards()).toEqual([]);
     });

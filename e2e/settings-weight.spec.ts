@@ -51,10 +51,10 @@ test('目次で選んだ「太字」が本文ページに反映される', async
     await expect(page.locator('#scene-content p').first()).toHaveCSS('font-weight', '700');
 });
 
-// 目次側の「設定をリセット」は index.ts の removeItem 列挙と refreshRows() の defs を通る。
+// 目次側の「設定を初期値に戻す」は index.ts の removeItem 列挙と refreshRows() の defs を通る。
 // この2箇所は本文側と違って手動列挙（Object.keys 走査ではない）ため、追従漏れを検出できるのはここだけ。
 // 初期状態の .active は DEFAULTS.fontWeight の存在も兼ねて見る。
-test('目次の「設定をリセット」で文字の太さが既定へ戻る', async ({ page }) => {
+test('目次の「設定を初期値に戻す」で文字の太さが既定へ戻る', async ({ page }) => {
     await page.goto('/lirmena/');
     await openSettingsFromToc(page);
     await expect(page.getByRole('button', { name: '通常', exact: true })).toHaveClass(/active/);
@@ -62,9 +62,10 @@ test('目次の「設定をリセット」で文字の太さが既定へ戻る',
     await page.getByRole('button', { name: '太字', exact: true }).click();
     await expect(page.getByRole('button', { name: '太字', exact: true })).toHaveClass(/active/);
 
-    await page.locator('.settings-action', { hasText: '設定をリセット' }).click();
+    await page.locator('.settings-action', { hasText: '設定を初期値に戻す' }).click();
+    await page.locator('#confirm-dialog').getByRole('button', { name: '戻す' }).click();
 
-    expect(await page.evaluate(() => localStorage.getItem('lirmena.fontWeight'))).toBeNull();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('lirmena.fontWeight'))).toBeNull();
     await expect(page.getByRole('button', { name: '通常', exact: true })).toHaveClass(/active/);
     await expect(page.getByRole('button', { name: '太字', exact: true })).not.toHaveClass(/active/);
 });

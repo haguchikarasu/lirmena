@@ -1,7 +1,7 @@
 /*
  * 骨格 E2E：用語集（要件 06-15）。
- * 一覧は glossary.ts 1 か所が描き、目次からは別ページ（glossary.html）、本文からは右下メニューのポップアップで開く。
- * 見るのは導線（目次 → ページ → 目次、本文 → ポップアップ）と、?dev の引き継ぎ・検索・相互参照・直リンクの着地・
+ * 一覧は glossary.ts 1 か所が描き、目次からは別ページ（glossary.html）、本文からは右下メニューの資料シート（用語のタブ）で開く。
+ * 見るのは導線（目次 → ページ → 目次、本文 → シート）と、?dev の引き継ぎ・検索・相互参照・直リンクの着地・
  * 閉じ方。寸法・色は手動スモークに残す（骨格導線しか見ない方針）。
  *
  * ?dev の引き継ぎ（3 箇所）を見る検査はここだけ＝Playwright は CI に入っていないので、ローカルで回したときだけ効く。
@@ -101,11 +101,11 @@ test.describe('本文 → 用語集ポップアップ', () => {
         await expect(page.locator('#menu-toggle')).toBeFocused();
 
         await openPopup(page);
-        await page.locator('#glossary-popup-close').click();
+        await page.locator('#world-sheet').getByRole('button', { name: '閉じる' }).click();
         await expect(overlay).toBeHidden();
 
         await openPopup(page);
-        await overlay.click({ position: { x: 5, y: 5 } });
+        await page.mouse.click(5, 5);   // シートの外＝背景
         await expect(overlay).toBeHidden();
     });
 

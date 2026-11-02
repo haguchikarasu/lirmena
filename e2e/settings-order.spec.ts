@@ -7,7 +7,7 @@
 
 import { test, expect } from './_fixtures';
 
-const EXPECTED = ['書字方向', '段落間の空行', 'フォント', '文字サイズ', '文字の太さ'];
+const EXPECTED = ['書字方向', '段落の空行', 'フォント', '文字の大きさ', '文字の太さ'];
 
 test('本文ページの表示設定が要件どおりの並びで表示される', async ({ page }) => {
     await page.goto('/lirmena/contents/01-01.html');

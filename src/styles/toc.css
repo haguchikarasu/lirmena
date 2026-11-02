@@ -1,7 +1,6 @@
 /* toc.css — 目次ページ専用スタイル（本文側の index.css とは独立）。
-   例外：キャラクター紹介ポップアップとエシュカ地図ポップアップは本文と同じ部品なので、_characters.css と
-   _map.css を index.ts が共用で読み込む（どちらも toc.css より前に読み込む＝下の #characters-overlay /
-   #map-overlay の z-index 上書きを後勝ちで効かせるため）。 */
+   例外：シート（設定・共有・資料）と確認、人物・地図・用語の部品は本文と同じなので、_sheet.css・_characters.css・
+   _map.css・_glossary.css を index.ts が共用で読み込む（シートは <dialog> の最前面の層に出るので重なり順の調整は要らない）。 */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -553,12 +552,6 @@ ruby rt {
   visibility: visible;
 }
 
-/* キャラクター紹介（_characters.css）とエシュカ地図（_map.css）のポップアップは本文側では z-index 30。
-   目次では FAB（100）より上、設定・共有ポップアップと同じ層に上げる。
-   どちらも toc.css より前に読み込まれるので同じ ID 指定で勝つ */
-#characters-overlay { z-index: 200; }
-#map-overlay { z-index: 200; }
-
 /* ===== 栞エリア ===== */
 
 #idx-bm-section {
@@ -698,180 +691,6 @@ ruby rt {
 .fab-item:focus {
   background: #141414;
   outline: none;
-}
-
-/* ===== 設定ポップアップ／共有ポップアップ（同じオーバーレイ様式を共有） ===== */
-
-#settings-popup,
-#share-popup {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-
-/* 高さの単位は vh ではなく dvh（本文側 _ui.css の .settings-panel と同じ理由。
-   vh はブラウザ UI が隠れた状態の高さを指すため、バーが出ている間はパネルの底がバーに隠れて押せなくなる）。
-   85 という数値は本文側の 90 と食い違うが、目次パネルは padding 1.5rem を持つため据え置く。 */
-.settings-panel {
-  background: var(--idx-surface);
-  border: 1px solid var(--idx-border-strong);
-  border-radius: 4px;
-  padding: 1.5rem;
-  min-width: 280px;
-  max-width: 90vw;
-  max-height: 85dvh;
-  overflow-y: auto;
-  font-family: serif;
-}
-
-.settings-panel__title {
-  font-size: 1rem;
-  letter-spacing: 0.12em;
-  color: var(--idx-text-muted);
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--idx-border);
-}
-
-/* プリセット（index.ts の buildPresets が生成）。本文側 _ui.css と同じ markup・同じ表示文字列で、
-   見た目だけ目次のライトテーマに合わせた二重定義。表示設定の「行」ではなく、5行の上に置く独立したカード。
-   本文側パネルが行ごとの padding で間隔を作るのに対し、目次側はパネルの padding ＋ margin なので margin で書く。 */
-.settings-subtitle {
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  color: var(--idx-text-muted);
-  margin-bottom: 0.5rem;
-}
-
-.settings-preset {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.settings-preset__btn {
-  flex: 1;
-  padding: 0.5rem 0.4rem;
-  border: 1px solid var(--idx-border-strong);
-  border-radius: 2px;
-  background: var(--idx-bg);
-  color: var(--idx-text-body);
-  font-family: inherit;
-  text-align: center;
-  cursor: pointer;
-}
-
-.settings-preset__btn.active {
-  border-color: var(--idx-border-accent);
-  color: var(--idx-accent);
-}
-
-.settings-preset__btn:focus {
-  outline: 1px solid var(--idx-accent);
-  outline-offset: 1px;
-}
-
-.settings-preset__name {
-  display: block;
-  font-size: 0.9rem;
-}
-
-/* 内訳（「横書き・空行あり / ゴシック体」）。値は index.ts の PRESETS が持つ。 */
-.settings-preset__desc {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.7rem;
-  line-height: 1.5;
-  color: var(--idx-text-muted);
-}
-
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.settings-row__label {
-  font-size: 1rem;
-  color: var(--idx-text-body);
-  white-space: nowrap;
-}
-
-.settings-row__opts {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.settings-opt {
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--idx-border-strong);
-  border-radius: 2px;
-  background: var(--idx-bg);
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--idx-text-body);
-  font-family: inherit;
-}
-
-.settings-opt.active {
-  border-color: var(--idx-border-accent);
-  color: var(--idx-accent);
-}
-
-.settings-opt:focus {
-  outline: 1px solid var(--idx-accent);
-  outline-offset: 1px;
-}
-
-.settings-divider {
-  height: 1px;
-  background: var(--idx-border);
-  margin: 1rem 0;
-}
-
-.settings-action {
-  display: block;
-  width: 100%;
-  padding: 0.6rem 1rem;
-  margin-bottom: 0.5rem;
-  background: transparent;
-  border: 1px solid var(--idx-border);
-  border-radius: 2px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--idx-text-muted);
-  text-align: left;
-  font-family: inherit;
-}
-
-.settings-action:hover {
-  border-color: var(--idx-border-strong);
-  color: var(--idx-text-body);
-}
-
-.settings-close {
-  display: block;
-  width: 100%;
-  padding: 0.6rem 1rem;
-  margin-top: 1rem;
-  background: transparent;
-  border: 1px solid var(--idx-border-strong);
-  border-radius: 2px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--idx-text-muted);
-  text-align: center;
-  font-family: inherit;
-}
-
-.settings-close:hover {
-  color: var(--idx-text-body);
 }
 
 /* ===== 更新履歴 ===== */

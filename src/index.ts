@@ -49,14 +49,17 @@
  *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
  *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts）
  *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
- *     キャラクター紹介ボタンは、押された時点の Stage（computeStoryStage）を charaPopup.open() に渡す
- *     （Stage から登録を引く規則は characters.ts。characters.json は initAppendix が自分で取得し、
- *     取得に失敗したらキャラクター紹介のボタンを隠す）。エシュカ地図ボタンは initAppendixMap が同期で結線し
- *     mapPopup.open() を呼ぶ（取得するデータが無いので initAppendix とは別関数＝その早期 return に巻き込まれない）。
+ *     キャラクター紹介ボタンは資料シート（ui/world-sheet。断片 templates/parts/world.html）の人物のタブを開く。
+ *     Stage は開いた時点の computeStoryStage を world-sheet に渡す（Stage から登録を引く規則は characters.ts。
+ *     characters.json は initAppendix が自分で取得し、取得に失敗したらキャラクター紹介のボタンを隠す）。
+ *     エシュカ地図ボタンは initAppendixMap が同期で結線して地図のタブを開く（取得するデータが無いので initAppendix
+ *     とは別関数＝その早期 return に巻き込まれない）。
  *     用語集チップは別ページ（glossary.html）への <a> で、initAppendixGlossary が withQuery で href を付け直す
  *     （?dev の引き継ぎ。story.json の取得より前に同期で行う）。
  *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集）と
- *     「リンク」（X・カクヨム・小説家になろう）の 2 つ。Escape は initFab のキー処理が最優先で閉じる
+ *     「リンク」（X・カクヨム・小説家になろう）の 2 つ
+ *   - **シート（設定・共有・資料）と確認は <dialog>**（ui/sheet・ui/confirm）。Escape は開いている一番上の
+ *     <dialog> をブラウザが閉じる＝initFab のキー処理は dialog[open] がある間は手を出さない
  *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
  *     ＝core/storage の loadReachedKeys / loadReadKeys が localStorage キー "reached" / "read" をそのまま Set 化する
  *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
@@ -76,12 +79,13 @@
  *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
  */
 
-// _characters.css / _map.css は toc.css より前に読み込む：#characters-overlay と #map-overlay の z-index は
-// 両方が同じ ID 指定で書いており後勝ちになる。toc.css 側の 200（FAB の 100 より上）を勝たせるため、
-// この順序を崩さないこと。
+// シートの見た目（_sheet.css）と中身の部品（人物・地図・用語）は本文と共用。シートは <dialog> の最前面の層に
+// 出るので、toc.css との読み込み順で重なりを調整する必要は無い（以前の z-index 200 の上書きは不要になった）。
+import './styles/toc.css';
+import './styles/_sheet.css';
 import './styles/_characters.css';
 import './styles/_map.css';
-import './styles/toc.css';
+import './styles/_glossary.css';
 import * as storage from './core/storage';
 import type { LatestAutoSave } from './core/storage';
 import { loadSettings, removeSettings, saveSetting, saveSettings, PRESETS } from './core/settings-model';
@@ -90,9 +94,10 @@ import { hasEffectivePreview } from './core/preview';
 import { versionKind, type VersionKind } from './core/changelog';
 import * as settingsPanel from './ui/settings-panel';
 import * as share from './ui/share';
+import * as sheet from './ui/sheet';
+import * as worldSheet from './ui/world-sheet';
+import { confirmDialog } from './ui/confirm';
 import { applyRuby } from './ruby';
-import * as charaPopup from './characters';
-import * as mapPopup from './map';
 import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
 import type { CharactersData } from './types';
 
@@ -162,8 +167,10 @@ function clearReadStatus(): void {
     localStorage.removeItem(LS_HERO_CARD);
 }
 
-function confirmAndRun(msg: string, run: () => void): void {
-    if (window.confirm(msg)) run();
+// 取り消せない操作の前の確認（ui/confirm。文言は本文の設定シートと同じ）。「削除する」が押されたら run()。
+// confirmAndRun(msg: string, run: () => void): Promise<void>
+async function confirmAndRun(msg: string, run: () => void): Promise<void> {
+    if (await confirmDialog(msg, '削除する')) run();
 }
 
 // pendingJump（本編）または pendingJumpAfterword（あとがき）を書く（union 対応）
@@ -423,10 +430,10 @@ function _finishHeroSlide(): void {
     }
 }
 
-// 設定・共有ポップアップが開いているか。開いている間はギャラリーのキー操作を譲る。
+// シート（設定・共有・資料）か確認が開いているか。開いている間はギャラリーのキー操作を譲る。
 // _isPopupOpen(): boolean
 function _isPopupOpen(): boolean {
-    return settingsPanel.isOpen() || share.isOpen();
+    return sheet.anyOpen();
 }
 
 // クリック・キー・スワイプの登録。**1 度だけ**行う（applyStoryStage は再実行されるため）。
@@ -852,7 +859,7 @@ function renderBookmarks(): void {
 // 設定ポップアップ（ui/settings-panel。markup は templates/parts/settings.html＝本文ページと同じ断片）の host を目次用に結ぶ。
 // 目次ページは本文を持たないので CSS 変数・<html data-writing-mode> へは反映せず、localStorage への保存だけを行う
 // （反映するのは本文側の settings.ts だけ＝目次が縦書きになる事故が構造的に起きない）。
-// 「設定をリセット」は表示設定 5 項目と読書点のキーを消す（removeSettings）。本文側は既定値を書くが、読み手が
+// 「設定を初期値に戻す」は表示設定 5 項目と読書点のキーを消す（removeSettings）。本文側は既定値を書くが、読み手が
 // null を既定へ倒すので読者にとっては同値（e2e/settings-reset.spec.ts が目次側のキーの網羅と、本文での解決を見る）。
 // Escape で閉じる順番は initFab のキー処理が決めるので、パネル自身には Escape を拾わせない。
 // initSettingsPopup(story: StoryVolume[]): void
@@ -940,8 +947,9 @@ function initFab(story: StoryVolume[]): void {
             applyStoryStage(story);
         });
     });
-    addItem('設定', () => { settingsPanel.open(); });
-    addItem('共有', () => { share.open(); });
+    // 閉じたときのフォーカス戻り先に FAB のボタンを渡す（押された項目は閉じたパネルの中にいる）
+    addItem('設定', () => { settingsPanel.open(toggle); });
+    addItem('共有', () => { share.open(toggle); });
 
     toggle.addEventListener('click', () => { if (isOpen()) closeFab(); else openFab(); });
 
@@ -966,13 +974,9 @@ function initFab(story: StoryVolume[]): void {
 
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        // キャラクター紹介とエシュカ地図は付録カードからだけ開く最前面のポップアップなので最優先で閉じる
-        // （characters.ts / map.ts は Escape を拾わない＝優先順位は各ページのキー処理が決める）。
-        // 両者は同時に開かないので相対順は実害が無いが、本文側（menu.ts）と並びを揃えてある
-        if (charaPopup.isOpen()) { charaPopup.close(); return; }
-        if (mapPopup.isOpen()) { mapPopup.close(); return; }
-        if (share.isOpen()) { share.close(); return; }
-        if (settingsPanel.isOpen()) { settingsPanel.close(); return; }
+        // シートか確認（<dialog>）が開いていれば、一番上のものをブラウザが閉じる。ここは手を出さない
+        // （以前はポップアップを閉じる順番をここに手書きしていた）
+        if (sheet.anyOpen()) return;
         if (isOpen()) closeFab(); else openFab();
     });
 }
@@ -1114,14 +1118,14 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
 // ----- 付録カード（キャラクター紹介・エシュカ地図・用語集） -----
 
 // 付録カードのエシュカ地図ボタンを結線する（要件 06-14）。取得するデータが無いので同期で済み、
-// 押された側の要素を mapPopup.open() に渡して閉じたときのフォーカス戻り先にする。
+// 押された側の要素を world-sheet に渡して閉じたときのフォーカス戻り先にする。
 // **initAppendix に同居させない**：あちらは characters.json の取得失敗で早期 return するので、
 // 中に置くとネットワーク不調の読者に「見えるのに押しても何も起きない地図チップ」が残る。
 // initAppendixMap(): void
 function initAppendixMap(): void {
     const btn = document.getElementById('appendix-map');
     if (!btn) return;
-    btn.addEventListener('click', () => mapPopup.open(btn));
+    btn.addEventListener('click', () => worldSheet.open('map', btn));
 }
 
 // 付録カードの用語集チップ（<a href="glossary.html">）に現在のクエリを付け直す（要件 06-15）。用語集は
@@ -1133,8 +1137,8 @@ function initAppendixGlossary(): void {
     if (link instanceof HTMLAnchorElement) link.href = withQuery('glossary.html');
 }
 
-// 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、押された時点の Stage を
-// charaPopup.open() に渡す（Stage を変数に持ち回らない＝「読破状況をクリア」で下がった後も追従する）。
+// 付録カードのキャラクター紹介ボタンを結線する。characters.json を取得し、資料シートの人物のタブを開く。
+// Stage は world-sheet が開くたびに _storyStage() を呼んで決める（変数に持ち回らない＝「読破を消す」で下がった後も追従する）。
 // story か characters.json が取れなければボタンを隠す（押しても何も出ないボタンを残さない）。その結果
 // 「設定」に見える項目が 1 つも無くなったら見出しごと隠す。
 // **後者の見出し隠しは 2026-10-09 以降は到達しない**：地図チップを公開したので「見える項目が 1 つも無い」
@@ -1146,7 +1150,7 @@ async function initAppendix(story: StoryVolume[]): Promise<void> {
     const btn = document.getElementById('appendix-chara-btn');
     if (!section || !btn) return;
 
-    let data: CharactersData = [];
+    let data: CharactersData;
     try {
         const res = await fetch('characters.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1160,16 +1164,14 @@ async function initAppendix(story: StoryVolume[]): Promise<void> {
         return;
     }
 
-    btn.addEventListener('click', () => {
-        const stage = computeStoryStage(
-            Array.from(storage.loadReadKeys()),
-            story as unknown as Parameters<typeof computeStoryStage>[1],
-        );
-        charaPopup.open(data, stage);
-    });
+    _charactersData = data;
+    btn.addEventListener('click', () => worldSheet.open('characters', btn));
     // index.html では disabled で置いてある：結線が済むまで押せないようにする（読み込み中のクリックが空振りしないように）
     (btn as HTMLButtonElement).disabled = false;
 }
+
+// 資料シートの人物のタブに渡す characters.json（initAppendix が取得する。取れるまで・取れなければ null）
+let _charactersData: CharactersData | null = null;
 
 // ----- エントリポイント -----
 
@@ -1204,8 +1206,13 @@ async function main(): Promise<void> {
     loadChangelog('site');
 
     initResumeButton();
-    charaPopup.init();
-    mapPopup.init();
+    worldSheet.init({
+        characters: () => _charactersData,
+        stage: () => computeStoryStage(
+            Array.from(storage.loadReadKeys()),
+            story as unknown as Parameters<typeof computeStoryStage>[1],
+        ),
+    });
     initAppendixMap();
     void initAppendix(story);
 

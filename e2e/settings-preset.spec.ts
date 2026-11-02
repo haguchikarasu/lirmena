@@ -17,7 +17,7 @@ import { test, expect } from './_fixtures';
 const EXPECTED_PRESETS = [
     {
         name: 'ウェブ小説風',
-        desc: '横書き・空行あり / ゴシック体',
+        desc: '横書き・空行あり・ゴシック体',
         values: {
             'lirmena.writingMode': 'horizontal',
             'lirmena.lineGap': 'on',
@@ -28,7 +28,7 @@ const EXPECTED_PRESETS = [
     },
     {
         name: '書籍風',
-        desc: '縦書き・字下げ / 明朝体',
+        desc: '縦書き・空行なし・明朝体',
         values: {
             'lirmena.writingMode': 'vertical',
             'lirmena.lineGap': 'off',
@@ -71,13 +71,13 @@ for (const { label, open } of PAGES) {
             .toEqual(EXPECTED_PRESETS.map((p) => p.desc));
     });
 
-    // 二重定義の CSS（_ui.css / toc.css）は片方だけ書くと片側が無スタイルになる。
-    // その場合 section の既定 display（block）になるのでここで落ちる。
+    // 見た目は _sheet.css 1 枚（本文は index.css、目次は index.ts が読む）。どちらかで読み忘れると
+    // section の既定 display（block）になるのでここで落ちる。
     test(`${label}のプリセットカードにスタイルが当たっている`, async ({ page }) => {
         await open(page);
         const display = await page.locator('#settings-popup .settings-preset')
             .evaluate((el) => getComputedStyle(el).display);
-        expect(display).toBe('flex');
+        expect(display).toBe('grid');
     });
 
     for (const preset of EXPECTED_PRESETS) {
@@ -100,7 +100,7 @@ for (const { label, open } of PAGES) {
         const active = await page.locator('#settings-popup .settings-row').evaluateAll(
             (rows) => rows.map((r) => r.querySelector('.settings-opt.active')?.textContent ?? null),
         );
-        expect(active).toEqual(['縦書き', 'なし', '明朝体', '中', '通常']);
+        expect(active).toEqual(['縦書き', 'なし', '明朝', '中', '通常']);
     });
 
     test(`${label}で選んだカードだけが押下状態になる`, async ({ page }) => {
@@ -112,10 +112,11 @@ for (const { label, open } of PAGES) {
     });
 
     // 既定値はどちらのプリセットとも一致しない（＝リセット後はカスタム扱い）。
-    test(`${label}で設定をリセットするとどちらのカードも選ばれていない`, async ({ page }) => {
+    test(`${label}で設定を初期値に戻すとどちらのカードも選ばれていない`, async ({ page }) => {
         await open(page);
         await page.locator('#settings-popup').getByRole('button', { name: '書籍風' }).click();
-        await page.locator('#settings-popup .settings-action', { hasText: '設定をリセット' }).click();
+        await page.locator('#settings-popup .settings-action', { hasText: '設定を初期値に戻す' }).click();
+        await page.locator('#confirm-dialog').getByRole('button', { name: '戻す' }).click();
         await expect(page.locator('#settings-popup .settings-preset__btn.active')).toHaveCount(0);
     });
 }

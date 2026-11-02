@@ -1,0 +1,20 @@
+<!-- 資料シート：人物・地図・用語の 3 つのタブ（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の
+     両方へ、ビルド時に vite.config.ts の expandIncludes が差し込む。markup の持ち主はこのファイル 1 か所だけ）。
+     器はシート（src/ui/sheet.ts・src/styles/_sheet.css）、タブの切り替えと中身の描き分けは src/ui/world-sheet.ts。
+     中身は部品が描く：人物＝characters.ts、地図＝map.ts、用語＝glossary.ts（部品はページかシートかを知らない）。
+     タブの中身の器の ID（#characters-overlay・#map-overlay・#glossary-overlay）はポップアップだったころの名残で、
+     e2e と鑑賞モードの判定が見てきた名前をそのまま使っている（いまはシートの中のタブの中身）。 -->
+<dialog id="world-sheet" class="sheet" data-kind="world" data-detent="half" aria-label="資料">
+  <span class="sheet-grab" aria-hidden="true"></span>
+  <header class="sheet-head">
+    <nav class="sheet-tabs" role="tablist" aria-label="資料">
+      <button id="world-tab-characters" class="sheet-tab" type="button" role="tab" data-tab="characters" aria-controls="characters-overlay" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="16.8" cy="9" r="2.5"/><path d="M15.5 14.3c3 .2 5.5 2.4 5.5 5.7"/></svg>人物</button>
+      <button id="world-tab-map" class="sheet-tab" type="button" role="tab" data-tab="map" aria-controls="map-overlay" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2.5 6 2.5 6-2.5v14.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 3.5v14.5M15 6v14.5"/></svg>地図</button>
+      <button id="world-tab-glossary" class="sheet-tab" type="button" role="tab" data-tab="glossary" aria-controls="glossary-overlay" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.6-5-2-8-1.5v13.5c3-.5 6-.1 8 1.5 2-1.6 5-2 8-1.5V5c-3-.5-6-.1-8 1.5zM12 6.5V20"/></svg>用語</button>
+    </nav>
+    <button class="sheet-close" type="button" data-sheet-close aria-label="閉じる"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <section id="characters-overlay" class="sheet-body" role="tabpanel" aria-labelledby="world-tab-characters" tabindex="-1" hidden></section>
+  <section id="map-overlay" class="sheet-body sheet-body--map" role="tabpanel" aria-labelledby="world-tab-map" tabindex="-1" hidden></section>
+  <section id="glossary-overlay" class="sheet-body sheet-body--glossary" role="tabpanel" aria-labelledby="world-tab-glossary" tabindex="-1" hidden></section>
+</dialog>

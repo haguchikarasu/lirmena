@@ -1,9 +1,9 @@
 /*
  * glossary.ts
  * 責務: 用語集（public/glossary.md）の取得・パース・検査と、一覧の描画（検索・五十音ナビ・相互参照）。
- *       本文ページのポップアップ（#glossary-overlay。menu.ts が開く）と、用語集ページ（glossary-page.ts）で共用する。
+ *       資料シートの「用語」タブ（#glossary-overlay。ui/world-sheet が開く）と、用語集ページ（glossary-page.ts）で共用する。
  * export: 純関数 … KANA_ROWS / parseGlossary(md) / splitRefs(text, terms) / validateGlossary(g)
- *         DOM    … loadGlossary() / mountGlossary(ui) / init() / open(opener?) / close() / isOpen() / isEditingSearch()
+ *         DOM    … loadGlossary() / renderGlossary(ui, g) / flash(el) / mountGlossary(ui) / mountPanel(el) / handleEscape(e)
  * 依存: なし（DOM と import.meta.env.BASE_URL だけを読むリーフ。.dependency-cruiser.cjs の LEAF に入れてある）
  *       純関数部分はトップレベルで DOM に触れない＝Vitest（glossary.test.ts）から import できる
  *
@@ -20,19 +20,18 @@
  * という食い違いを作らない）。→ の直後（空白は読み飛ばす）から最も長く前方一致する見出し語をリンクにし、
  * どの見出し語にも一致しない → は検査ではエラー・描画ではただの文字。
  *
- * ポップアップ（map.ts と同じ「空の器＋動的生成」方式）：
- *   - 器 <section id="glossary-overlay" hidden role="dialog"> は templates/reader.html に置く。init() が中身を生成する
- *   - md は open() の初回に取得する＝開くまで読まない（全本文ページで 20KB を無駄に読まない。map.ts の画像と同じ）
- *   - 閉じる方法：背景クリックと閉じるボタンはここで登録する。**Escape は拾わない**（menu.ts のキー処理が
- *     isOpen() / close() / isEditingSearch() を使って優先順位を決める）
- *   - フォーカス：open() で閉じるボタンへ移し、close() で opener へ戻す（map.ts と同じ理由）
+ * 資料シートの「用語」タブ（templates/parts/world.html の #glossary-overlay。開閉は ui/world-sheet と ui/sheet）：
+ *   - 中身は mountPanel() が初めて用語のタブを開いたときに作る。md もそのとき取得する＝開くまで読まない
+ *     （全本文ページで 20KB を無駄に読まない。地図の画像と同じ）
+ *   - Escape はシート（<dialog>）が閉じる。例外 2 つ（日本語の変換中・検索欄に文字があるとき）は handleEscape() が
+ *     判定し、ui/sheet の onEscape として閉じる要求を止める
  *   - 検索語とスクロール位置は閉じても残す（同じ語を引き直しやすい）。ページを移れば消える＝保存はしない
  *
  * 「ページで開く」と「目次へ」に location.search を付けるのは state.ts の _withQuery と同じ 1 行の複製
  * （リーフ／独立エントリなので state を import できない）。?dev が落ちると作者の閲覧が計測される。
  * 見張るのは e2e/glossary.spec.ts だけ（Playwright は CI に入っていない＝ローカルで回したときだけ効く）。
  *
- * 読み込む側は `import * as glossary from './glossary'` とする（menu.ts の mapPopup と同じ流儀）。
+ * 読み込む側は `import * as glossary from './glossary'` とする。
  */
 
 // ===== 純関数 =====
@@ -263,7 +262,7 @@ export interface GlossaryUi {
     kana: HTMLElement;
     /** 件数表示（任意） */
     count?: HTMLElement;
-    /** 相互参照で飛んだとき location.hash を書き換えるか（用語集ページ＝true／ポップアップ＝false） */
+    /** 相互参照で飛んだとき location.hash を書き換えるか（用語集ページ＝true／資料シート＝false） */
     updateHash?: boolean;
 }
 
@@ -444,113 +443,74 @@ function _showError(ui: GlossaryUi): void {
     ui.kana.textContent = '';
 }
 
-// ===== DOM：ポップアップ（本文ページ） =====
+// ===== DOM：資料シートの「用語」タブ =====
 
-let _overlay: HTMLElement | null = null;
-let _closeBtn: HTMLButtonElement | null = null;
 let _search: HTMLInputElement | null = null;
 let _ui: GlossaryUi | null = null;
 let _mounted: Promise<void> | null = null;
-let _opener: HTMLElement | null = null;   // 閉じたときにフォーカスを戻す先（open() の引数）
 
 /**
- * 空の器 #glossary-overlay にパネル（見出し・「ページで開く」・閉じるボタン・検索欄・五十音・一覧）を生成し、
- * 背景クリックと閉じるボタンを登録する。各ページの起動時に一度だけ呼ぶ。器が無いページでは何もしない。
- * init(): void
+ * 器 el（資料シートの「用語」タブの中身 #glossary-overlay）に、頭（「ページで開く」・検索欄・五十音）と一覧を作り、
+ * md を取得して描く。ui/world-sheet が用語のタブを開くたびに呼ぶ：1 回目だけ組み立てと取得をし、取得に失敗していたら
+ * 取り直す（成功したあとは何もしない＝検索語とスクロール位置は閉じても残る。ページを移れば消える）。
+ * 頭は一覧の外に置く（一覧だけがスクロールする）ので、五十音で飛んだ先の見出しが検索欄の裏に潜らない。
+ * mountPanel(el: HTMLElement): void
  */
-export function init(): void {
-    _overlay = document.querySelector<HTMLElement>('#glossary-overlay');
-    if (!_overlay) return;
+export function mountPanel(el: HTMLElement): void {
+    if (!_ui) {
+        // .gl-root はアクセント色（--gl-accent）を合成する器。検索欄・五十音・一覧のすべてがこの下にある（_glossary.css）
+        const root = _el('article', 'gl-root');
+        root.id = 'glossary-popup';
 
-    // .gl-root はアクセント色（--gl-accent）を合成する器。検索欄・五十音・一覧のすべてがこの下にある（_glossary.css）
-    const popup = _el('article', 'gl-root');
-    popup.id = 'glossary-popup';
+        const head = _el('header');
+        head.id = 'glossary-popup-head';
 
-    const head = _el('header');
-    head.id = 'glossary-popup-head';
-    const bar = _el('section');
-    bar.id = 'glossary-popup-bar';
-    const title = _el('h2', undefined, '用語集');
-    title.id = 'glossary-popup-title';
+        // 別タブで用語集ページを開く（じっくり読みたい読者向け）。?dev を引き継ぐ（冒頭コメント）
+        const pageLink = _el('a', undefined, 'ページで開く');
+        pageLink.id = 'glossary-popup-page';
+        pageLink.href = `${import.meta.env.BASE_URL}glossary.html${location.search}`;
+        pageLink.target = '_blank';
+        pageLink.rel = 'noopener';
 
-    // 別タブで用語集ページを開く（じっくり読みたい読者向け）。?dev を引き継ぐ（冒頭コメント）
-    const pageLink = _el('a', undefined, 'ページで開く');
-    pageLink.id = 'glossary-popup-page';
-    pageLink.href = `${import.meta.env.BASE_URL}glossary.html${location.search}`;
-    pageLink.target = '_blank';
-    pageLink.rel = 'noopener';
+        _search = _el('input', 'gl-search');
+        _search.id = 'glossary-search';
+        _search.type = 'search';
+        _search.placeholder = '用語を検索（ひらがな可）';
+        _search.autocomplete = 'off';
+        _search.setAttribute('aria-label', '用語を検索');
 
-    _closeBtn = _el('button', undefined, '閉じる');
-    _closeBtn.type = 'button';
-    _closeBtn.id = 'glossary-popup-close';
-    _closeBtn.addEventListener('click', () => close());
-    bar.append(title, pageLink, _closeBtn);
+        const kana = _el('nav', 'gl-kana');
+        kana.id = 'glossary-kana';
+        kana.setAttribute('aria-label', '五十音');
+        head.append(_search, pageLink, kana);
 
-    _search = _el('input', 'gl-search');
-    _search.id = 'glossary-search';
-    _search.type = 'search';
-    _search.placeholder = '用語を検索（ひらがな可）';
-    _search.autocomplete = 'off';
-    _search.setAttribute('aria-label', '用語を検索');
+        const list = _el('section', 'gl-list');
+        list.id = 'glossary-popup-list';
 
-    const kana = _el('nav', 'gl-kana');
-    kana.id = 'glossary-kana';
-    kana.setAttribute('aria-label', '五十音');
-    head.append(bar, _search, kana);
-
-    const list = _el('section', 'gl-list');
-    list.id = 'glossary-popup-list';
-
-    popup.append(head, list);
-    _overlay.appendChild(popup);
-    _ui = { list, search: _search, kana };
-
-    _overlay.addEventListener('click', (e) => {
-        if (e.target === _overlay) close();
-    });
-}
-
-/**
- * ポップアップを開く。初回だけ md を取得して一覧を描く（失敗したら文言を出し、次に開いたとき取り直す）。
- * opener には閉じたときにフォーカスを戻す要素を渡す（本文＝#menu-toggle）。
- * open(opener?: HTMLElement | null): void
- */
-export function open(opener?: HTMLElement | null): void {
-    if (!_overlay || !_ui) return;
+        root.append(head, list);
+        el.replaceChildren(root);
+        _ui = { list, search: _search, kana };
+    }
     const ui = _ui;
     _mounted ??= mountGlossary(ui).catch(() => {
         _mounted = null;   // 次に開いたとき取り直す
         ui.search.disabled = false;
     });
-    _opener = opener ?? null;
-    _overlay.hidden = false;
-    _closeBtn?.focus();
 }
 
 /**
- * ポップアップを閉じ、開いた側へフォーカスを戻す。
- * close(): void
+ * 用語のタブを開いているときの Escape の扱い（ui/sheet の onEscape に渡す）。false を返すとシートを閉じない：
+ *   - 日本語の変換中（e.isComposing）の Escape は変換の取り消し
+ *   - 検索欄にフォーカスがあり文字が入っているときは、欄を消すだけ（2 回目の Escape で閉じる）。
+ *     閉じる要求を止めると検索欄の既定の「Escape で欄を消す」も止まるので、ここで消して input を送り直す
+ * handleEscape(e: KeyboardEvent): boolean
  */
-export function close(): void {
-    if (!_overlay) return;
-    _overlay.hidden = true;
-    _opener?.focus();
-    _opener = null;
-}
-
-/**
- * ポップアップが開いているか（menu.ts の Escape 処理が優先順位を決めるのに使う）。
- * isOpen(): boolean
- */
-export function isOpen(): boolean {
-    return _overlay !== null && !_overlay.hidden;
-}
-
-/**
- * 検索欄にフォーカスがあり文字が入っているか。menu.ts の Escape 処理はこのときポップアップを閉じず、
- * ブラウザ標準の「Escape で欄をクリア」に任せる（2 回目の Escape で閉じる）。
- * isEditingSearch(): boolean
- */
-export function isEditingSearch(): boolean {
-    return _search !== null && document.activeElement === _search && _search.value !== '';
+export function handleEscape(e: KeyboardEvent): boolean {
+    if (e.isComposing) return false;
+    if (_search && document.activeElement === _search && _search.value !== '') {
+        _search.value = '';
+        _search.dispatchEvent(new Event('input', { bubbles: true }));
+        return false;
+    }
+    return true;
 }

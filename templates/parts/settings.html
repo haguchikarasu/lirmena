@@ -1,58 +1,63 @@
-<!-- 設定ポップアップ（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の両方へ、ビルド時に
+<!-- 設定シート（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の両方へ、ビルド時に
      vite.config.ts の expandIncludes が差し込む。markup の持ち主はこのファイル 1 か所だけ）。
+     器はシート（<dialog class="sheet">。開閉と操作は src/ui/sheet.ts、見た目は src/styles/_sheet.css）。
      結線は src/ui/settings-panel.ts（data-key / data-value / data-action で引く）。プリセットのカードは
      定義（src/core/settings-model.ts の PRESETS）から settings-panel が .settings-preset の中に組む。
-     ボタンの文字の前後に空白・改行を入れない（textContent で探すテストと e2e がある）。
-     aria-modal は付けない：フォーカストラップを実装していないので、付けると「支援技術には背景を隠す
-     のに Tab では背景へ出られる」不整合になる。 -->
-<section id="settings-popup" hidden role="dialog" aria-label="設定">
-  <div class="settings-panel">
-    <div class="settings-panel__title">表示設定</div>
-    <div class="settings-subtitle" id="settings-preset-label">プリセット</div>
-    <section class="settings-preset" aria-labelledby="settings-preset-label"></section>
-    <div class="settings-divider"></div>
-    <!-- 行の並びは要件 06-4 の設定項目表の順（書字方向→段落間の空行→フォント→文字サイズ→文字の太さ） -->
-    <div class="settings-row">
-      <span class="settings-row__label">書字方向</span>
-      <div class="settings-row__opts">
-        <button class="settings-opt" type="button" data-key="writingMode" data-value="vertical">縦書き</button>
-        <button class="settings-opt" type="button" data-key="writingMode" data-value="horizontal">横書き</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row__label">段落間の空行</span>
-      <div class="settings-row__opts">
-        <button class="settings-opt" type="button" data-key="lineGap" data-value="on">あり</button>
-        <button class="settings-opt" type="button" data-key="lineGap" data-value="off">なし</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row__label">フォント</span>
-      <div class="settings-row__opts">
-        <button class="settings-opt" type="button" data-key="fontFamily" data-value="serif">明朝体</button>
-        <button class="settings-opt" type="button" data-key="fontFamily" data-value="sans">ゴシック体</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row__label">文字サイズ</span>
-      <div class="settings-row__opts">
-        <button class="settings-opt" type="button" data-key="fontSize" data-value="small">小</button>
-        <button class="settings-opt" type="button" data-key="fontSize" data-value="medium">中</button>
-        <button class="settings-opt" type="button" data-key="fontSize" data-value="large">大</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row__label">文字の太さ</span>
-      <div class="settings-row__opts">
-        <button class="settings-opt" type="button" data-key="fontWeight" data-value="normal">通常</button>
-        <button class="settings-opt" type="button" data-key="fontWeight" data-value="bold">太字</button>
-      </div>
-    </div>
-    <div class="settings-divider"></div>
-    <button class="settings-action" type="button" data-action="clear-bookmarks">栞をクリア</button>
-    <button class="settings-action" type="button" data-action="clear-reached">既読をクリア</button>
-    <button class="settings-action" type="button" data-action="clear-read">読破状況をクリア</button>
-    <button class="settings-action" type="button" data-action="reset">設定をリセット</button>
-    <button class="settings-close" type="button">閉じる</button>
-  </div>
-</section>
+     行の名前と選択肢は文字で書き、選択肢の字はその見た目で描く（明朝は明朝、大は大きく、太字は太く。_sheet.css）。
+     ボタンの文字の前後に空白・改行を入れない（textContent で探すテストと e2e がある）。 -->
+<dialog id="settings-popup" class="sheet" data-kind="settings" data-detent="fit" aria-labelledby="settings-title">
+  <span class="sheet-grab" aria-hidden="true"></span>
+  <header class="sheet-head">
+    <h2 id="settings-title" class="sheet-title"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>設定</h2>
+    <button class="sheet-close settings-close" type="button" data-sheet-close aria-label="閉じる"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <section class="sheet-body settings-panel" tabindex="-1" autofocus>
+    <section class="settings-preset" aria-label="プリセット"></section>
+    <!-- 行の並びは要件 06-4 の設定項目表の順（書字方向→段落の空行→フォント→文字の大きさ→文字の太さ） -->
+    <section class="settings-rows">
+      <section class="settings-row">
+        <h3 class="settings-row__label">書字方向</h3>
+        <nav class="settings-row__opts" aria-label="書字方向">
+          <button class="settings-opt" type="button" data-key="writingMode" data-value="vertical">縦書き</button>
+          <button class="settings-opt" type="button" data-key="writingMode" data-value="horizontal">横書き</button>
+        </nav>
+      </section>
+      <section class="settings-row">
+        <h3 class="settings-row__label">段落の空行</h3>
+        <nav class="settings-row__opts" aria-label="段落の空行">
+          <button class="settings-opt" type="button" data-key="lineGap" data-value="on">あり</button>
+          <button class="settings-opt" type="button" data-key="lineGap" data-value="off">なし</button>
+        </nav>
+      </section>
+      <section class="settings-row">
+        <h3 class="settings-row__label">フォント</h3>
+        <nav class="settings-row__opts" aria-label="フォント">
+          <button class="settings-opt settings-opt--serif" type="button" data-key="fontFamily" data-value="serif">明朝</button>
+          <button class="settings-opt settings-opt--sans" type="button" data-key="fontFamily" data-value="sans">ゴシック</button>
+        </nav>
+      </section>
+      <section class="settings-row">
+        <h3 class="settings-row__label">文字の大きさ</h3>
+        <nav class="settings-row__opts" aria-label="文字の大きさ">
+          <button class="settings-opt settings-opt--small" type="button" data-key="fontSize" data-value="small">小</button>
+          <button class="settings-opt" type="button" data-key="fontSize" data-value="medium">中</button>
+          <button class="settings-opt settings-opt--large" type="button" data-key="fontSize" data-value="large">大</button>
+        </nav>
+      </section>
+      <section class="settings-row">
+        <h3 class="settings-row__label">文字の太さ</h3>
+        <nav class="settings-row__opts" aria-label="文字の太さ">
+          <button class="settings-opt" type="button" data-key="fontWeight" data-value="normal">通常</button>
+          <button class="settings-opt settings-opt--bold" type="button" data-key="fontWeight" data-value="bold">太字</button>
+        </nav>
+      </section>
+    </section>
+    <!-- 記録の消去と初期値に戻す。どれも取り消せないので、settings-panel が確認（ui/confirm）を通してから host を呼ぶ -->
+    <nav class="settings-data" aria-label="記録を消す・設定を戻す">
+      <button class="settings-action" type="button" data-action="clear-bookmarks">栞をすべて消す</button>
+      <button class="settings-action" type="button" data-action="clear-reached">既読を消す</button>
+      <button class="settings-action" type="button" data-action="clear-read">読破を消す</button>
+      <button class="settings-action" type="button" data-action="reset">設定を初期値に戻す</button>
+    </nav>
+  </section>
+</dialog>

@@ -1,24 +1,27 @@
 /*
  * ui/share.ts
- * 責務: 共有ポップアップ（#share-popup）の結線。markup は差し込みの断片 templates/parts/share.html が持ち、
- *       ここは「リンクをコピー／X でシェア／LINE でシェア」と閉じる操作（閉じるボタン・背景クリック）だけを結ぶ。
- * export: init(): void / open(): void / close(): void / isOpen(): boolean
- * 依存: DOM（#share-popup と断片の data-share 属性）。ui 層＝reader 層を import しない。
- *       呼び出し元：menu.ts（本文の FAB）、index.ts（目次の FAB）。Escape で閉じる順番は呼び出し側のキー処理が決める
- *       （このモジュールは Escape を拾わない）。
+ * 責務: 共有シート（#share-popup）の結線。markup は差し込みの断片 templates/parts/share.html が持ち、
+ *       ここは「リンクをコピー／X でシェア／LINE でシェア」の 3 つだけを結ぶ（開閉・背景・閉じるボタン・Escape は ui/sheet）。
+ * export: init(): void / open(opener?: HTMLElement | null): void / close(): void / isOpen(): boolean
+ * 依存: ui/sheet。DOM（#share-popup と断片の data-share 属性）。ui 層＝reader 層を import しない。
+ *       呼び出し元：menu.ts（本文の FAB）、index.ts（目次の FAB）。
  *
  * 共有 URL は ?dev 等のクエリを落として自ページの正規 URL を出す（dev フラグを読者に渡さないため）。
  * 押したらまずポップアップを閉じてから動作する（別タブが開いても戻ったときに残らない）。
  */
 
-let _popup: HTMLElement | null = null;
+import * as sheet from './sheet';
+
+let _popup: HTMLDialogElement | null = null;
 
 // #share-popup の断片に結線する。器が無いページでは何もしない。
 // init(): void
 export function init(): void {
-    _popup = document.getElementById('share-popup');
+    const el = document.getElementById('share-popup');
+    _popup = el instanceof HTMLDialogElement ? el : null;
     if (!_popup) return;
     const popup = _popup;
+    sheet.init(popup);
 
     const shareUrl = (): string => location.origin + location.pathname;
     const actions: Record<string, () => void> = {
@@ -35,22 +38,18 @@ export function init(): void {
         if (!run) continue;
         btn.addEventListener('click', () => { close(); run(); });
     }
-
-    popup.querySelector('.settings-close')?.addEventListener('click', () => close());
-    popup.addEventListener('click', (e) => {
-        if (e.target === popup) close();
-    });
 }
 
-// open(): void / close(): void / isOpen(): boolean
-export function open(): void {
-    if (_popup) _popup.hidden = false;
+// open(opener?: HTMLElement | null): void / close(): void / isOpen(): boolean
+// opener には閉じたときにフォーカスを戻す要素を渡す（メニューの項目は閉じたパネルの中にいる）。
+export function open(opener?: HTMLElement | null): void {
+    if (_popup) sheet.open(_popup, { opener });
 }
 
 export function close(): void {
-    if (_popup) _popup.hidden = true;
+    if (_popup) sheet.close(_popup);
 }
 
 export function isOpen(): boolean {
-    return _popup !== null && !_popup.hidden;
+    return sheet.isOpen(_popup);
 }

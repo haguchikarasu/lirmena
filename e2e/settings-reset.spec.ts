@@ -1,11 +1,11 @@
 /*
- * 骨格 E2E：目次ページの「設定をリセット」が消すキーの網羅（要件 06-4 / 06-7）。
+ * 骨格 E2E：目次ページの「設定を初期値に戻す」が消すキーの網羅（要件 06-4 / 06-7）。
  *
  * 目次側（index.ts の buildSettingsPopup）のリセットは localStorage キーを**手で列挙**して
  * removeItem する（本文側 settings.ts の Object.keys(DEFAULTS) 走査と違い自動追従しない）。
  * 設定行を足したときの追従漏れを検出できるのはここだけなので、5 項目を個別ではなくまとめて見る。
  *
- * 読書点（lirmena.readingAnchor）も対象に含める：目次に調整 UI は無いが「設定をリセット」は
+ * 読書点（lirmena.readingAnchor）も対象に含める：目次に調整 UI は無いが「設定を初期値に戻す」は
  * グローバルな初期化であって表示設定だけの初期化ではない（要件 06-4）。本文側は setItem('45')、
  * 目次側は removeItem という非対称なので、**消えたあと本文ページで既定 45% に解決されるところまで**
  * 見て初めて「両者は読み手にとって同値」が担保される。
@@ -39,7 +39,7 @@ const openSettingsFromToc = async (page: import('@playwright/test').Page) => {
 const readKeys = (page: import('@playwright/test').Page, keys: string[]) =>
     page.evaluate((ks) => ks.map((k) => localStorage.getItem(k)), keys);
 
-test('目次の「設定をリセット」で表示設定5キーと読書点がすべて消える', async ({ page }) => {
+test('目次の「設定を初期値に戻す」で表示設定5キーと読書点がすべて消える', async ({ page }) => {
     await page.addInitScript((seed) => {
         for (const [k, v] of Object.entries(seed)) localStorage.setItem(k, v);
     }, SEED);
@@ -50,9 +50,10 @@ test('目次の「設定をリセット」で表示設定5キーと読書点が�
     // seed が効いていること（＝このあとの toBeNull が「元から無い」で通ってしまうのを防ぐ）
     expect(await readKeys(page, ALL_KEYS)).toEqual(Object.values(SEED));
 
-    await page.locator('.settings-action', { hasText: '設定をリセット' }).click();
+    await page.locator('.settings-action', { hasText: '設定を初期値に戻す' }).click();
+    await page.locator('#confirm-dialog').getByRole('button', { name: '戻す' }).click();
 
-    expect(await readKeys(page, ALL_KEYS)).toEqual(ALL_KEYS.map(() => null));
+    await expect.poll(() => readKeys(page, ALL_KEYS)).toEqual(ALL_KEYS.map(() => null));
 });
 
 test('目次でリセットした読書点は本文ページで既定 45% に解決される', async ({ page }) => {
@@ -63,8 +64,9 @@ test('目次でリセットした読書点は本文ページで既定 45% に解
     await page.evaluate((key) => localStorage.setItem(key, '70'), READING_ANCHOR_KEY);
 
     await openSettingsFromToc(page);
-    await page.locator('.settings-action', { hasText: '設定をリセット' }).click();
-    expect(await readKeys(page, [READING_ANCHOR_KEY])).toEqual([null]);
+    await page.locator('.settings-action', { hasText: '設定を初期値に戻す' }).click();
+    await page.locator('#confirm-dialog').getByRole('button', { name: '戻す' }).click();
+    await expect.poll(() => readKeys(page, [READING_ANCHOR_KEY])).toEqual([null]);
 
     // 目次側は removeItem、本文側は setItem('45')。読み手（settings.ts の _loadReadingAnchor）が
     // null を既定へ倒すので、キーが無い状態でも --reading-anchor は 45% で解決される。

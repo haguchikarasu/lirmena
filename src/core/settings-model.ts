@@ -13,7 +13,7 @@
  *         loadSettings(): Settings                     — 未設定・不正値は既定へ倒す
  *         saveSetting(key: keyof Settings, value: string): void
  *         saveSettings(values: Settings): void         — 5 項目を全部書く
- *         removeSettings(): void                       — 5 項目と読書点のキーを消す（目次の「設定をリセット」）
+ *         removeSettings(): void                       — 5 項目と読書点のキーを消す（目次の「設定を初期値に戻す」）
  *         loadReadingAnchor(): number                  — 未設定・不正値は既定、[0,100] にクランプ
  *         saveReadingAnchor(percent: number): number   — [0,100] にクランプして保存し、保存した値を返す
  *         sameSettings(a: Settings, b: Settings): boolean
@@ -64,13 +64,13 @@ export const PRESETS: readonly Preset[] = [
     {
         id: 'web',
         name: 'ウェブ小説風',
-        desc: '横書き・空行あり / ゴシック体',
+        desc: '横書き・空行あり・ゴシック体',
         values: { writingMode: 'horizontal', lineGap: 'on', fontFamily: 'sans', fontSize: 'medium', fontWeight: 'normal' },
     },
     {
         id: 'book',
         name: '書籍風',
-        desc: '縦書き・字下げ / 明朝体',
+        desc: '縦書き・空行なし・明朝体',
         values: { writingMode: 'vertical', lineGap: 'off', fontFamily: 'serif', fontSize: 'medium', fontWeight: 'normal' },
     },
 ];
@@ -106,7 +106,7 @@ export function saveSetting(key: keyof Settings, value: string): void {
     localStorage.setItem(LS_KEYS[key], value);
 }
 
-// 5 項目すべてを保存する（プリセット・本文の「設定をリセット」）。
+// 5 項目すべてを保存する（プリセット・本文の「設定を初期値に戻す」）。
 // saveSettings(values: Settings): void
 export function saveSettings(values: Settings): void {
     for (const key of Object.keys(DEFAULTS) as Array<keyof Settings>) {
@@ -114,9 +114,9 @@ export function saveSettings(values: Settings): void {
     }
 }
 
-// 5 項目と読書点のキーを消す（目次の「設定をリセット」）。読み手（loadSettings / loadReadingAnchor）が
+// 5 項目と読書点のキーを消す（目次の「設定を初期値に戻す」）。読み手（loadSettings / loadReadingAnchor）が
 // null を既定へ倒すので、本文側の「既定値を書く」リセットと読み手にとっては同値。
-// 読書点を含めるのは「設定をリセット」がグローバルな初期化だから（要件 06-4）。
+// 読書点を含めるのは「設定を初期値に戻す」がグローバルな初期化だから（要件 06-4）。
 // removeSettings(): void
 export function removeSettings(): void {
     for (const key of Object.keys(DEFAULTS) as Array<keyof Settings>) {

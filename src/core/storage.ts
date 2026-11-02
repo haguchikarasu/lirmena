@@ -10,9 +10,9 @@
  * ── localStorage スキーマ（マルチページ移行・Phase 0 で確定した契約。schemaVersion 5 で位置を割合化）──────
  * 既読は scene 単位を廃止し、sec 単位の「到達」「読了」2セットで持つ（読了は到達を含意）。
  *   "reached"     : SecKey[]         到達 sec の集合（"EP-SEC" 2桁ゼロ埋め）。用途は目次のセクション既読マーク（色）。
- *                                    記録: main.ts が本文ページのロード時に recordReached() を呼ぶ。設定「既読をクリア」の対象
+ *                                    記録: main.ts が本文ページのロード時に recordReached() を呼ぶ。設定「既読を消す」の対象
  *   "read"        : SecKey[]         読了 sec の集合（"EP-SEC"）。用途は目次のセクション読破マーク（✓）＋ stage 判定の基礎。
- *                                    記録: nav.ts が sec 末尾到達（#btn-next 表示）で recordRead() を呼ぶ。設定「読破状況をクリア」の対象
+ *                                    記録: nav.ts が sec 末尾到達（#btn-next 表示）で recordRead() を呼ぶ。設定「読破を消す」の対象
  *   "bookmarks"   : BookmarkEntry[]  固定3スロット・flat 形 { slot, ep, sec, scene, ratio, savedAt }（slot=1..3）。
  *                                    ratio はスクロール範囲比（0〜1・書字方向非依存）。方向で座標スケールが異なる差を割合で吸収するため
  *                                    縦書き⇔横書きで同一スロットを共有する（schemaVersion 5 で方向別スロットから単一スロットへ統合）。
@@ -39,7 +39,7 @@
  *     シーン先頭へ粗着地）、オートセーブは ep/sec のみ引き継ぎ ratio=0（再開時に sec 先頭へ）とする。位置の厳密さは一度だけ失われる。
  *     方向別キー（v4）は孤児になるため掃除する。旧単一キーは冪等・復旧のため残す。
  *   ★ 旧 "sceneRead" キーは変換後も削除せず保持する（冪等・復旧可能・目次先開きでの参照余地を残す。ユーザー合意済み）。
- *     ただし例外：設定の「既読をクリア」（clearReached）／「読破状況をクリア」（clearRead）実行時は削除する。
+ *     ただし例外：設定の「既読を消す」（clearReached）／「読破を消す」（clearRead）実行時は削除する。
  *     残しておくと loadReachedKeys / loadReadKeys（目次の表示用）が旧マーカー "ep-sec-00" から既読／読破を
  *     復活させてしまうため（クリア＝ユーザーの明示意思を尊重＝既読／読破の復活を防ぐ）。
  *
@@ -210,7 +210,7 @@ export function clearReached(): void {
     localStorage.removeItem(KEY_LEGACY_SCENE_READ);
 }
 
-// 読了（読破）セットを削除する（設定の「読破状況をクリア」）。既読（到達）は残す。
+// 読了（読破）セットを削除する（設定の「読破を消す」）。既読（到達）は残す。
 // 旧 "sceneRead" フォールバック源も併せて削除する（残しておくと目次の表示用 loadReadKeys が
 // 完了マーカー "ep-sec-00" から読破を復活させるため。clearReached と同方針＝既読／読破どちらの明示クリアも sceneRead を消す）。
 // data-story-stage は main.ts が起動時に1回書くだけなので即時反映されない＝次回ロード反映（既存の非対称に揃える）。
@@ -252,7 +252,7 @@ export function getBookmarks(): BookmarkEntry[] {
     return [..._bookmarks];
 }
 
-// 全栞を削除する（「栞をクリア」）。
+// 全栞を削除する（「栞をすべて消す」）。
 // clearSlots(): void
 export function clearSlots(): void {
     _bookmarks = [];

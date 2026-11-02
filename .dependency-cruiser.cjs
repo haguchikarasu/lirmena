@@ -89,9 +89,13 @@ module.exports = {
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
     // 目次は core（storage・settings-model・query・preview・changelog）と ui（settings-panel・share・ruby・characters・map）を読む。
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|characters|map|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share)\\.ts)$' } },
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share|sheet|world-sheet|confirm)\\.ts)$' } },
     // core の中の辺は無い（各モジュールが types だけを読む）。ui の部品は core の値の規則を読む。
-    { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/core/settings-model\\.ts$' } },
+    // シートを使う ui（設定・共有・資料）は器の ui/sheet を読む。設定は消す・戻す前の確認（ui/confirm）も読む。
+    { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/sheet|ui/confirm)\\.ts$' } },
+    { from: { path: '(^|/)src/ui/share\\.ts$' }, to: { path: '(^|/)src/ui/sheet\\.ts$' } },
+    // 資料シートは器（ui/sheet）と中身の部品（人物・地図・用語）を読む。volumes は StoryStage の型だけ。
+    { from: { path: '(^|/)src/ui/world-sheet\\.ts$' }, to: { path: '(^|/)src/((characters|map|glossary|volumes)\\.ts|ui/sheet\\.ts)$' } },
     // 本文側の窓口：bookmark は core/storage を丸ごと再 export する（history.state だけを自分で持つ）。
     { from: { path: '(^|/)src/bookmark\\.ts$' }, to: { path: '(^|/)src/core/storage\\.ts$' } },
     { from: { path: '(^|/)src/state\\.ts$' },    to: { path: '(^|/)src/core/query\\.ts$' } },
@@ -102,7 +106,8 @@ module.exports = {
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/changelog\\.ts)$' } },
     { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
-    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/((axis|state|bookmark|settings|transition|tutorial|characters|map|glossary|volumes)\\.ts|ui/share\\.ts)$' } },
+    // menu は資料シート（ui/world-sheet）・共有（ui/share）・栞シートの器（ui/sheet）を読む。人物・地図・用語の部品は world-sheet 経由。
+    { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/((axis|state|bookmark|settings|transition|tutorial|volumes)\\.ts|ui/(share|sheet|world-sheet)\\.ts)$' } },
     // 用語集ページのエントリは glossary だけを読む（本文側の依存を持ち込まない）。隔離ルールを別に立てないのは、
     // allowed に無い辺は allowedSeverity: 'error' で止まるため＝この 1 行が隔離の実体
     { from: { path: '(^|/)src/glossary-page\\.ts$' }, to: { path: '(^|/)src/glossary\\.ts$' } },

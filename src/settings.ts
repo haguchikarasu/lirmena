@@ -4,7 +4,7 @@
  *       文字の太さ・読書点位置を CSS 変数 or <html data-writing-mode> 属性へ反映し、本文側の現在値を持つ。
  *       設定は 3 つに分かれている：
  *         core/settings-model … 値の規則（キー・既定値・有効値・PRESETS・localStorage の読み書き）。目次と共有
- *         ui/settings-panel   … ポップアップの結線（markup は templates/parts/settings.html）。目次と共有
+ *         ui/settings-panel   … 設定シートの結線（markup は templates/parts/settings.html）。目次と共有
  *         settings.ts（ここ）  … 本文への反映と読書位置の復元の合図。目次は使わない＝目次が縦書きになる事故が起きない
  * export: init(), open(), getReadingAnchor(), setReadingAnchor(), getSettings(),
  *         getPresets(), getActivePreset(), applyPreset(), isAllDefault()
@@ -14,7 +14,7 @@
  *   書字方向を切り替えたら onWritingModeChange() を呼ぶ（実際に値が変わったときだけ）。main.ts がこれを受けて
  *   切替前の読書位置（reader.getLastRatio）を新方向のスクロール量へ復元し、マーカー再配置・背景再 emit を行う（A-4）。
  *   ただし applyPreset() だけは書字方向が変わらなくても必ず呼ぶ（理由は下の「プリセット」節）。
- *   3つのクリアボタン（栞をクリア／既読をクリア／読破状況をクリア）は ui/settings-panel が window.confirm() で承認を取ってから callback を呼ぶ。
+ *   3つの消去ボタン（栞をすべて消す／既読を消す／読破を消す）は ui/settings-panel が確認（ui/confirm）を通してから callback を呼ぶ。
  *   getSettings(): Settings は現在の表示設定（書字方向・段落間空行・フォント・文字サイズ・文字の太さ）のコピーを返す。
  *   main.ts が analytics.send() への引数として使う（表示設定は settings.ts が単一の源として所有）。
  *
@@ -98,7 +98,7 @@ let _callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onCl
     onWritingModeChange: () => {},
 };
 
-// 設定を localStorage から復元し CSS 変数に反映し、設定ポップアップ（ui/settings-panel）を結線する。
+// 設定を localStorage から復元し CSS 変数に反映し、設定シート（ui/settings-panel）を結線する。
 // callbacks.onClearBookmarks / onClearReached / onClearRead を設定画面の3クリアボタン（栞・既読・読破状況）に、
 // onWritingModeChange を書字方向変更後の復元に割り当てる。#settings-popup が無ければパネルの結線だけ飛ばす。
 // init(callbacks: { onClearBookmarks: () => void; onClearReached: () => void; onClearRead: () => void; onWritingModeChange: () => void }): void
@@ -116,13 +116,13 @@ export function init(callbacks: { onClearBookmarks: () => void; onClearReached: 
         clearBookmarks: () => _callbacks.onClearBookmarks(),
         clearReached: () => _callbacks.onClearReached(),
         clearRead: () => _callbacks.onClearRead(),
-    }, { closeOnEscape: true });
+    });
 }
 
-// 設定ポップアップを開く（#settings-popup の hidden 属性を外す）。
-// open(): void
-export function open(): void {
-    panel.open();
+// 設定シートを開く（ui/settings-panel → ui/sheet）。opener には閉じたときにフォーカスを戻す要素を渡す。
+// open(opener?: HTMLElement | null): void
+export function open(opener?: HTMLElement | null): void {
+    panel.open(opener);
 }
 
 // 読書点（基準点）の現在値を % で返す。bg.ts は CSS 変数経由で読むが、tutorial.ts はドラッグ初期値に使う。
@@ -171,7 +171,7 @@ export function applyPreset(id: PresetId): void {
 
 // 表示設定5項目がすべて DEFAULTS と同値か（＝一度も設定を変えていないと見なせるか）。
 // firstrun.ts が初回ダイアログを出すかの判定に使う。読書点（readingAnchor）は見ない。
-// キーの有無ではなく**値**で判定するので、「設定をリセット」した読者も true に戻る。
+// キーの有無ではなく**値**で判定するので、「設定を初期値に戻す」した読者も true に戻る。
 // isAllDefault(): boolean
 export function isAllDefault(): boolean {
     return sameSettings(DEFAULTS, _current);
@@ -196,7 +196,7 @@ function _selectOption(key: keyof Settings, value: string): void {
     if (key === 'writingMode' && changed) _callbacks.onWritingModeChange();
 }
 
-// 「設定をリセット」（panel の host.reset）：5 項目を既定へ戻して保存・反映し、読書点も既定へ戻す。
+// 「設定を初期値に戻す」（panel の host.reset）：5 項目を既定へ戻して保存・反映し、読書点も既定へ戻す。
 // _reset(): void
 function _reset(): void {
     const modeChanged = _current.writingMode !== DEFAULTS.writingMode;

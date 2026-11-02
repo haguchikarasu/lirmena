@@ -78,7 +78,7 @@
   font-size: 0.9rem;
 }
 
-/* 内訳（「横書き・空行あり / ゴシック体」）。値は settings.ts の Preset.desc が持つ。 */
+/* 内訳（「横書き・空行あり・ゴシック体」）。値は settings.ts の Preset.desc が持つ。 */
 .firstrun-choice__desc {
   display: block;
   margin-top: 0.25rem;

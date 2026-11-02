@@ -304,7 +304,7 @@ test.describe('目次ヒーローカードの表紙ギャラリー', () => {
         expect(await page.locator('#app-favicon').getAttribute('href')).toBe(faviconBefore);
     });
 
-    test('「読破状況をクリア」で履歴が縮退し、閲覧位置も最新へ戻る', async ({ page }) => {
+    test('「読破を消す」で履歴が縮退し、閲覧位置も最新へ戻る', async ({ page }) => {
         await page.addInitScript((read) => {
             localStorage.setItem('read', JSON.stringify(read));
         }, READ_STAGE2);
@@ -317,9 +317,10 @@ test.describe('目次ヒーローカードの表紙ギャラリー', () => {
         await page.locator('#idx-hero-older').click();
         await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
 
-        page.once('dialog', (d) => d.accept());
         await openSettingsFromFab(page);
-        await page.locator('.settings-action', { hasText: '読破状況をクリア' }).click();
+        await page.locator('.settings-action', { hasText: '読破を消す' }).click();
+        await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
+        await page.locator('#settings-popup').getByRole('button', { name: '閉じる' }).click();
 
         // stage 1 に落ちる＝履歴は 1 枚。ナビは消え、表紙は現在 stage（vol01）のまま
         await expect(page.locator('#idx-hero-older')).toBeHidden();
@@ -337,12 +338,12 @@ test.describe('目次ヒーローカードの表紙ギャラリー', () => {
         await page.goto('/lirmena/');
         await expect(page.locator('#episodes-area')).toBeVisible();
 
-        // 「既読をクリア」は stage に影響しないが applyStoryStage 経路を通る描画更新を起こす。
+        // 「既読を消す」は stage に影響しないが applyStoryStage 経路を通る描画更新を起こす。
         // ここでイベントを再登録していると、次の 1 クリックで 2 枚進んでしまう。
-        page.once('dialog', (d) => d.accept());
         await openSettingsFromFab(page);
-        await page.locator('.settings-action', { hasText: '既読をクリア' }).click();
-        await page.locator('#settings-popup .settings-close').click();
+        await page.locator('.settings-action', { hasText: '既読を消す' }).click();
+        await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
+        await page.locator('#settings-popup').getByRole('button', { name: '閉じる' }).click();
 
         await page.locator('#idx-hero-older').click();
         // 1 枚だけ進んでいること（多重登録なら vol01 まで飛ぶ）

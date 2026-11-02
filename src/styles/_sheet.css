@@ -1,0 +1,340 @@
+/* _sheet.css — シートの器（<dialog class="sheet">）と、その中の設定・共有・栞、確認のポップアップ（#confirm-dialog）
+   本文・扉（index.css）と目次（index.ts）が同じこのファイルを読む＝見た目の複製を持たない
+   （以前は設定・共有ポップアップの見た目を _ui.css と toc.css に二重に書いていた）。
+   開閉と操作は src/ui/sheet.ts、器の markup は templates/parts/*.html と templates/reader.html（栞）。
+   人物・地図・用語の中身の見た目は _characters.css・_map.css・_glossary.css。
+
+   高さの単位は dvh（design/architecture.md「ビューポート高さの単位」(3)：ポップアップ類は底が指に届くこと自体が要件）。
+   重なり順（z-index）は書かない：showModal() の <dialog> は最前面の層（top layer）に出る。 */
+
+/* ===== 色（キーカラーは --stage-hue。本文は _base.css、目次は toc.css が定義する） =====
+   :root ではなく dialog の上で合成する（:root で合成すると子孫で基底の変数を上書きしても効かない。_glossary.css と同じ罠）。
+   stage 3〜5 の明度の持ち上げは toc.css の --idx-accent-l と同じ値の複製（同期を見る機械検査は無い） */
+dialog.sheet,
+dialog.confirm {
+  --sheet-accent-l: 57%;
+  --sheet-accent: hsl(var(--stage-hue) 91% var(--sheet-accent-l));
+  --sheet-accent-soft: hsl(var(--stage-hue) 91% var(--sheet-accent-l) / 0.1);
+  --sheet-bg: rgba(18, 18, 18, 0.97);
+  --sheet-line: rgba(255, 255, 255, 0.12);
+  --sheet-text: #e6e1d6;
+  --sheet-dim: #9a968e;
+  --sheet-danger: #e9a08f;
+}
+html[data-story-stage="3"] dialog.sheet, html[data-story-stage="3"] dialog.confirm { --sheet-accent-l: 68%; }
+html[data-story-stage="4"] dialog.sheet, html[data-story-stage="4"] dialog.confirm { --sheet-accent-l: 68%; }
+html[data-story-stage="5"] dialog.sheet, html[data-story-stage="5"] dialog.confirm { --sheet-accent-l: 70%; }
+/* あとがきページは本文の色を無彩色に落とす規律（_base.css の body[data-kind="afterword"]）に揃える */
+body[data-kind="afterword"] dialog.sheet,
+body[data-kind="afterword"] dialog.confirm {
+  --sheet-accent: hsl(0 0% 78%);
+  --sheet-accent-soft: hsl(0 0% 78% / 0.1);
+}
+
+.ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ===== シートの器 =====
+   スマホ：下から出る。data-detent＝half（半分）／full（ほぼ全画面）／fit（中身の高さ。共有・栞・設定）。
+   これは開いたときの高さで、掴んで動かすと離した所で止まる（style.height に px で入る。ui/sheet の _wireDrag）
+   PC（901px 以上）：右から出る幅 460px のパネル（fit だけは右下の小さなカード。設定は fit でも右のパネル） */
+dialog.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: 56dvh;
+  max-height: 94dvh;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 18px 18px 0 0;
+  background: var(--sheet-bg);
+  color: var(--sheet-text);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+  flex-direction: column;
+  overflow: hidden;
+  transition: height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: sans-serif;
+  /* 縦書きなのは本文（#main-container）だけだが、シートは文書の末尾にあるので明示的に横書きへ戻す */
+  writing-mode: horizontal-tb;
+  overscroll-behavior: contain;
+}
+dialog.sheet[open] { display: flex; }
+dialog.sheet[data-detent="half"] { height: 56dvh; }
+dialog.sheet[data-detent="full"] { height: 92dvh; }
+dialog.sheet[data-detent="fit"] { height: auto; max-height: 60dvh; }
+/* 設定は fit（中身の高さ）で開き、上限だけ広げる：消す・戻すのボタンが最後にあるので、半分の高さで開くと
+   そこにボタンがあること自体に気付けない。中身が画面より高い端末だけ中をスクロールする */
+dialog.sheet[data-kind="settings"][data-detent="fit"] { max-height: 92dvh; }
+/* 掴んで動かしている間は高さが指についてくる（ui/sheet の _wireDrag）。transition を掛けると指に遅れる */
+dialog.sheet.is-dragging { transition: none; }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.42); }
+/* 設定は裏の本文が見本になる（縦書きにした瞬間、裏の本文が縦になる）ので、幕をほとんど掛けない */
+dialog.sheet[data-kind="settings"]::backdrop { background: rgba(0, 0, 0, 0.08); }
+
+.sheet-grab {
+  display: grid;
+  place-items: center;
+  flex: none;
+  height: 22px;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grab::before {
+  content: "";
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--sheet-line);
+  touch-action: none;
+}
+.sheet-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+.sheet-title .ic { color: var(--sheet-accent); }
+.sheet-tabs { flex: 1; display: flex; gap: 2px; min-width: 0; }
+.sheet-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--sheet-dim);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.sheet-tab[aria-selected="true"] { color: var(--sheet-text); border-bottom-color: var(--sheet-accent); }
+.sheet-tab[aria-selected="true"] .ic { color: var(--sheet-accent); }
+.sheet-tab:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
+.sheet-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--sheet-dim);
+  cursor: pointer;
+}
+.sheet-close:hover { color: var(--sheet-text); background: rgba(255, 255, 255, 0.06); }
+.sheet-close:focus-visible { outline: 2px solid var(--sheet-accent); }
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  container-type: inline-size;
+}
+.sheet-body:focus { outline: none; }
+.sheet-body[hidden] { display: none; }
+
+@media (min-width: 901px) {
+  dialog.sheet,
+  dialog.sheet[data-detent] {
+    inset: 0 0 0 auto;
+    width: 460px;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 18px 0 0 18px;
+    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.55);
+  }
+  dialog.sheet[data-detent="fit"] {
+    inset: auto 24px 24px auto;
+    width: 380px;
+    height: auto;
+    max-height: 60dvh;
+    border-radius: 14px;
+  }
+  /* 設定はスマホでは fit だが、PC では他のシートと同じ右のパネル（裏の本文を見本にするため幅を取る） */
+  dialog.sheet[data-kind="settings"][data-detent="fit"] {
+    inset: 0 0 0 auto;
+    width: 460px;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 18px 0 0 18px;
+  }
+  .sheet-grab { display: none; }
+  .sheet-head { padding-top: 6px; }
+}
+
+/* ===== 設定シート（templates/parts/settings.html。結線は ui/settings-panel） =====
+   行の名前と選択肢を文字で書き、選択肢の字はその見た目で描く */
+.settings-panel { display: grid; align-content: start; gap: 14px; padding: 14px 16px 24px; }
+.settings-preset { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.settings-preset__btn {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 12px;
+  background: none;
+  color: var(--sheet-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  container-type: inline-size;
+}
+.settings-preset__btn.active { border-color: var(--sheet-accent); box-shadow: inset 0 0 0 1px var(--sheet-accent); }
+.settings-preset__btn:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
+/* プリセットの名前もその見た目で（ウェブ小説風＝ゴシック、書籍風＝明朝）。順は core/settings-model の PRESETS */
+.settings-preset__name { font-size: 15px; font-weight: 500; letter-spacing: 0.06em; font-family: serif; }
+.settings-preset__btn:first-child .settings-preset__name { font-family: sans-serif; }
+/* 説明は 1 行に収める（「ゴシック体」の「体」だけが次の行に落ちないように）。説明は全角 14 字なので、
+   カードの中の幅（100cqi）の 1/14.2 を上限に字を縮める。幅に余裕があれば 11px のまま */
+.settings-preset__desc { color: var(--sheet-dim); font-size: min(11px, 100cqi / 14.2); letter-spacing: 0; white-space: nowrap; }
+.settings-rows { display: grid; gap: 8px; }
+.settings-row { display: grid; grid-template-columns: 6.5em 1fr; align-items: center; gap: 10px; }
+.settings-row__label { margin: 0; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; color: var(--sheet-dim); }
+.settings-row__opts { display: flex; overflow: hidden; border: 1px solid var(--sheet-line); border-radius: 10px; }
+.settings-opt {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #a8a398;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.settings-opt + .settings-opt { border-left: 1px solid var(--sheet-line); }
+.settings-opt.active { color: var(--sheet-accent); background: var(--sheet-accent-soft); }
+.settings-opt:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
+.settings-opt--serif { font-family: serif; }
+.settings-opt--sans { font-family: sans-serif; }
+.settings-opt--small { font-size: 12px; }
+.settings-opt--large { font-size: 18px; }
+.settings-opt--bold { font-weight: 700; }
+.settings-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sheet-line);
+}
+.settings-action {
+  padding: 9px 6px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--sheet-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.settings-action:hover { color: var(--sheet-danger); border-color: rgba(233, 160, 143, 0.4); }
+.settings-action:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
+
+/* ===== 共有シート（templates/parts/share.html。結線は ui/share）：三つの大きなボタン ===== */
+.share-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px 16px 28px; }
+.share-btn {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px 4px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 14px;
+  background: none;
+  color: var(--sheet-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.share-btn:hover { background: rgba(255, 255, 255, 0.05); }
+.share-btn:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
+.share-logo {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #222;
+  font: 700 18px/1 system-ui, sans-serif;
+}
+.share-logo--line { background: #06c755; color: #fff; font-size: 11px; }
+
+/* ===== 栞シート（templates/reader.html の #bookmark-popup。結線は menu.ts） ===== */
+.bookmark-slots { display: grid; gap: 8px; padding: 14px 16px 24px; }
+.bookmark-slot {
+  padding: 12px 14px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--sheet-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.bookmark-slot:hover { background: rgba(255, 255, 255, 0.05); }
+.bookmark-slot:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
+
+/* ===== 確認のポップアップ（templates/parts/confirm.html。結線は ui/confirm） ===== */
+dialog.confirm {
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 32px));
+  margin: auto;
+  padding: 22px 20px 16px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 14px;
+  background: #161616;
+  color: var(--sheet-text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  font-family: sans-serif;
+  writing-mode: horizontal-tb;
+}
+dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.55); }
+.confirm-msg { margin: 0; font-size: 15px; line-height: 1.8; text-align: center; }
+.confirm-note { margin: 4px 0 0; font-size: 12px; line-height: 1.7; text-align: center; color: var(--sheet-dim); }
+.confirm-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.confirm-btns button {
+  padding: 10px;
+  border: 1px solid var(--sheet-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--sheet-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+/* 開いた直後のフォーカス（＝Enter で押されるボタン）は、マウスで開いたときも見えるように :focus で枠を出す
+   （:focus-visible だけだと、クリックで開いたときにブラウザが枠を出さない） */
+.confirm-btns button:focus { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
+.confirm-btns .confirm-ok { color: #f2b3a5; border-color: rgba(233, 160, 143, 0.5); background: rgba(233, 160, 143, 0.08); }

@@ -14,14 +14,14 @@
  * トグルの入力（要件 06-3）:
  *   - タップ/クリック: pointerdown→pointerup の移動量がしきい値未満（TAP_PX）かつ時間がしきい値未満（TAP_MS）の
  *     「その場の軽い操作」だけをトグルとみなす。移動量の大きいスワイプ/ドラッグは無視＝ネイティブ横スクロール／
- *     pan.ts に委ね、スワイプを邪魔しない。ボタン・FAB・読書点ノブ・ポップアップ等の上は対象外（各自の挙動を温存）。
- *   - Esc: capture フェーズで menu.ts より先に判定する。鑑賞モード中は抜ける。モード外でポップアップ/メニューが
- *     開いていれば何もしない（menu.ts の「閉じる」を優先）。何も開いていなければ入る。
+ *     pan.ts に委ね、スワイプを邪魔しない。ボタン・FAB・読書点ノブ・シート等の上は対象外（各自の挙動を温存）。
+ *   - Esc: capture フェーズで menu.ts より先に判定する。鑑賞モード中は抜ける。モード外でシート/メニューが
+ *     開いていれば何もしない（シートはブラウザが、メニューは menu.ts が閉じる）。何も開いていなければ入る。
  *
  * enter のガード（入れない条件）:
  *   - 開幕中（<html>.at-opening＝本文先頭の黒い余白）は背景がわざと黒で鑑賞対象がないため入らない。
  *   - 選択モード中（<html>.is-selecting）は発動しない（要件）。
- *   - ポップアップ/メニューが開いている間は入らない（タップは対象セレクタで弾き、Esc は開閉状態で弾く）。
+ *   - シート・確認（<dialog>）・初回ガイド・メニューが開いている間は入らない（タップは対象セレクタで弾き、Esc は開閉状態で弾く）。
  */
 
 const IMMERSIVE_CLASS = 'is-immersive';
@@ -32,11 +32,14 @@ const TAP_PX = 10;
 const TAP_MS = 400;
 
 // この要素（の子孫）上で始まったタップはトグルしない＝各自のクリック/ドラッグ挙動を温存する。
-// ボタン・リンク・読書点ノブ・FAB一式・各ポップアップ（role=dialog）・キャラ紹介オーバーレイ。
-const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, [role="dialog"], #characters-overlay';
+// ボタン・リンク・読書点ノブ・FAB一式・シートと確認（<dialog>。背景＝::backdrop を押したときも対象は dialog 自身）・
+// 初回ガイドのポップアップ（<section role="dialog">）。
+const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, dialog, [role="dialog"]';
 
-// 「ポップアップ/メニューが開いている」とみなす要素（hidden でないもの）。開いている間は鑑賞モードへ入らない。
-const OVERLAY_OPEN_SELECTOR = '#menu-panel:not([hidden]), [role="dialog"]:not([hidden]), #characters-overlay:not([hidden])';
+// 「ポップアップ/メニューが開いている」とみなす要素。開いている間は鑑賞モードへ入らない。
+// <dialog> は hidden ではなく open で開閉するので dialog[open] で見る。**<dialog> に role="dialog" 属性を付けない**
+// （閉じていても hidden が付かないので [role="dialog"]:not([hidden]) に当たり、鑑賞モードへ二度と入れなくなる）。
+const OVERLAY_OPEN_SELECTOR = '#menu-panel:not([hidden]), dialog[open], [role="dialog"]:not([hidden])';
 
 // タップ判定の作業状態（pointerdown で記録し、move で打ち切り、up で確定する）。
 let _candidate = false;

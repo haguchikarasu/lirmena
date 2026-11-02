@@ -252,19 +252,12 @@
     <button id="fab-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
   </nav>
 
-  <!-- 設定・共有ポップアップ（本文シェル templates/reader.html と同じ断片をビルド時に差し込む。結線は index.ts が
-       ui/settings-panel・ui/share で行う）。本文シェル側のポップアップと同じく aria-modal は付けない（理由は断片の冒頭） -->
+  <!-- シート（設定・共有・資料）と確認（本文シェル templates/reader.html と同じ断片をビルド時に差し込む。結線は index.ts が
+       ui/settings-panel・ui/share・ui/world-sheet・ui/confirm で行う）。<dialog> の最前面の層に出るので FAB と重なりを調整しない -->
   <!-- include: parts/settings.html -->
   <!-- include: parts/share.html -->
-
-  <!-- キャラクター紹介ポップアップ（空の器。中身は characters.ts の init() が生成し、付録カードのボタンで開く。
-       本文シェル templates/reader.html にも同じ器がある＝中身の markup は characters.ts 1 か所だけが持つ） -->
-  <section id="characters-overlay" hidden role="dialog" aria-label="キャラクター紹介"></section>
-
-  <!-- エシュカ地図ポップアップ（空の器。中身は map.ts の init() が生成し、付録カードのボタンで開く。
-       本文シェル templates/reader.html にも同じ器がある＝中身の markup は map.ts 1 か所だけが持つ）。
-       role="dialog" は見た目のためでなく、immersive.ts が [role="dialog"] で背景鑑賞モードを抑止するため -->
-  <section id="map-overlay" hidden role="dialog" aria-label="エシュカ地図"></section>
+  <!-- include: parts/world.html -->
+  <!-- include: parts/confirm.html -->
 
   <script type="module" src="src/index.ts"></script>
 </body>
