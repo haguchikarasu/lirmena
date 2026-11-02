@@ -8,7 +8,7 @@
  * export: type SettingsPanelHost
  *         init(host: SettingsPanelHost): void
  *         refresh(): void   — host.current() から選択状態を描き直す（シートの外で値が変わったとき）
- *         open(opener?: HTMLElement | null): void / close(): void / isOpen(): boolean
+ *         open(opener?: HTMLElement | null, opts?: { detent?: Detent }): void / close(): void / isOpen(): boolean
  * 依存: core/settings-model（型とプリセット定義）、ui/sheet（器の開閉）、ui/confirm（消す・戻す前の確認）。
  *       DOM（#settings-popup と断片の data-* 属性）。
  *       ui 層＝reader 層を import しない（.dependency-cruiser.cjs）。
@@ -69,7 +69,7 @@ export function init(host: SettingsPanelHost): void {
     }
 
     _onAction(popup, 'clear-bookmarks', () =>
-        _confirmAndRun('保存した栞をすべて削除しますか？', '削除する', () => _host?.clearBookmarks()));
+        _confirmAndRun('保存した栞とオートセーブをすべて削除しますか？', '削除する', () => _host?.clearBookmarks()));
     _onAction(popup, 'clear-reached', () =>
         _confirmAndRun('既読の記録をすべて削除しますか？', '削除する', () => _host?.clearReached()));
     _onAction(popup, 'clear-read', () =>
@@ -103,10 +103,11 @@ export function refresh(): void {
     }
 }
 
-// open(opener?: HTMLElement | null): void / close(): void / isOpen(): boolean
+// open(opener?: HTMLElement | null, opts?: { detent?: sheet.Detent }): void / close(): void / isOpen(): boolean
 // opener には閉じたときにフォーカスを戻す要素を渡す（本文＝#menu-toggle。メニューの項目は閉じたパネルの中にいる）。
-export function open(opener?: HTMLElement | null): void {
-    if (_popup) sheet.open(_popup, { opener });
+// detent を省くと断片の段（fit）。目次はスマホで 'full' を渡す（見本を出さないので全画面で開く。要件 06-7）。
+export function open(opener?: HTMLElement | null, opts: { detent?: sheet.Detent } = {}): void {
+    if (_popup) sheet.open(_popup, { opener, detent: opts.detent });
 }
 
 export function close(): void {

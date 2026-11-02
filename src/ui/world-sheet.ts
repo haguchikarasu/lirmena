@@ -7,7 +7,7 @@
  *         open(tab: WorldTab, opener?: HTMLElement | null): void
  *         isOpen(): boolean
  * 依存: ui/sheet、characters・map・glossary（ui 層の部品）、core/query、types・volumes（型だけ）。ui 層＝reader 層を import しない。
- *       呼び出し元：menu.ts（本文の FAB）だけ。目次の付録カードは資料ページへ移る（シートを開かない）。
+ *       呼び出し元：menu.ts（本文の FAB）だけ。目次の「世界」のタイルは資料ページへ移る（シートを開かない）。
  *
  * 人物のデータと Stage は呼び出す側が渡す（WorldSource）：本文は「そのページが属する Stage」。
  * 人物のタブは開くたび・タブを選ぶたびに描き直す。

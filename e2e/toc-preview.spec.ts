@@ -11,7 +11,7 @@
  *   2. ep.preview を持つ ep（公開 sec ゼロ）は sec chip を持たず .idx-ep-notice を持つ
  *   3. どちらも持たない未着手 vol はカードごと非表示（既存挙動維持）
  *   4. 完結 vol の状態バッジ pill は「全M話」だけ（「巻完結」を表示に出さない・要件 06-7）
- *   5. あとがきチップの ep タイトルは「あとがき」、chip label は「**」（aria-hidden）、
+ *   5. あとがきの帯の ep タイトルは「あとがき」、chip label は「01」（aria-hidden）、
  *      link 側 aria-label は必ず「第N巻 あとがき（＋既読／読破）」を含む
  *   6. ep タイトルは prefix span（.idx-ep-prefix）＋半角スペース＋本体の 3 ノード構成で描画される
  */
@@ -20,13 +20,12 @@ import { test, expect } from './_fixtures';
 import type { Route } from '@playwright/test';
 
 // テスト用 story.json fixture。vol1=通常公開 vol、vol2=vol.preview を持つ予告 vol、
-// vol3=最終 vol（heroCardCompleted 必須）で ep8 だけ ep.preview を持ち残りは未着手。
+// vol3=最終 vol で ep8 だけ ep.preview を持ち残りは未着手。
 // story-integrity の (a)〜(l) を全部満たす（未執筆 ep は末尾から欠落＝(a) OK、preview 整合も OK）。
 const FIXTURE_STORY = [
     {
         volume: 1,
         epRange: [1, 4],
-        heroCard: { file: 'vol01.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -42,7 +41,6 @@ const FIXTURE_STORY = [
     {
         volume: 2,
         epRange: [5, 7],
-        heroCard: { file: 'vol02.avif' },
         afterword: { published: false },
         preview: { text: '2026年11月ごろ開始予定' },
         episodes: [],
@@ -50,8 +48,6 @@ const FIXTURE_STORY = [
     {
         volume: 3,
         epRange: [8, 10],
-        heroCard: { file: 'vol03.avif' },
-        heroCardCompleted: { file: 'vol03-fin.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -71,7 +67,6 @@ const FIXTURE_STORY_EMPTY_PREVIEW = [
     {
         volume: 1,
         epRange: [1, 4],
-        heroCard: { file: 'vol01.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -84,7 +79,6 @@ const FIXTURE_STORY_EMPTY_PREVIEW = [
     {
         volume: 2,
         epRange: [5, 7],
-        heroCard: { file: 'vol02.avif' },
         afterword: { published: false },
         preview: { text: '' },
         episodes: [],
@@ -92,8 +86,6 @@ const FIXTURE_STORY_EMPTY_PREVIEW = [
     {
         volume: 3,
         epRange: [8, 10],
-        heroCard: { file: 'vol03.avif' },
-        heroCardCompleted: { file: 'vol03-fin.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -107,15 +99,13 @@ const FIXTURE_STORY_EMPTY_PREVIEW = [
 ];
 
 // 完結 vol fixture（afterword.published=true・全 ep 全 sec 公開・要件 06-7 「状態バッジと優先順位」1）。
-// 単一 vol（＝最終 vol でもある）なので heroCardCompleted 必須。
+// 単一 vol（＝最終 vol でもある）。
 // 完結 pill が「全M話」／あとがきチップの aria-label が「第1巻 あとがき」を含む／
 // ep タイトルの prefix span 分離、を同一ページで検証する。
 const FIXTURE_STORY_COMPLETED = [
     {
         volume: 1,
         epRange: [1, 2],
-        heroCard: { file: 'vol01.avif' },
-        heroCardCompleted: { file: 'vol01-fin.avif' },
         afterword: { published: true },
         episodes: [
             {
@@ -143,7 +133,6 @@ const FIXTURE_STORY_NO_PREVIEW = [
     {
         volume: 1,
         epRange: [1, 4],
-        heroCard: { file: 'vol01.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -156,8 +145,6 @@ const FIXTURE_STORY_NO_PREVIEW = [
     {
         volume: 2,
         epRange: [5, 7],
-        heroCard: { file: 'vol02.avif' },
-        heroCardCompleted: { file: 'vol02-fin.avif' },
         afterword: { published: false },
         episodes: [],
     },
@@ -259,7 +246,7 @@ test.describe('目次ページ 完結表示とチップ／プレフィックス'
         await expect(pill).not.toContainText('巻完結');
     });
 
-    test('あとがきチップは ep タイトル「あとがき」・視覚 label「**」（aria-hidden）・aria-label に「第N巻 あとがき」を含む', async ({ page }) => {
+    test('あとがきの帯は ep タイトル「あとがき」・視覚 label「01」（aria-hidden）・aria-label に「第N巻 あとがき」を含む', async ({ page }) => {
         await mockStoryJson(page, FIXTURE_STORY_COMPLETED);
         await page.goto('/lirmena/');
         await expect(page.locator('#episodes-area')).toBeVisible();
@@ -273,9 +260,9 @@ test.describe('目次ページ 完結表示とチップ／プレフィックス'
         // link の accessible name は必ず「第1巻 あとがき」を含む（未読時＝既読／読破ラベルなし）
         await expect(link).toHaveAttribute('aria-label', '第1巻 あとがき');
 
-        // 視覚 label は「**」で aria-hidden。link 内の span を絞る
+        // 視覚 label は「01」で aria-hidden。link 内の span を絞る
         const visualLabel = link.locator('span');
-        await expect(visualLabel).toHaveText('**');
+        await expect(visualLabel).toHaveText('01');
         await expect(visualLabel).toHaveAttribute('aria-hidden', 'true');
     });
 

@@ -251,7 +251,7 @@ describe('buildBgUrl（BgSource ごとに vol/ep 直下を切替）', () => {
         expect(buildBgUrl({ kind: 'ep', vol: 1, ep: 2 }, 'foo.avif')).toBe('vol01/ep02/img/foo.avif');
     });
 
-    it('kind: afterword は vol[XX]/{ファイル名} 直下を返す（あとがきモード・ep/img/ を切らず heroCard と同居・要件 03/06-3）', () => {
+    it('kind: afterword は vol[XX]/{ファイル名} 直下を返す（あとがきモード・ep/img/ を切らず vol 直下・要件 03/06-3）', () => {
         expect(buildBgUrl({ kind: 'afterword', vol: 1 }, 'alley.avif')).toBe('vol01/alley.avif');
     });
 

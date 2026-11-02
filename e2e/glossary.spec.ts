@@ -15,10 +15,9 @@ import { test, expect } from './_fixtures';
 const TERM_COUNT = (readFileSync(new URL('../public/glossary.md', import.meta.url), 'utf-8').match(/^## /gm) ?? []).length;
 
 test.describe('目次 → 用語集ページ', () => {
-    test('付録チップから同じタブで開き、全件が出て、目次へ戻れる', async ({ page }) => {
+    test('「世界」の用語のタイルから同じタブで開き、全件が出て、目次へ戻れる', async ({ page }) => {
         await page.goto('/lirmena/');
-        await page.locator('#idx-appendix > summary').click();
-        await page.locator('#appendix-glossary').click();
+        await page.locator('#idx-world-glossary').click();
 
         await expect(page).toHaveURL(/\/lirmena\/glossary\.html$/);
         await expect(page.locator('#gl-title')).toHaveText('用語集');
@@ -31,9 +30,8 @@ test.describe('目次 → 用語集ページ', () => {
 
     test('?dev を目次 → 用語集 → 目次と引き継ぐ', async ({ page }) => {
         await page.goto('/lirmena/?dev');
-        await page.locator('#idx-appendix > summary').click();
-        await expect(page.locator('#appendix-glossary')).toHaveAttribute('href', 'glossary.html?dev');
-        await page.locator('#appendix-glossary').click();
+        await expect(page.locator('#idx-world-glossary')).toHaveAttribute('href', 'glossary.html?dev');
+        await page.locator('#idx-world-glossary').click();
         await expect(page).toHaveURL(/\/lirmena\/glossary\.html\?dev$/);
 
         await page.locator('#wp-back').click();

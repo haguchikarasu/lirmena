@@ -36,7 +36,7 @@
  *   - 画像ロードは現在シーン ±PRIORITY_RADIUS を優先、空き時間に残りをプリフェッチ（二重ロードは防ぐ）
  *   - 画像 URL の解決先は BgSource で分岐する（要件 06-3 / 03）：
  *       kind: 'ep'        → public/vol[XX]/ep[YY]/img/{ファイル名}（本文モード）
- *       kind: 'afterword' → public/vol[XX]/{ファイル名}（あとがきモード＝ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有）
+ *       kind: 'afterword' → public/vol[XX]/{ファイル名}（あとがきモード＝ep/img/ フォルダを切らず vol 直下）
  *
  * CONFIG: CROSSFADE_PX（クロスフェード窓の幅(px)・狭めると境界の切替が鋭い）/ CROSSFADE_BOUNDARY（境界基準：
  *   シーン境界辺=BGタグ位置 / 隣接中心の中点）/ ANCHOR（--reading-anchor 取得失敗時のデフォルト比率）/

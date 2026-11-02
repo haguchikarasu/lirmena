@@ -17,7 +17,7 @@ dialog.confirm,
   --sheet-accent-l: 57%;
   --sheet-accent: hsl(var(--stage-hue) 91% var(--sheet-accent-l));
   --sheet-accent-soft: hsl(var(--stage-hue) 91% var(--sheet-accent-l) / 0.1);
-  --sheet-bg: rgba(18, 18, 18, 0.97);
+  --sheet-bg: #121212;   /* 不透明（以前の 0.97 は裏の文字がうっすら透けるだけで、得るものが無かった） */
   --sheet-line: rgba(255, 255, 255, 0.12);
   --sheet-text: #e6e1d6;
   --sheet-dim: #9a968e;

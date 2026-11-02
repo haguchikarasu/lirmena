@@ -22,8 +22,7 @@
  *       integrity で担保。空 text preview は「preview 無扱い」なので完結 vol にも残せる）
  *   (e') vol.episodes が epRange 全域を埋めていて、かつ全 ep 全 sec が published=true →
  *        afterword.published=true（vol.episodes が epRange 全域を埋めていないうちは判定対象外）
- *   (f) 全 vol が heroCard.file を非空文字列で持つ
- *   (g) heroCardCompleted は volume 番号最大の vol のみが持つ・他 vol は持たない・最終 vol は必ず持つ
+ *   (f)(g) 欠番（heroCard / heroCardCompleted の記述検査。巻の素材を (q) の規約で引くようにしたので P4 で撤去）
  *   (h) 全 vol・全 sec について end フィールドが書かれていない（撤廃済み検出）
  *   (i) afterword.published=true の vol は public/vol[XX]/vol[XX]-afterword.txt が実在（txt/ フォルダは切らない）
  *   (j) preview（vol.preview / ep.preview 両方）は定義されていれば「object かつ null/配列でなく
@@ -67,11 +66,8 @@
  * 返り値：空配列なら整合。違反があれば人間可読なメッセージの配列（先頭に "(a)".."(o)" のタグ）。
  * 呼び出し側の運用：pages() プラグインは非空なら throw、テストは expect(errors).toEqual([]) 等。
  *
- * heroCard.file / heroCardCompleted.file の実在は検査しない：未公開 vol はスタブ画像で回避しても
- * 公開直前の差し替え忘れという別ミスを生むだけで根本的ポカヨケにならないため。story.json 上の
- * 記述整合（(f)(g)）のみ検査する。heroCard は (q) の規約へ移行中で、移行が済んだら (f)(g) ごと撤去する。
- * (q) が実在を見てよいのは、対象を「その素材を表示しうるもの（公開済み sec を持つ巻・到達できる完結）」に
- * 限るから＝未公開の巻にスタブを置かせない（上の懸念が当たらない）。
+ * (q) が素材の実在を見てよいのは、対象を「その素材を表示しうるもの（公開済み sec を持つ巻・到達できる完結）」に
+ * 限るから＝未公開の巻にスタブ画像を置かせない（スタブは公開直前の差し替え忘れという別のミスを生むだけ）。
  * (q) は dev サーバーの起動時だけ走る（素材を差し替えても再検査しない。(i) のあとがきと同じ割り切り）。
  */
 
@@ -148,11 +144,8 @@ export function validateStory(story: StoryData): string[] {
         }
     }
 
-    const maxVolume = story.length === 0 ? 0 : Math.max(...story.map(v => v.volume));
-
     for (const vol of story) {
         _checkVolumeInternal(vol, errors);
-        _checkVolumeHeroCard(vol, maxVolume, errors);
         _checkVolumeAfterword(vol, errors);
         _checkVolumePreview(vol, errors);
         _checkVolumeCoverPosition(vol, errors);
@@ -211,24 +204,6 @@ function _checkVolumeInternal(vol: Volume, errors: string[]): void {
             if ('end' in sec) {
                 errors.push(`(h) vol${vol.volume} ep${ep.id} sec${sec.id}: 撤廃済みの end フィールドが残っている`);
             }
-        }
-    }
-}
-
-// (f)(g) — heroCard / heroCardCompleted
-function _checkVolumeHeroCard(vol: Volume, maxVolume: number, errors: string[]): void {
-    if (!vol.heroCard || typeof vol.heroCard.file !== 'string' || vol.heroCard.file.trim() === '') {
-        errors.push(`(f) vol${vol.volume}: heroCard.file が非空文字列でない`);
-    }
-
-    const isLast = vol.volume === maxVolume;
-    if (isLast) {
-        if (!vol.heroCardCompleted || typeof vol.heroCardCompleted.file !== 'string' || vol.heroCardCompleted.file.trim() === '') {
-            errors.push(`(g) vol${vol.volume}（最終 vol）: heroCardCompleted.file が非空文字列でない`);
-        }
-    } else {
-        if (vol.heroCardCompleted !== undefined) {
-            errors.push(`(g) vol${vol.volume}（最終 vol でない）: heroCardCompleted を持てるのは最終 vol のみ`);
         }
     }
 }

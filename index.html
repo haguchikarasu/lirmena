@@ -123,136 +123,205 @@
   <!-- head-contract:ga:end -->
 </head>
 <body>
-  <!-- ヒーローエリア。body 直下の <header> なので ARIA ランドマーク banner はこれ 1 つだけ
-       （vol カード側の <header> は必ず <section> の内側に置く＝index.ts の _buildVolHead 参照） -->
+  <!-- ページの背景の風景（巻ごと。public/vol[NN]/theme/page-bg.avif＝core/theme.ts の規約）。暗く・ぼかして画面に固定する。
+       読み進めても替わらない＝読者の stage で決まる。装飾なので支援技術からは隠す。src は下の早期スクリプトが入れる -->
+  <img id="idx-page-bg" alt="" aria-hidden="true" onerror="this.hidden=true" />
+
+  <!-- ヒーロー（要件 06-7）：巻ごとの横長の一枚絵に、その巻の色のロゴを重ねる。PC もスマホも同じ絵で、スマホは人物の部分を
+       切り出す（toc-page.css）。body 直下の <header> なので ARIA ランドマーク banner はこれ 1 つだけ
+       （上の帯は nav、巻カードの見出しは <summary>／<section> の内側の <header>）。 -->
   <header id="idx-hero">
-    <figure id="idx-hero-card">
-      <!-- 表紙ギャラリー（要件 06-7）の背面レイヤー。遷移中だけ見え、去っていく側の表紙を載せる。
-           装飾なので支援技術からは隠す。前面の #idx-hero-img は**常に「いま見えている表紙」**を指し、
-           閲覧位置が変わってもレイヤーごと入れ替わらない（キャッシュと e2e の参照先が安定する）。 -->
-      <img id="idx-hero-prev" alt="" aria-hidden="true" />
-      <img id="idx-hero-img" alt="タイトル" onerror="this.onerror=null;this.src='vol01/vol01.avif'" />
-      <!-- ヒーローカードの先付け（ちらつき回避）：applyStoryStage が前回決めた相対パスを localStorage
-           'lirmena.heroCard' から読み、パース時点で src を確定させる。**src 属性を HTML に持たせない**のが肝で、
-           属性があるとプリロードスキャナが vol1 を先読みし、stage 2 以上の読者には vol1 → vol2 の差し替えが
-           必ず見える（2026-09-09 に実際に起きた。preview＝本番ビルドでも再現する）。
-           検証規則は src/volumes.ts の HERO_CARD_RE と**同一**＝片方だけ直すと静かに vol01 へ落ちる
-           （検査は e2e/toc-hero.spec.ts）。未設定＝初回訪問は stage 1 相当の vol01 にフォールバックする。
-           画像が 404 のとき（改名・削除・draft 由来の残留値）は onerror が vol01 へ落とし、そのロードの直後に
-           applyStoryStage が story.json を正としてキャッシュを直す＝腐るのは 1 ロードだけ。 -->
-      <script>
-        try {
-          var h = localStorage.getItem('lirmena.heroCard');
-          document.getElementById('idx-hero-img').src =
-            (h && /^vol\d{2}\/(?!\.\.?$)[^\/\r\n]+$/.test(h)) ? h : 'vol01/vol01.avif';
-        } catch (e) {
-          document.getElementById('idx-hero-img').src = 'vol01/vol01.avif';
-        }
-      </script>
-      <!-- 表紙ギャラリーのナビ（要件 06-7）。**過去へ進むのが右**。履歴が 1 枚（stage 1）のときと
-           端に達したときは index.ts が hidden / disabled にする。
-           スマホでは :hover が効かないので普段は見えないが、**DOM からは消さない**——スワイプだけに
-           すると、スイッチ操作やキーボードの読者が過去の表紙へ辿り着けなくなる。 -->
+    <section id="idx-hero-art">
+      <!-- 空気（PC だけ）：絵より横長の画面で、絵の左右の縁を引き伸ばしてぼかしたもの。絵の URL は --art-url（index.ts と早期スクリプト） -->
+      <span id="idx-hero-ext" aria-hidden="true"></span>
+      <span id="idx-hero-glow" aria-hidden="true"></span>
+      <!-- 絵は 1 枚ずつ「ヒーローと同じ大きさの枠」に入れて切り抜く（横長の絵がはみ出して隣の絵と重なるため）。
+           表紙ギャラリーでは枠ごと横に滑らせる。前面の #idx-hero-img は**常に「いま見えている表紙」**。
+           **src 属性を HTML に持たせない**：属性があるとプリロードスキャナが第1巻の絵を先読みし、stage 2 以上の読者には
+           第1巻 → 自分の巻の差し替えが必ず見える（2026-09-09 に実際に起きた）。src は下の早期スクリプトが入れる -->
+      <span class="idx-hero-slide" id="idx-hero-slide"><img id="idx-hero-img" alt="表紙" onerror="this.onerror=null;this.src='vol01/theme/hero-wide.avif'" /></span>
+      <!-- 隣の巻の絵（払っている間・切り替えの間だけ出す）。地には今の絵をぼかして敷く（間に合わないとき黒い板を見せない） -->
+      <span class="idx-hero-slide" id="idx-hero-slide-peer" hidden><img id="idx-hero-peer" alt="" /></span>
+      <!-- 縦長の画面でロゴが絵に重なるときだけ、ロゴの後ろを暗くする幕 -->
+      <span id="idx-hero-shade" aria-hidden="true"></span>
+      <section id="idx-hero-side">
+        <!-- ロゴは読者の今の stage の色のまま（表紙ギャラリーで過去の巻の絵を見ても替えない） -->
+        <h1><img id="idx-hero-logo" alt="輝くもの《リルメナ》" onerror="this.onerror=null;this.src='vol01/theme/logo.webp'" /></h1>
+        <p id="idx-hero-rule" aria-hidden="true"><span>✦</span></p>
+        <!-- 読み始めるボタン：初めて＝「第一話から読む」、途中＝「続きから読む」＋下に位置、最新まで読了＝「第N話#M を読み返す」
+             ＋下に次回の更新（index.ts）。素の href は JS が動かないとき用 -->
+        <nav id="idx-cta" aria-label="読み始める">
+          <a id="idx-cta-btn" href="contents/01-00.html">第一話から読む</a>
+          <small id="idx-cta-sub"></small>
+        </nav>
+      </section>
+      <!-- 表紙ギャラリー（要件 06-7）。**過去へ進むのが右**。遡れる表紙が 1 枚なら index.ts がボタンもドットも隠す。
+           スマホでは見えないが**DOM からは消さない**——払う操作だけにすると、スイッチ操作やキーボードの読者が辿り着けない -->
       <button type="button" id="idx-hero-newer" class="idx-hero-nav" hidden aria-label="次の巻の表紙を見る">‹</button>
       <button type="button" id="idx-hero-older" class="idx-hero-nav" hidden aria-label="前の巻の表紙を見る">›</button>
-      <!-- 位置表示。ドットは装飾（aria-hidden）で、読み上げ用には同じ内容を文言で入れる。 -->
-      <p id="idx-hero-dots" aria-live="polite"></p>
-    </figure>
-    <p id="idx-version-badges">
-      <span id="badge-content-version" class="idx-version-badge"></span>
-      <span id="badge-site-version" class="idx-version-badge"></span>
-      <!-- 開発モードの目印（読者には出ない）。表示条件は <html data-dev>＝GA スクリプトを読み込まなかったとき。
-           インストールした PWA はアドレスバーが見えないので、?dev 付きで起動できているかをここで確かめる。
-           版数バッジと同じ器に置く＝ヒーロー右下に縦に並ぶ。表示制御と文字（dev／localhost）は toc.css（TS は関与しない） -->
-      <span id="badge-dev" class="idx-version-badge"></span>
-    </p>
+      <nav id="idx-hero-dots" aria-label="表紙" hidden></nav>
+      <p id="idx-hero-status" class="idx-sr-only" aria-live="polite"></p>
+      <!-- 読み込み中の印：ヒーローの絵が届くまで（<html data-hero-loading> の間）だけ出す。背景の風景・ロゴ・ボタンも
+           その間は隠す（小さい背景だけが先に届いて一瞬見えると、何のページか分からない）。出すのは少し待ってから
+           （手元にある絵ならすぐ届くので、印がちらつかない）。見た目は toc-page.css -->
+      <p id="idx-hero-loading" role="status"><span class="idx-hero-spinner" aria-hidden="true"></span>読み込み中</p>
+    </section>
   </header>
+  <!-- 巻の素材の先付け（ちらつき回避）：story.json を待たずに、端末に残っている stage（lirmena.storyStage）から
+       core/theme.ts の規約どおり URL を組んで入れる＝**別の巻の絵が一瞬見えることはない**。
+       stage 1〜4 → vol0N/theme、5（物語完結）→ final/theme。**この対応は core/theme.ts の themeKeyForStage の複製**で
+       （stage の上限＝巻数 + 1 を前提にする。src/core/theme.test.ts が実データで確かめる）、片方だけ変えると
+       読み込みの直後に index.ts が正しい絵へ差し替える＝一瞬だけ違う絵が見える（照合は e2e/toc-hero.spec.ts）。
+       ファイルが無いとき（物語完結の素材がまだ無い等）は onerror が第1巻の素材へ落とす。 -->
+  <script>
+    (function () {
+      var s = null;
+      try { s = localStorage.getItem('lirmena.storyStage'); } catch (e) {}
+      var dir = s === '5' ? 'final/theme/' : (s && /^[1-4]$/.test(s) ? 'vol0' + s + '/theme/' : 'vol01/theme/');
+      var art = document.getElementById('idx-hero-img');
+      // 絵が届くまで読み込み中の表示にする。代わりの絵（onerror）が届いても外す。どちらも届かなければ時間で外す
+      var root = document.documentElement;
+      var loaded = function () { root.removeAttribute('data-hero-loading'); };
+      root.setAttribute('data-hero-loading', '');
+      art.addEventListener('load', loaded, { once: true });
+      setTimeout(loaded, 8000);
+      art.src = dir + 'hero-wide.avif';
+      document.getElementById('idx-hero-logo').src = dir + 'logo.webp';
+      document.getElementById('idx-page-bg').src = dir + 'page-bg.avif';
+      // 空気の背景は CSS 変数の url()＝絶対 URL で渡す（変数の中の相対 URL は、使う側のスタイルシートの場所で解決される）
+      document.getElementById('idx-hero-ext').style.setProperty('--art-url', 'url("' + art.src + '")');
+    })();
+  </script>
 
-  <!-- 続きから読む（オートセーブがある時だけ index.ts が hidden を外す） -->
-  <button id="idx-resume" type="button" hidden>続きから読む</button>
-
-  <!-- ep・sec 一覧エリア（本文への導線＝nav。中身は index.ts が動的生成） -->
-  <nav id="idx-ep-nav" class="idx-body" aria-label="エピソード一覧">
-    <section id="episodes-area">
-      <p class="loading-text">読み込み中…</p>
-    </section>
+  <!-- 上の帯：目次の FAB を廃止した代わりの置き場（要件 06-7「FAB の全項目の行き先」）。ヒーローの上では透明でボタンだけ、
+       ヒーローを過ぎると帯になり、タイトルと「▶ 第N話#M」（続きから読む）も出る（<body data-past-hero>。toc-page.css）。
+       ランドマークは nav（body 直下の header は banner になり、ヒーローと 2 つになる） -->
+  <nav id="idx-topbar" aria-label="ページの操作">
+    <a id="idx-topbar-mark" href="#idx-hero">輝くもの《リルメナ》</a>
+    <!-- 開発モードの札（<html data-dev> のときだけ。文字と出し分けは toc.css＝資料ページの帯と同じ規則）。
+         ホーム画面から開いた PWA はアドレスバーが無いので、ここで ?dev 付きで起動できているかを確かめる -->
+    <span id="badge-dev"></span>
+    <a id="idx-topbar-resume" href="contents/01-00.html"><svg class="ic idx-ic-fill" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span>第1話</span></a>
+    <button type="button" id="idx-btn-settings" class="idx-top-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>設定</button>
+    <button type="button" id="idx-btn-share" class="idx-top-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/></svg>共有</button>
   </nav>
 
-  <!-- 付録カード（要件 06-7）。巻カードの続きに置き、見た目も巻カードと同じ部品（.idx-vol-card / .idx-vol-head /
-       .idx-ep / .idx-chip）を使う。初期状態は閉じる（open 属性を付けない・開閉は保存しない）。
-       - 本文への導線でも保存位置への導線でもないので、エピソード一覧・栞の nav とは別の <aside>
-       - 見出しに .idx-vol-k を付けない：e2e/toc-preview.spec.ts が巻の見出しの件数を .idx-vol-k で数えている
-         （同じ見た目は toc.css でセレクタを並べて当てる）
-       - 資料（キャラクター紹介・エシュカ地図・用語集）は 3 つとも資料ページへ同じタブで移る <a>（目次 → ページ、
-         本文 → シート。要件 06-7）。href は index.ts の initAppendixLinks が withQuery で付け直す（?dev の引き継ぎ） -->
-  <aside id="idx-appendix-area" class="idx-body" aria-label="付録">
-    <details id="idx-appendix" class="idx-vol-card">
-      <summary class="idx-vol-head">
-        <span class="idx-vol-chev" aria-hidden="true">▶</span>
-        <span id="idx-appendix-title">付録</span>
-      </summary>
-      <section class="idx-vol-body">
-        <!-- 設定：作品世界の資料。公開物がまだ無い項目は hidden で置いておき、公開時に hidden を外す -->
-        <section id="appendix-settings" class="idx-ep">
-          <h3 class="idx-ep-title">設定</h3>
-          <p class="idx-chips">
-            <!-- 素の href は JS が動かないとき用 -->
-            <a id="appendix-chara" class="idx-chip" href="characters.html">キャラクター紹介</a>
-            <a id="appendix-map" class="idx-chip" href="map.html">エシュカ地図</a>
-            <a id="appendix-glossary" class="idx-chip" href="glossary.html">用語集</a>
-          </p>
-        </section>
-
-        <section id="appendix-links" class="idx-ep">
-          <h3 class="idx-ep-title">リンク</h3>
-          <p class="idx-chips">
-            <a class="idx-chip idx-chip--ext" href="https://www.youtube.com/@%E3%83%AA%E3%83%AB%E3%83%A1%E3%83%8APR" target="_blank" rel="noopener noreferrer">YouTube</a>
-            <a class="idx-chip idx-chip--ext" href="https://x.com/haguchikarasu" target="_blank" rel="noopener noreferrer">X</a>
-            <a class="idx-chip idx-chip--ext" href="https://kakuyomu.jp/works/822139846666600323" target="_blank" rel="noopener noreferrer">カクヨム</a>
-            <a class="idx-chip idx-chip--ext" href="https://ncode.syosetu.com/n8003mj/" target="_blank" rel="noopener noreferrer">小説家になろう</a>
-          </p>
-        </section>
+  <main id="idx-main">
+    <!-- 左：本文への導線（巻 → 話の扉絵バナー → 節のチップ。中身は index.ts が story.json から組む） -->
+    <nav id="idx-ep-nav" aria-label="エピソード一覧">
+      <section id="episodes-area">
+        <p class="loading-text">読み込み中…</p>
       </section>
-    </details>
-  </aside>
+    </nav>
 
-  <!-- 栞エリア（保存位置への導線＝nav。中身は index.ts が動的生成） -->
-  <nav id="idx-bm-section" class="idx-body" aria-label="栞">
-    <p class="idx-sec-label">栞</p>
-    <section id="bookmark-slots">
-      <!-- index.ts が動的生成 -->
-    </section>
-  </nav>
+    <!-- 右：最新・世界・栞・変更履歴・リンク。PC では帯の下に貼り付く（画面より高いときは下端が見えたところで止まる）。
+         スマホでは解体して「最新 → 巻 → 世界 → 栞 → 変更履歴 → リンク」に並べ直す（toc-page.css） -->
+    <aside id="idx-side" aria-label="お知らせと資料">
+      <!-- 最新：最後に公開した節を扉絵つきの 1 枚で。下に次回の更新（予定が無ければ出さない）。index.ts が中身を入れる -->
+      <a class="idx-side-box" id="idx-news" href="contents/01-00.html" hidden>
+        <h2 class="idx-side-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7z"/></svg>最新</h2>
+        <img id="idx-news-cover" alt="" />
+        <strong id="idx-news-latest"><span id="idx-news-pos"></span><span id="idx-news-title"></span></strong>
+        <small id="idx-news-next" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.4 2"/></svg><time></time></small>
+      </a>
 
-  <!-- 更新履歴エリア（index.ts が動的生成）
-       版種別スイッチは templates/title.html の #title-screen-changelog-filter と同じ markup の複製
-       （同期は e2e/changelog-filter.spec.ts が見る）。ランドマークを増やさないため nav ではなく fieldset。 -->
-  <section id="content-changelog" class="idx-body">
-    <header id="content-changelog-head">
-      <h2 class="idx-sec-label">コンテンツ更新履歴</h2>
-      <fieldset id="content-changelog-filter" aria-label="表示する版の種類">
-        <button type="button" data-kind="major" aria-pressed="true">メジャー</button>
-        <button type="button" data-kind="minor" aria-pressed="true">マイナー</button>
-        <button type="button" data-kind="patch" aria-pressed="false">パッチ</button>
-      </fieldset>
-    </header>
-    <ul id="content-changelog-list">
-      <!-- index.ts が動的に生成 -->
-    </ul>
-    <p id="content-changelog-empty" hidden>表示する更新がありません</p>
-    <button id="content-changelog-toggle" type="button" hidden>すべて表示</button>
+      <!-- 世界（作品の資料）：絵そのものを入口にする（3 人＝人物、街並み＝地図、光る海＝用語）。3 つとも資料ページへ
+           同じタブで移る <a>（目次 → ページ、本文 → シート）。href への ?dev の引き継ぎは index.ts の initWorldLinks。
+           人物のタイルの絵は public/img/tile-chara.avif（1500×500。第1巻の 3 人。上合わせ＝顔を上 200px に描く。
+           描き方の目安は 過去モック/toc-rich-mock/guide/tile-chara-guide.png）。地図・用語は 1200×360 の中央合わせ
+           （tile-map.avif＝第4話の「エールスタウ通りの中心部」から帯を切り出したもの、tile-glossary.avif。目安は tile-glossary-guide.png） -->
+      <nav class="idx-side-box" id="idx-world" aria-labelledby="idx-world-label">
+        <h2 class="idx-side-label" id="idx-world-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.6-5-2-8-1.5v13.5c3-.5 6-.1 8 1.5 2-1.6 5-2 8-1.5V5c-3-.5-6-.1-8 1.5zM12 6.5V20"/></svg>世界</h2>
+        <a class="idx-wtile" id="idx-world-chara" href="characters.html">
+          <img id="idx-world-chara-img" src="img/tile-chara.avif" alt="" loading="lazy" />
+          <span class="idx-wtile-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="16.8" cy="9" r="2.5"/><path d="M15.5 14.3c3 .2 5.5 2.4 5.5 5.7"/></svg>人物</span>
+        </a>
+        <a class="idx-wtile" id="idx-world-map" href="map.html">
+          <img src="img/tile-map.avif" alt="" loading="lazy" />
+          <span class="idx-wtile-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2.5 6 2.5 6-2.5v14.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 3.5v14.5M15 6v14.5"/></svg>地図</span>
+        </a>
+        <a class="idx-wtile" id="idx-world-glossary" href="glossary.html">
+          <img src="img/tile-glossary.avif" alt="" loading="lazy" />
+          <span class="idx-wtile-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.6-5-2-8-1.5v13.5c3-.5 6-.1 8 1.5 2-1.6 5-2 8-1.5V5c-3-.5-6-.1-8 1.5zM12 6.5V20"/></svg>用語</span>
+        </a>
+      </nav>
+
+      <!-- 栞：固定のスロット（オートセーブ＋手動 3 つ）。各行は「アイコン＋場所＋節の中の位置の帯＋ ×」。
+           空きは点線の栞。行は index.ts が下の <template> から組む（確認つきで 1 件ずつ消せる） -->
+      <nav class="idx-side-box" id="idx-bm-section" aria-labelledby="idx-bm-label">
+        <h2 class="idx-side-label" id="idx-bm-label" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg>栞</h2>
+        <section id="bookmark-slots"></section>
+      </nav>
+      <template id="idx-bm-row-tpl">
+        <p class="idx-bm-slot"><a class="idx-bm-go"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg><b class="idx-bm-loc"></b><meter class="idx-bm-ratio" min="0" max="1"></meter></a><button type="button" class="idx-bm-del"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></p>
+      </template>
+      <template id="idx-bm-auto-icon-tpl"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 3.5v4.5h4.5"/></svg></template>
+      <template id="idx-bm-empty-tpl">
+        <p class="idx-bm-slot idx-bm-slot--empty"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg><span class="idx-sr-only"></span>空き</p>
+      </template>
+
+      <!-- 変更履歴（公開済みの話の書き直し・修正の記録。節の公開は記録しない＝版を上げない）。
+           版種別スイッチは templates/title.html の #title-screen-changelog-filter と同じ markup の複製
+           （同期は e2e/changelog-filter.spec.ts が見る）。言葉は版の判断基準（ops/version-control.md）を読者向けに言い換えたもの：
+           メジャー＝物語の変更／マイナー＝表現の調整／パッチ＝誤字など。ランドマークを増やさないため nav ではなく fieldset -->
+      <section class="idx-side-box" id="content-changelog">
+        <header id="content-changelog-head">
+          <h2 class="idx-side-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.4 2"/></svg>変更履歴</h2>
+        </header>
+        <fieldset id="content-changelog-filter" aria-label="表示する変更の種類">
+          <button type="button" data-kind="major" aria-pressed="true">物語の変更</button>
+          <button type="button" data-kind="minor" aria-pressed="true">表現の調整</button>
+          <button type="button" data-kind="patch" aria-pressed="false">誤字など</button>
+        </fieldset>
+        <ol id="content-changelog-list">
+          <!-- index.ts が動的に生成 -->
+        </ol>
+        <p id="content-changelog-empty" hidden>表示する変更がありません</p>
+        <button id="content-changelog-toggle" type="button" aria-expanded="false" hidden>すべて表示</button>
+      </section>
+
+      <!-- リンク：作品の外への入口。名前だけ。外へ出るので ↗ を付け、別タブで開く -->
+      <nav class="idx-side-box" id="idx-links" aria-labelledby="idx-links-label">
+        <h2 class="idx-side-label" id="idx-links-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/></svg>リンク</h2>
+        <a href="https://kakuyomu.jp/works/822139846666600323" target="_blank" rel="noopener noreferrer">カクヨム</a>
+        <a href="https://ncode.syosetu.com/n8003mj/" target="_blank" rel="noopener noreferrer">小説家になろう</a>
+        <a href="https://x.com/haguchikarasu" target="_blank" rel="noopener noreferrer">X</a>
+        <a href="https://www.youtube.com/@%E3%83%AA%E3%83%AB%E3%83%A1%E3%83%8APR" target="_blank" rel="noopener noreferrer">YouTube</a>
+      </nav>
+    </aside>
+  </main>
+
+  <!-- 足もと：版だけ（読者向けの導線ではない）。数字は index.ts が changelog の先頭の版から入れる -->
+  <footer id="idx-foot">
+    <small id="idx-foot-ver">本文 v<span id="badge-content-version"></span> ・ サイト v<span id="badge-site-version"></span></small>
+  </footer>
+
+  <!-- 設定の見本（PC だけ。要件 06-7）：設定シートを開いている間、シートの左側（ページ全体）を本文の見本にする。
+       選んだ瞬間に見本が変わる（index.ts が data-* に設定を写す。組みは本番の本文と同じ値＝toc-page.css）。
+       文は第1話#1 の本文（public/vol01/ep01/txt/01-01.txt の「……知らないが、途中までなら」〜「ふとあることに気付いた。」）を
+       そのまま写したもの（書き足さない。本文を直したらここも直す＝同期を見る検査は無い）。背景は同じ場面の絵。
+       スマホでは出さない（シートの外の面が狭く見本にならない。そのため目次の設定シートはスマホでは全画面） -->
+  <section id="idx-preview" hidden aria-hidden="true">
+    <img id="idx-preview-bg" src="vol01/ep01/img/屋根の上.avif" alt="" loading="lazy" />
+    <span id="idx-preview-tag">本文の見本</span>
+    <article id="idx-preview-text">
+      <p class="ni">「……知らないが、途中までなら知っている。西へ向かい、ここから見えるエシュカの山々をいくつも越えると、小さな集落の点在する荒野に出る」</p>
+      <p>少年は表情を変えずこちらを見ることもしないまま、静かに語りを続ける。</p>
+      <p class="ni">「そこはワールディルの王権が及ばない<ruby>蛮獣地<rt>バヌルミル</rt></ruby>。そしてそれを越えたところにエンリスがある。かつて学術と文化が盛んだった輝く都。ミドラトに滅ぼされ、今はリルムで穢れた廃墟だけが広がっている」</p>
+      <p>エンリス。自分でさえ知っている。</p>
+      <p>かつてこの地で隆盛を誇った東方帝国の出自であり古都。滅びてなおその文化的な影響は絶大で、大審会の聖史記も、王国の行政文書も、リッカたちが使う軍略の教科書ですらエンリス語が使われている。</p>
+      <p class="ni">「エンリスは小さな都市だが学術に秀でていた。数学、天文学、そして光輝学。彼らは、この大地が<ruby>リルメナの海<rt>マルブ・リルメナティル</rt></ruby>に沈む球体であることに、数百年も前から気付いていた」</p>
+      <p class="ni">「<ruby>輝くもの<rt>リルメナ</rt></ruby>……」</p>
+      <p>その響きを確かめるように反復するリッカ。初めて聞く言葉なのに、どこか懐かしさのある言葉だった。</p>
+      <p class="ni">「<ruby>輝くもの<rt>リルメナ</rt></ruby>は、宇宙にあまねく存在し<ruby>光輝<rt>リルム</rt></ruby>の媒質となる<ruby>第一原理<rt>ミルナストル</rt></ruby>だ。地のように硬いが水のように満ちる。風のように透明だが火のように輝く。そんな存在だと言われている」</p>
+      <p>少年はそう言うと少し目を伏せた。わずかな沈黙と赤い夕日が二人を包む。</p>
+      <p class="ni">「そしてエンリスの先は……僕も知らない。そこから西は侵略者ミドラトが支配する広大な砂漠が広がっていて、それを更に越えた先には<ruby>大海原<rt>マルブ・マクマ</rt></ruby>と呼ばれる大洋が広がっていると聞くが、この目で見たわけじゃない」</p>
+      <p><ruby>大海原<rt>マルブ・マクマ</rt></ruby>。自分の目標。その海はどれだけ大きく、どんな音がして、そこに至るまでの旅路には、どんな光景が広がっているのだろう。そんな西の果て、大地の尽きるところに思いを馳せていたリッカは、ふとあることに気付いた。</p>
+    </article>
   </section>
 
-  <!-- 右下 FAB メニュー（index.ts が操作） -->
-  <nav id="fab-container" aria-label="ページメニュー">
-    <ul id="fab-panel" hidden role="menu" aria-label="メニュー">
-      <!-- index.ts が動的生成 -->
-    </ul>
-    <button id="fab-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
-  </nav>
-
-  <!-- シート（設定・共有・資料）と確認（本文シェル templates/reader.html と同じ断片をビルド時に差し込む。結線は index.ts が
-       ui/settings-panel・ui/share・ui/world-sheet・ui/confirm で行う）。<dialog> の最前面の層に出るので FAB と重なりを調整しない -->
+  <!-- シート（設定・共有）と確認（本文シェル templates/reader.html と同じ断片をビルド時に差し込む。結線は index.ts が
+       ui/settings-panel・ui/share・ui/confirm で行う）。<dialog> の最前面の層に出るので帯と重なりを調整しない -->
   <!-- include: parts/settings.html -->
   <!-- include: parts/share.html -->
   <!-- include: parts/confirm.html -->

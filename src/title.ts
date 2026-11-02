@@ -14,7 +14,7 @@
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴の器。行は子の #title-screen-changelog-list に描く（無ければ「更新履歴なし」）。
- *                               1 件以上あれば #title-screen-changelog-head（版種別スイッチ：メジャー／マイナー／パッチの
+ *                               1 件以上あれば #title-screen-changelog-head（版種別スイッチ：物語の変更＝メジャー／表現の調整＝マイナー／誤字など＝パッチの
  *                               独立トグル・初期値メジャー＋マイナー・永続化しない）を出し、絞り込みで 0 件なら
  *                               #title-screen-changelog-empty を出す。版種別の判定 versionKind は core/changelog（目次と共有）
  *

@@ -51,8 +51,7 @@ async function openReaderSettings(page: Page): Promise<void> {
 
 async function openTocSettings(page: Page): Promise<void> {
     await page.goto('/lirmena/');
-    await page.locator('#fab-toggle').click();
-    await page.getByRole('menuitem', { name: '設定' }).click();
+    await page.locator('#idx-btn-settings').click();
     await expect(page.locator('#settings-popup')).toBeVisible();
 }
 

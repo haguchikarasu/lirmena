@@ -221,6 +221,28 @@ function cssFirst(): Plugin {
   }
 }
 
+// dev サーバでだけ、CSS が入るまで body を隠すプラグイン（FOUC 回避・dev 専用）。
+// build の HTML は cssFirst() が CSS の <link> を script より前に置く＝render blocking で FOUC は起きない。
+// dev の Vite は CSS を JS（モジュール）から <style> で差し込むので、HTML に <link> が無く、モジュールが動くまでの
+// 一瞬に素の DOM が見える（スマホで devtunnel 越しに見ると特に長い）。そこで dev だけ head に「body を透明にする」
+// <style> を足し、エントリのモジュールの後ろに置いた小さなモジュールで外す（モジュールは書いた順に動き、エントリが
+// import した CSS はその本体より前に差し込まれる＝外すときには CSS が入っている）。スクリプトが落ちたときに
+// 画面が真っ白のままにならないよう、CSS のアニメーションで 2.5 秒後には必ず見せる。本番の HTML には何も足さない。
+function devFoucGuard(): Plugin {
+  return {
+    name: 'lirmena-dev-fouc-guard',
+    apply: 'serve',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const style = '<style id="dev-fouc-guard">body{opacity:0;animation:dev-fouc-show 0s 2.5s forwards}@keyframes dev-fouc-show{to{opacity:1}}</style>'
+        const release = '<script type="module">document.getElementById("dev-fouc-guard")?.remove()</script>'
+        return html.replace('</head>', `${style}\n</head>`).replace('</body>', `${release}\n</body>`)
+      },
+    },
+  }
+}
+
 export default defineConfig({
   base: '/lirmena/',
   // Vite の htmlInlineProxyPlugin は id と config.root を case-sensitive な String.replace で
@@ -231,7 +253,7 @@ export default defineConfig({
   root: __dirname,
   // bgStub は制作用のスタブ背景（@@BG:stub=ラベル@@）を dev サーバでだけ返す。本体（src/）はこれを知らない
   // ＝結線はここだけ。仕様は src/bg-stub.ts 冒頭。
-  plugins: [pages(__dirname), cssFirst(), bgStub()],
+  plugins: [pages(__dirname), cssFirst(), bgStub(), devFoucGuard()],
   // dev サーバを LAN 公開する（スマホ等の実機確認用）。
   // host: true で全インターフェースにバインドし、起動時に Network URL を表示する。
   // port を固定し strictPort で空きポートへの自動ずらしを禁止する。

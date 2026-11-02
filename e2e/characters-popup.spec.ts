@@ -1,8 +1,8 @@
 /*
- * 骨格 E2E：資料シートの「人物」タブ（要件 06-8）と目次の付録カード（要件 06-7）。
+ * 骨格 E2E：資料シートの「人物」タブ（要件 06-8）と目次の右カラムの「世界」（要件 06-7）。
  * 人物の部品は characters.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて本文ページ（右下メニュー）から開く。
- * 目次の付録カードはシートを開かず資料ページへ移る（目次 → ページ、本文 → シート）。見るのは「開く／人物が出る／
- * 選べる／閉じ方／閉じたあとのフォーカス」と、付録の 3 項目の行き先で、寸法・レイアウトは手動スモークに残す。
+ * 目次の「世界」の 3 つのタイルはシートを開かず資料ページへ移る（目次 → ページ、本文 → シート）。見るのは「開く／人物が出る／
+ * 選べる／閉じ方／閉じたあとのフォーカス」と、タイルの行き先・人物のタイルの顔で、寸法・レイアウトは手動スモークに残す。
  * 巻の選択は本番のデータが 1 巻だけで出ないので、src/characters.test.ts が見る。
  *
  * 期待するキャラ数は public/characters.json から読む（本番データの公開範囲は vol1 だけ＝読者は Stage 1）。
@@ -18,25 +18,25 @@ const CHARACTERS = JSON.parse(
 ) as Entry[];
 const VOL1 = CHARACTERS.find(c => c.volume === 1)!.characters;
 
-test.describe('目次の付録カード', () => {
-    test('初期状態は閉じていて、開くと設定の 3 項目が見える', async ({ page }) => {
+test.describe('目次の「世界」', () => {
+    test('3 つのタイルが見え、どのタイルにもタイル専用の絵が届いている', async ({ page }) => {
         await page.goto('/lirmena/');
-        const card = page.locator('#idx-appendix');
-        await expect(card).toBeVisible();
-        await expect(card).not.toHaveAttribute('open');
-        await expect(page.locator('#appendix-chara')).toBeHidden();
-
-        await page.locator('#idx-appendix > summary').click();
-        await expect(page.locator('#appendix-chara')).toBeVisible();
-        await expect(page.locator('#appendix-map')).toBeVisible();
-        await expect(page.locator('#appendix-glossary')).toBeVisible();
+        for (const id of ['idx-world-chara', 'idx-world-map', 'idx-world-glossary']) {
+            await expect(page.locator(`#${id}`)).toBeVisible();
+        }
+        // 3 つともタイル専用の絵が届いている（404 なら幅が 0 のまま）
+        await page.locator('#idx-world').scrollIntoViewIfNeeded();
+        for (const [id, src] of [['idx-world-chara', 'img/tile-chara.avif'], ['idx-world-map', 'img/tile-map.avif'], ['idx-world-glossary', 'img/tile-glossary.avif']]) {
+            const art = page.locator(`#${id} > img`);
+            await expect(art).toHaveAttribute('src', src);
+            await expect.poll(() => art.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+        }
     });
 
-    // 目次 → ページ、本文 → シート（要件 06-7）。3 つとも同じ開き方（以前は人物・地図だけシートを開いていた）
-    for (const [id, name] of [['appendix-chara', 'characters'], ['appendix-map', 'map'], ['appendix-glossary', 'glossary']] as const) {
+    // 目次 → ページ、本文 → シート（要件 06-7）
+    for (const [id, name] of [['idx-world-chara', 'characters'], ['idx-world-map', 'map'], ['idx-world-glossary', 'glossary']] as const) {
         test(`#${id} は ${name}.html へ同じタブで移り、?dev を引き継ぎ、‹ で目次へ戻る`, async ({ page }) => {
             await page.goto('/lirmena/?dev');
-            await page.locator('#idx-appendix > summary').click();
             const link = page.locator(`#${id}`);
             await expect(link).toHaveAttribute('href', `${name}.html?dev`);
             await expect(link).not.toHaveAttribute('target');

@@ -71,7 +71,8 @@ test.describe('目次 コンテンツ更新履歴の版種別フィルタ', () =
 
         const toggle = page.locator('#content-changelog-toggle');
         await expect(toggle).toBeVisible();
-        await expect(toggle).toHaveText('すべて表示');
+        // 件数は絞り込み後の全件（メジャー 1＋マイナー 3）
+        await expect(toggle).toHaveText('すべて表示（4 件）');
         await toggle.click();
         expect(await visibleTocVersions(page)).toEqual(['v2.0.0', 'v1.3.0', 'v1.2.0', 'v1.1.0']);
         await expect(toggle).toHaveText('閉じる');
@@ -87,7 +88,7 @@ test.describe('目次 コンテンツ更新履歴の版種別フィルタ', () =
 
         await toggle.click();
         expect(await visibleTocVersions(page)).toEqual(['v2.0.0', 'v1.3.0', 'v1.2.1']);
-        await expect(toggle).toHaveText('すべて表示');
+        await expect(toggle).toHaveText(`すべて表示（${VERSIONS.length} 件）`);
     });
 
     test('パッチを ON にすると出る／全 OFF で空表示が出てトグルが消える', async ({ page }) => {

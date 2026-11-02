@@ -63,20 +63,11 @@ export type EpisodesData = Episode[];
 export type Afterword = { published: boolean };
 
 /**
- * HeroCardSpec: 目次のヒーローカード画像指定。stage に応じて JS 側で選ぶ。
- *   **巻の素材のファイル名規約（core/theme.ts）へ移行中**：新しい目次が規約を読むようになったら
- *   heroCard / heroCardCompleted ごと撤去する（それまでは併存）。
- *   file … public/cover/ 配下のファイル名（例 "vol01.avif"）
- */
-export type HeroCardSpec = { file: string };
-
-/**
  * Volume: story.json のトップレベル vol エントリ。
+ *   巻ごとの絵（目次のヒーロー・ロゴ・背景）は持たない＝ファイル名の規約で引く（core/theme.ts。以前の heroCard /
+ *   heroCardCompleted は P4＝2026-11 に撤去）。
  *   volume            … 1 始まりの vol 番号（昇順・重複禁止）
  *   epRange           … その vol に属する ep 番号の [開始, 終了]（両端含む）
- *   heroCard          … stage = volume のとき目次に表示するヒーローカード（全 vol 必須）
- *   heroCardCompleted … 物語完結 stage（最終 vol 完読後）に表示するヒーローカード。
- *                       最終 vol（= volume 番号最大）のみが持ち、他 vol は持たない（story-integrity の (g)）。
  *   afterword         … 巻末あとがきのメタ（published のみ）
  *   episodes          … その vol に属する ep 定義（未執筆 ep は末尾から欠けてよい・過剰 ep は禁止）
  *   preview           … 目次で表示する vol 単位の予告テキスト（任意）。**非空** text のときのみ「予告あり」
@@ -88,8 +79,6 @@ export type HeroCardSpec = { file: string };
 export type Volume = {
     volume: number;
     epRange: [number, number];
-    heroCard: HeroCardSpec;
-    heroCardCompleted?: HeroCardSpec;
     afterword: Afterword;
     episodes: Episode[];
     preview?: PreviewSpec;
@@ -193,7 +182,7 @@ export type BgLayerSpec = Pick<Scene, 'bgFile' | 'bgPositionX' | 'bgPositionY' |
  * BgSource: bg.ts の画像 URL 解決先を示す discriminated union。main.ts が bg.init に渡す。
  *   kind: 'ep'        … 本文ページ。URL は public/vol[XX]/ep[YY]/img/{ファイル名} を組み立てる
  *   kind: 'afterword' … 巻末あとがきページ。URL は public/vol[XX]/{ファイル名} を組み立てる
- *                       （あとがきは ep/img/ フォルダを切らず vol 直下＝heroCard と同じ場所を共有する。要件 06-3 / 03）
+ *                       （あとがきは ep/img/ フォルダを切らず vol 直下に置く。要件 06-3 / 03）
  */
 export type BgSource =
     | { kind: 'ep'; vol: number; ep: number }

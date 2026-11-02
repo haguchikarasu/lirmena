@@ -16,7 +16,8 @@
  *   用語集            → worldSheet.open('glossary', _toggle)（同じシートの用語のタブ。あとがきページでも出す）
  *   設定を開く        → settings.open(_toggle)
  *   共有              → share.open(_toggle)（リンクをコピー / X / LINE で現在の URL を共有。ui/share.ts）
- *   資料の 3 つ（キャラクター紹介・エシュカ地図・用語集）は区切りで挟み、キーカラーの印でまとめる（_ui.css）。
+ *   資料の 3 つ（キャラクター紹介・エシュカ地図・用語集）は区切りで挟んでまとめる（アイコンの色は全項目で同じ。_ui.css）。
+ *   各項目の頭にアイコン（templates/reader.html の #menu-icon-tpl を data-icon の名前で複製。飾り＝読み上げない）。
  *   閉じたときのフォーカス戻り先に _toggle（メニューボタン）を渡すのは、項目を押すとメニューを閉じてから開く
  *   ＝押されたメニュー項目はもう hidden の中にいるため。
  *
@@ -88,11 +89,15 @@ function _buildItems(): void {
         return el;
     };
 
-    const makeBtn = (label: string, handler: () => void, cls?: string): HTMLButtonElement => {
+    // アイコンの見本（#menu-icon-tpl）。無ければ文字だけの項目になる
+    const icons = (document.getElementById('menu-icon-tpl') as HTMLTemplateElement | null)?.content;
+    const makeBtn = (label: string, icon: string, handler: () => void, cls?: string): HTMLButtonElement => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = cls ? `menu-item ${cls}` : 'menu-item';
-        b.textContent = label;
+        const svg = icons?.querySelector(`[data-icon="${icon}"]`);
+        if (svg) b.appendChild(svg.cloneNode(true));
+        b.appendChild(document.createTextNode(label));
         b.addEventListener('click', () => { _close(); handler(); });
         return b;
     };
@@ -101,37 +106,37 @@ function _buildItems(): void {
     // 押すと "00-00" を指す壊れた栞ができてしまう（あとがきは巻末 sec 本文の栞で代用する運用）。
     const isAfterword = state.getMode() === 'afterword';
 
-    const btnIndex = makeBtn('目次へ戻る', () => {
+    const btnIndex = makeBtn('目次へ戻る', 'toc', () => {
         transition.leave(state.indexUrl());
     });
 
-    const btnBookmark = isAfterword ? null : makeBtn('栞を追加', () => {
+    const btnBookmark = isAfterword ? null : makeBtn('栞を追加', 'bookmark-plus', () => {
         _openBookmarkPopup();
     });
 
-    const btnTutorial = makeBtn('チュートリアル', () => {
+    const btnTutorial = makeBtn('チュートリアル', 'help', () => {
         tutorial.open();
     });
 
     // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、
     // 押されたこのボタン自身はもう hidden のパネルの中にいる（戻しても見えない）
-    const btnCharacters = makeBtn('キャラクター紹介', () => {
+    const btnCharacters = makeBtn('キャラクター紹介', 'people', () => {
         worldSheet.open('characters', _toggle);
     }, 'menu-item--world');
 
-    const btnMap = makeBtn('エシュカ地図', () => {
+    const btnMap = makeBtn('エシュカ地図', 'map', () => {
         worldSheet.open('map', _toggle);
     }, 'menu-item--world');
 
-    const btnGlossary = makeBtn('用語集', () => {
+    const btnGlossary = makeBtn('用語集', 'book', () => {
         worldSheet.open('glossary', _toggle);
     }, 'menu-item--world');
 
-    const btnSettings = makeBtn('設定', () => {
+    const btnSettings = makeBtn('設定', 'gear', () => {
         settings.open(_toggle);
     });
 
-    const btnShare = makeBtn('共有', () => {
+    const btnShare = makeBtn('共有', 'share', () => {
         share.open(_toggle);
     });
 

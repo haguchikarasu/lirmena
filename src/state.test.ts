@@ -15,8 +15,6 @@ const DATA: StoryData = [
     {
         volume: 1,
         epRange: [1, 2],
-        heroCard: { file: 'vol01.avif' },
-        heroCardCompleted: { file: 'vol01.avif' },
         afterword: { published: false },
         episodes: [
             {
@@ -84,8 +82,6 @@ describe('getPrevPublishedSec（物語順の前 sec・ep 境界跨ぎ）', () =>
             {
                 volume: 1,
                 epRange: [1, 3],
-                heroCard: { file: 'vol01.avif' },
-                heroCardCompleted: { file: 'vol01.avif' },
                 afterword: { published: false },
                 episodes: [
                     { id: 1, title: 'a', sections: [{ id: 1, published: true }] },

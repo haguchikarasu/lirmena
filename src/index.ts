@@ -1,83 +1,45 @@
 /*
  * index.ts
- * 責務: 目次ページ（index.html）の全機能制御。story.json を読み、vol 単位で ep・sec 一覧と巻末あとがき
- *       チップを描画し、栞・オートセーブ（本編／あとがき独立）を並べ、stage に応じてヒーローカード画像を
- *       差し替える。設定ポップアップ／共有／FAB／変更履歴は既存流用。
+ * 責務: 目次ページ（index.html）の全機能制御（要件 06-7）。story.json を読み、ヒーロー（巻の絵・ロゴ・読み始めるボタン・
+ *       表紙ギャラリー）・上の帯・巻 → 話の扉絵バナー → 節のチップ・右カラム（最新・世界・栞・変更履歴・リンク）・
+ *       足もとの版・設定と共有のシートを組む。markup の骨組みは index.html が持ち、ここはデータと状態で変わる所だけ。
  * export: なし（script type="module" としてロードされるエントリポイント）
  * 依存（目次は core と ui だけを読み、reader 層＝本文の読書の仕組みを読まない。.dependency-cruiser.cjs の層の規則）:
  *   core: core/storage（栞・既読・読破・オートセーブの読み書きと移行 init()。read セットは storage.loadReadKeys() で毎回
- *         localStorage を読み直す＝目次内で「読破状況をクリア」した直後の再計算で古い値を返さない。applyStoryStage 参照）、
+ *         localStorage を読み直す＝目次内で「読破を消す」した直後の再計算で古い値を返さない）、
  *         core/settings-model（表示設定の値の規則）、core/query（withQuery）、core/preview（hasEffectivePreview）、
- *         core/changelog（versionKind）、volumes.ts（computeStoryStage＝ヒーローカード切替と巻カードの初期 open 判定に共用）
- *   ui:   ui/settings-panel（設定ポップアップ。markup は templates/parts/settings.html）、ui/share（共有ポップアップ。
- *         markup は templates/parts/share.html）、ruby.ts（ルビ展開）、
- *         ui/sheet（シートの器）、ui/confirm（消す前の確認）
- *         （資料＝人物・地図・用語は目次からはページへ移るだけで、資料シートも部品も読まない）
- *   以前は「src/ に依存しない」方針で上の多くを複製して持っていた（design/modules/index.md）。
+ *         core/changelog（versionKind）、core/theme（巻の素材の規約と stage → 素材の組）、core/schedule（次回の更新）、volumes.ts（computeStoryStage＝素材・キーカラー・巻カードの初期 open に共用）
+ *   ui:   ui/settings-panel（設定シート。markup は templates/parts/settings.html）、ui/share（共有シート。
+ *         markup は templates/parts/share.html）、ui/confirm（消す前の確認）、ruby.ts（ルビ展開）、
+ *   資料（人物・地図・用語）は目次からはページへ移るだけで、資料シートは読まない。
  *
  * 機能:
- *   - story.json を fetch して vol → ep → sec 一覧を動的生成
- *     （sec01 のリンク先はタイトルページ [ep]-00.html、sec02 以降は本文ページ）
- *   - 各 vol は <details class="idx-vol-card"> でグルーピングして表示（要件 06-7 巻カード＆アコーディオン表示）。
- *     summary に「第N巻」＋状態バッジ（vol.afterword.published なら「全M話」／それ以外は「連載中」。判定名としての「巻完結」は残すが pill 表示テキストには出さない）を置き、
- *     本体に当 vol の ep 一覧＋（あとがき公開時のみ）巻末あとがきチップ（ep タイトル「あとがき」＋ chip の視覚 label は `**`＝aria-hidden／aria-label は「第N巻 あとがき（＋既読／読破）」）を入れる。
- *     初期 open は storyStage（＝computeStoryStage(read, story)）と vol.volume が一致する巻のみ。
- *     storyStage === story.length + 1（物語完結）のときは全 vol 閉じる。開閉状態は永続化しない。
- *   - **vol.preview（要件 06-7 予告 vol）**：vol.preview を持つ vol は <details> ではなく
- *     <section class="idx-vol-card idx-vol-card--notice"> を生成し、summary 相当の
- *     <header class="idx-vol-head"> だけを入れる（詳細部 body は生成しない・開閉不可）。
- *     状態バッジは「連載中」の代わりに vol.preview.text を pill として表示。
- *     優先順位は完結 > 予告 > 連載中（完結と予告の併存は story-integrity (e) 強化で禁止）。
- *   - **ep.preview（要件 06-7 予告 ep）**：公開済み sec がゼロの ep で ep.preview があれば、
- *     タイトルと <span class="idx-ep-notice"> の予告テキストのみ描画する（sec chip なし・リンクなし）。
- *   - **部分公開 ep（B-1 ゴースト chip・要件 06-7）**：公開 sec 1つ以上 かつ 未公開 sec 1つ以上 の ep
- *     では、公開 chip の末尾に未公開 sec 分の ghost chip（<span class="idx-chip idx-chip--ghost">・
- *     破線グレー・href なし・aria-hidden="true"）を並べて「まだ続く」を示す。全 sec 公開の ep には
- *     出ない（＝vol/物語完結時は視覚差なし・要件 06-7 で明示された B-1 の既知の欠点）。
- *   - 表示可能な ep（＝公開済み sec が1つ以上 OR ep.preview を持つ ep）も公開あとがきも vol.preview も
- *     持たない vol は巻カードごと非表示。visibleEps ベースで判定するため、ep.preview だけを持つ
- *     vol は表示される。
- *   - 各 vol の episodes 直後に、vol.afterword.published=true のときのみあとがきチップを差し込む
- *     （href は contents/vol[XX]-afterword.html、既読/読破マークはキー "vol01-af" で照合）
- *   - **表紙ギャラリー（要件 06-7）**：現在 stage から過去の表紙へ ← → で往復できる（完結 stage は
- *     完結カードを起点に 5 枚）。未来の巻は出さない。stage 1 はナビごと隠す。閲覧位置は永続化せず、
- *     **stage 由来の状態（heroCard キャッシュ・data-story-stage・favicon・巻カードの open）とは切り離す**
- *     ＝過去の表紙を見ても次回の初期表示は現在 stage のまま。PC はホバーでボタン、スマホはスワイプ
- *     （ボタンは DOM に残す＝キーボード・支援技術から操作できる）。
- *   - stage 別ヒーローカード切替：computeStoryStage(read, story) → dataset.storyStage、
- *     stage N（N=1..story.length）→ vol.heroCard.file、stage story.length+1（物語完結）→ 最終 vol の heroCardCompleted.file
- *     （画像は #idx-hero-img の src を差し替え。CLAUDE.md「単一要素のセレクタに class を使わない」）
- *   - ep タイトル・栞の場所表示の |漢字《かんじ》 をルビ展開（applyRuby＝src/ruby.ts）
- *   - **付録カード（要件 06-7）**：巻カードと栞の間の <details id="idx-appendix">（静的 markup・初期は閉じる）。
- *     資料（キャラクター紹介・エシュカ地図・用語集）は 3 つとも資料ページ（characters.html・map.html・glossary.html）
- *     への <a> で、同じタブで移る（目次 → ページ、本文 → シート）。initAppendixLinks が withQuery で href を付け直す
- *     （?dev の引き継ぎ。story.json の取得より前に同期で行う）。
- *     項目は「設定」（キャラクター紹介・エシュカ地図・用語集）と
- *     「リンク」（X・カクヨム・小説家になろう）の 2 つ
- *   - **シート（設定・共有）と確認は <dialog>**（ui/sheet・ui/confirm）。Escape は開いている一番上の
- *     <dialog> をブラウザが閉じる＝initFab のキー処理は dialog[open] がある間は手を出さない
- *   - 到達セット・読了セットは本文 sec キー（"EP-SEC"）とあとがきキー（"vol[XX]-af"）が同じ Set に入る
- *     ＝core/storage の loadReachedKeys / loadReadKeys が localStorage キー "reached" / "read" をそのまま Set 化する
- *   - 栞欄を固定3スロット表示：スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方を表示）
- *   - 続きから読む：getLatestAutoSave（core/storage）で本編／あとがき union を取り、pendingJump または pendingJumpAfterword を書いて遷移
- *   - **コンテンツ更新履歴（要件 06-7）**：changelog/content-changelog.json を記述順のまま全件 li に描き、
- *     各 li に data-kind（versionKind＝core/changelog。title.ts と共有）を付ける。#content-changelog-filter の
- *     版種別スイッチ（メジャー／マイナー／パッチの独立トグル・aria-pressed。初期値メジャー＋マイナー・永続化しない）と
- *     「すべて表示」の展開状態から、_applyChangelogFilter が hidden・空表示・トグルボタンを一括で決める
- *     （初期 CHANGELOG_INITIAL_COUNT 件は絞り込み後に数える）
+ *   - **巻の素材（ヒーローの絵・ロゴ・ページの背景）**：stage から core/theme の規約で URL を組む（story.json には書かない）。
+ *     初期表示は index.html の早期スクリプトが端末の stage（lirmena.storyStage）から先に入れ、ここは story.json で
+ *     stage を算出し直して違っていれば差し替える（applyStoryStage）。キーカラーは <html data-story-stage>（toc.css）
+ *   - **表紙ギャラリー**：今の stage から過去の巻の絵へ遡れる（右＝過去）。替えるのは絵だけで、ロゴ・キーカラー・
+ *     favicon・次に開いたときの絵は今の stage のまま。閲覧位置は覚えない。PC はボタン（ホバーで出る）、スマホは払う
+ *     （指に付いてくるカルーセル）、ドットでも移れる。隣の巻の絵は img.decode() まで先読みする（R17）
+ *   - **読み始めるボタン**（ヒーロー）と上の帯の「▶ 第N話#M」：初めて＝第一話から、途中＝オートセーブの位置から、
+ *     最新まで読了＝最新の節を読み返す（下に次回の更新）。読者の状態は <body data-reader="first|mid|caught">
+ *   - 巻カード（<details class="idx-vol-card">）→ 話の扉絵バナー（article.idx-ep）→ 節のチップ。巻の初期 open は
+ *     stage の巻だけ（物語完結なら全部閉じる）。予告の巻・予告の話・部分公開の話のゴーストのチップ・巻末のあとがきの帯
+ *   - 節のチップの状態（B 案）：読了＝右上の点、到達（か読了）＝明るい数字、オートセーブの位置＝細い枠（toc-page.css）
+ *   - 右カラム：最新（最後に公開した節と次回の更新）・世界（資料ページ 3 枚への入口）・栞（行の × で確認つきで 1 件ずつ消す）・
+ *     変更履歴（版種別スイッチ・最初は 3 件・すべて表示で枠の中だけスクロール）・リンク
+ *   - 設定（上の帯の ⚙）：本文と同じ設定シート。スマホは全画面、PC は開いている間ページ全体を本文の見本にする（#idx-preview）。
+ *     記録の消去（栞・既読・読破）と初期値に戻すもここ（以前の FAB の項目）
+ *   - **シート（設定・共有）と確認は <dialog>**（ui/sheet・ui/confirm）。Escape は開いている一番上の <dialog> をブラウザが閉じる
  *
  * localStorage キー:
  *   栞・既読・読破・オートセーブ・pendingJump・schemaVersion の契約は core/storage.ts が持つ（本文側と共有）。
  *   表示設定（"lirmena.*" の 5 項目と "lirmena.readingAnchor"）の契約は core/settings-model.ts が持つ。
- *   目次だけが書くキー:
- *   "lirmena.heroCard"     : string   ヒーローカード画像の相対パス "vol[XX]/<file>"。applyStoryStage が書き、
- *                            index.html の早期 <script> が次回ロードのパース時点で読む（初期表示のちらつき回避）。
- *                            検証規則 HERO_CARD_RE は HTML 側と同一＝片方だけ直すと静かに vol01 へ落ちる。
+ *   "lirmena.storyStage"（stage のキャッシュ）は目次と本文（main.ts）が書き、各シェルの早期スクリプトが読む。
+ *   以前の "lirmena.heroCard"（表紙の URL のキャッシュ）は P4 で廃止＝起動時に消す（読者の端末に残った値の掃除）。
  */
 
-// シートの見た目（_sheet.css）は本文と共用。シートは <dialog> の最前面の層に出るので、toc.css との読み込み順で
-// 重なりを調整する必要は無い（以前の z-index 200 の上書きは不要になった）。
 import './styles/toc.css';
+import './styles/toc-page.css';
 import './styles/_sheet.css';
 import * as storage from './core/storage';
 import type { LatestAutoSave } from './core/storage';
@@ -85,80 +47,98 @@ import { loadSettings, removeSettings, saveSetting, saveSettings, PRESETS } from
 import { withQuery } from './core/query';
 import { hasEffectivePreview } from './core/preview';
 import { versionKind, type VersionKind } from './core/changelog';
+import { themeKeyForStage, themePath, type ThemeFile } from './core/theme';
+import { nextScheduledAt, formatScheduledAt } from './core/schedule';
 import * as settingsPanel from './ui/settings-panel';
 import * as share from './ui/share';
-import * as sheet from './ui/sheet';
 import { confirmDialog } from './ui/confirm';
 import { applyRuby } from './ruby';
-import { computeStoryStage, resolveHeroCard, HERO_CARD_RE } from './volumes';
+import { computeStoryStage, type StoryStage } from './volumes';
 
-// preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱いで
-// 目次に表示する。空 text（`{ text: "" }`）は「preview 無し」と同義扱いで、事前配置テンプレとして
-// 未着手 vol/ep に骨組みだけ置ける（story-integrity (j)(k)(k')(l)/(e) の判定も「非空 text」でのみ発火）。
-// 目次では sec chip の代わりにタイトル＋予告テキストを出す（ep）／summary 相当のヘッダのみ出す（vol）。
+// preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱い（core/preview）。
 type Preview = { text: string };
-// 「非空 text」の判定は core/preview の hasEffectivePreview（story-integrity と同じ関数）。
-type Episode = { id: number; title: string; sections: { id: number; published: boolean }[]; preview?: Preview };
-// story.json のトップレベル vol エントリ（index.ts の独立方針でローカル定義。詳細は types.ts の Volume）。
-// stage 判定・あとがき描画・ヒーローカード切替・予告描画に必要なフィールドを最小限持つ。
+type Section = { id: number; published: boolean; scheduledAt?: string };
+type Episode = {
+    id: number;
+    title: string;
+    sections: Section[];
+    preview?: Preview;
+    coverFile?: string;
+    coverPositionX?: string;
+    tocCoverPositionY?: string;
+};
+// story.json のトップレベル vol エントリ（目次が使うフィールドだけ。全体は types.ts の Volume）。
 type StoryVolume = {
     volume: number;
     epRange: [number, number];
-    heroCard: { file: string };
-    heroCardCompleted?: { file: string };
     afterword: { published: boolean };
     episodes: Episode[];
     preview?: Preview;
 };
-type ContentChangelogEntry = {
-    version: string;
-    date: string;
-    change: string;
-    ep: number[];
-    sha: string[];
-};
-type SiteChangelogEntry = {
-    version: string;
-    date: string;
-    changes: string[];
-};
+type ContentChangelogEntry = { version: string; date: string; change: string; ep: number[]; sha: string[] };
+type SiteChangelogEntry = { version: string; date: string; changes: string[] };
+// 節の位置（どの巻のどの話の何節か）
+type SecPos = { vol: number; ep: Episode; sec: number };
 
-// ヒーローカード画像の相対パス（"vol[XX]/<file>"）。applyStoryStage と本文側 main.ts が書き、
-// index.html の早期 <script> が次回ロードのパース時点で読む＝初期表示のちらつき回避
-// （lirmena.storyStage と同じ流儀）。値の解決と検証規則は volumes.ts に置く（本文側と共用するため）。
-const LS_HERO_CARD             = 'lirmena.heroCard';
-
+const BASE = import.meta.env.BASE_URL;
 const GITHUB_REPO = 'haguchikarasu/lirmena';
 // 短縮 sha の形。content-changelog.json の sha は「本体コミット確定後に手で入れる」運用なので、
 // 未確定プレースホルダや欠損のまま公開され得る。その状態で commit/undefined を指すリンクを作らない判定。
 const SHORT_SHA_RE = /^[0-9a-f]{7,40}$/;
-
-let _episodes: Episode[] = [];
 const CHANGELOG_INITIAL_COUNT = 3;
+// PC の 2 カラム・右から出るシートに切り替わる幅（toc-page.css・_sheet.css の @media と同じ値）
+const PC_QUERY = '(min-width: 901px)';
+
+let _story: StoryVolume[] = [];
+let _episodes: Episode[] = [];
 
 const pad = (n: number) => String(n).padStart(2, '0');
+// 「第4話#3」（sec 番号はゼロ埋めしない）
+const posLabel = (ep: number, sec: number) => `第${ep}話#${sec}`;
+// |漢字《かな》 の書式を外した読み（aria-label・確認文に使う）
+const plainTitle = (t: string) => t.replace(/\|([^《|]+)《[^》]+》/g, '$1');
+
+// 節のページの URL。sec01 は ep の扉（タイトルページ EE-00.html）、sec02 以降は本文ページ（要件 06-7）
+function secHref(ep: number, sec: number): string {
+    return withQuery(`contents/${pad(ep)}-${sec === 1 ? '00' : pad(sec)}.html`);
+}
+
+function afterwordHref(vol: number): string {
+    return withQuery(`contents/vol${pad(vol)}-afterword.html`);
+}
+
+// 話の扉絵（タイトルページの背景と同じ絵。title.ts と同じく coverFile の省略時は title.avif）
+function coverUrl(vol: number, ep: Episode): string {
+    return `${BASE}vol${pad(vol)}/ep${pad(ep.id)}/${ep.coverFile ?? 'title.avif'}`;
+}
+
+// 扉絵バナーで見せる位置。横は扉の指定（coverPositionX）を流用し、縦は目次専用の tocCoverPositionY（省略時は中央）
+function coverPosition(ep: Episode): string {
+    return `${ep.coverPositionX ?? '50%'} ${ep.tocCoverPositionY ?? '50%'}`;
+}
+
+function themeUrl(stage: number, file: ThemeFile): string {
+    return BASE + themePath(themeKeyForStage(stage, _story.length), file);
+}
+
+// src を絶対 URL で比べて、同じなら触らない（同じ画像の取り直し・decode のやり直しで一瞬消えるのを避ける）
+function setSrc(img: HTMLImageElement | null, url: string): void {
+    if (img && img.src !== new URL(url, location.href).href) img.src = url;
+}
 
 // ----- 既読/読破判定 -----
 
-// sec 単位キー "EP-SEC" が集合に含まれるか
-function isSectionInSet(ep: number, sec: number, set: Set<string>): boolean {
-    return set.has(`${pad(ep)}-${pad(sec)}`);
+function secKey(ep: number, sec: number): string {
+    return `${pad(ep)}-${pad(sec)}`;
 }
 
-// あとがきキー "vol[XX]-af" が集合に含まれるか
-function isAfterwordInSet(vol: number, set: Set<string>): boolean {
-    return set.has(storage.afterwordKey(vol));
+// 公開済みの節を物語の順に並べる（未公開の節は story-integrity (d) により各話の末尾）
+function publishedSecs(story: StoryVolume[]): SecPos[] {
+    return story.flatMap((v) => v.episodes.flatMap((ep) =>
+        ep.sections.filter((s) => s.published).map((s) => ({ vol: v.volume, ep, sec: s.id }))));
 }
 
-// 読破状況のクリア（core/storage の clearRead）に、目次だけが持つヒーローカードのキャッシュの削除を足す。
-function clearReadStatus(): void {
-    storage.clearRead();
-    // stage が 1 に戻るのでヒーローカードのキャッシュも捨てる。直後に applyStoryStage が呼ばれて上書き
-    // されるが、story が空・heroFile 未解決のときは src を触らずに抜けるため古い値が残りうる。
-    localStorage.removeItem(LS_HERO_CARD);
-}
-
-// 取り消せない操作の前の確認（ui/confirm。文言は本文の設定シートと同じ）。「削除する」が押されたら run()。
+// 取り消せない操作の前の確認（ui/confirm）。「削除する」が押されたら run()。
 // confirmAndRun(msg: string, run: () => void): Promise<void>
 async function confirmAndRun(msg: string, run: () => void): Promise<void> {
     if (await confirmDialog(msg, '削除する')) run();
@@ -173,340 +153,413 @@ function writeResumeJump(latest: LatestAutoSave): void {
     }
 }
 
-// オートセーブ位置へ遷移する（union 対応）
-function resumeReading(latest: LatestAutoSave): void {
-    writeResumeJump(latest);
-    const url = latest.kind === 'afterword'
-        ? withQuery(`contents/vol${pad(latest.vol)}-afterword.html`)
-        : withQuery(`contents/${pad(latest.ep)}-${pad(latest.sec)}.html`);
-    location.href = url;
+function autoSaveHref(latest: LatestAutoSave): string {
+    return latest.kind === 'afterword' ? afterwordHref(latest.vol) : withQuery(`contents/${pad(latest.ep)}-${pad(latest.sec)}.html`);
 }
 
-// ヒーロー下の「続きから読む」本体ボタン初期化。本編・あとがきのどちらか新しい方を採用する。
-function initResumeButton(): void {
-    const btn = document.getElementById('idx-resume') as HTMLButtonElement | null;
-    if (!btn) return;
-    const latest = storage.getLatestAutoSave();
-    if (!latest) return;
-    btn.hidden = false;
-    btn.addEventListener('click', () => resumeReading(latest));
+function autoSaveLabel(latest: LatestAutoSave): string {
+    return latest.kind === 'afterword' ? `第${latest.vol}巻あとがき` : posLabel(latest.ep, latest.sec);
 }
 
-// ----- 物語進行段階＆ヒーローカード切替 -----
+// ----- 読み始めるボタン（ヒーロー）と上の帯の「▶ 第N話#M」 -----
 
-// stage を <html data-story-stage> に反映し、対応するヒーローカード画像へ差し替える。
-// - stage N（1 ≤ N ≤ story.length） → story.find(v => v.volume === N)?.heroCard.file
-// - stage story.length + 1（物語完結） → 最終 vol（volume 番号最大）の heroCardCompleted.file
-// read セットは本文 sec キーとあとがきキーの混在だが、computeStoryStage が
-// 本文 sec 用 regex でフィルタするためあとがきキーは stage 判定に影響しない。
-function applyStoryStage(story: StoryVolume[]): void {
-    if (story.length === 0) return;
-    // localStorage を直読みして最新の read セットを取る（storage.loadReadKeys）。storage.getRead() は
-    // モジュール内メモリキャッシュ（storage.init 時に固定）を返すため、目次内で「読破状況を
-    // クリア」した直後の再計算では古いキャッシュを返してしまう恐れがある。目次は他の表示 API も
-    // localStorage 直読みで統一しているのでこちらへ寄せる。
-    const read = Array.from(storage.loadReadKeys());
-    // computeStoryStage は types.ts の StoryData を受けるが、index.ts のローカル StoryVolume は
-    // 判定に必要なフィールド（volume, epRange, episodes.sections.published）を全て持つため構造的互換。
-    const stage = computeStoryStage(read, story as unknown as Parameters<typeof computeStoryStage>[1]);
-    document.documentElement.dataset.storyStage = String(stage);
-    // 次回ロード時の FOUC 回避用にキャッシュ。本文シェル雛形（reader.html/title.html）の早期 <script> が
-    // 起動前に読み取り <html data-story-stage> を先付けする。値は 1〜5 の文字列のみ。
-    try { localStorage.setItem('lirmena.storyStage', String(stage)); } catch {}
+// 押されたときにすること（オートセーブの位置へ行くときだけ pendingJump を書く）。結線は 1 度だけで、中身をここで替える
+let _ctaGo: (() => void) | null = null;
 
-    // stage → 表紙画像の解決は volumes.ts に置く。**本文側（main.ts）も同じ関数でキャッシュを更新する**
-    // ため、ここに解決ロジックを抱えると二重管理になる（computeStoryStage を共用しているのと同じ理由）。
-    const hero = resolveHeroCard(stage, story as unknown as Parameters<typeof resolveHeroCard>[1]);
-    if (hero) {
-        const volStr = String(hero.volume).padStart(2, '0');
-        // Vite dev サーバは public/ 配下を root（BASE_URL 直下）で配信し、build も dist/{BASE_URL}vol[XX]/ に
-        // ファイルを配置する。JS 側の src 差し替えは Vite の import.meta.env.BASE_URL 経由で解決する
-        // （JS 側の literal は Vite の rewrite 対象外＝本番で 404 になるため BASE_URL 必須。HTML 側は
-        // src 属性を持たず早期 <script> が入れる＝ちらつき回避のため。index.html のコメント参照）。
-        const heroImg = document.querySelector<HTMLImageElement>('#idx-hero-img');
-        if (heroImg) heroImg.src = `${import.meta.env.BASE_URL}${hero.rel}`;
-        // 次回ロードの初期表示用にキャッシュ（index.html の早期 <script> が読む）。base を含めない相対形で
-        // 持つのは base を HTML と TS の二箇所にハードコードしないため（favicon の href と同じ流儀）。
-        // **読取側と同じ規則で検証**し、通らない値は残さない（保存できるのに読めない非対称を作らない）。
-        try {
-            if (HERO_CARD_RE.test(hero.rel)) localStorage.setItem(LS_HERO_CARD, hero.rel);
-            else localStorage.removeItem(LS_HERO_CARD);
-        } catch { /* noop */ }
-        // favicon も stage の属する vol の物へ差し替える。命名は vol[XX]/favicon[N].png で N=stage
-        // （stage 1〜story.length は vol.volume と一致、stage story.length+1＝完結時は最終 vol 直下の
-        // favicon[story.length+1].png を参照＝完結専用ファイルは最終 vol にのみ併置する）。
-        const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
-        if (favicon) favicon.href = `${import.meta.env.BASE_URL}vol${volStr}/favicon${stage}.png`;
+// 読者の状態から、ボタンの文字・行き先・下の行を決める（story.json がまだ無いときはオートセーブだけで決める）。
+//   caught（最新の公開済みの節を読了）→「第N話#M を読み返す」・下に次回の更新（予定が無ければ空）
+//   mid（オートセーブがある）       →「続きから読む」・下にその位置
+//   first（どちらでもない）         →「第一話から読む」・下は空
+// renderCta(): void
+function renderCta(): void {
+    const btn = document.getElementById('idx-cta-btn') as HTMLAnchorElement | null;
+    const sub = document.getElementById('idx-cta-sub');
+    const resume = document.getElementById('idx-topbar-resume') as HTMLAnchorElement | null;
+    const resumeLabel = resume?.querySelector('span');
+    if (!btn || !sub) return;
+
+    const secs = publishedSecs(_story);
+    const latest = secs[secs.length - 1] as SecPos | undefined;
+    const auto = storage.getLatestAutoSave();
+    const caught = latest !== undefined && storage.loadReadKeys().has(secKey(latest.ep.id, latest.sec));
+    let state: 'first' | 'mid' | 'caught';
+    let href: string;
+    let label: string;
+    sub.textContent = '';
+    _ctaGo = null;
+    if (caught) {
+        state = 'caught';
+        href = secHref(latest.ep.id, latest.sec);
+        label = posLabel(latest.ep.id, latest.sec);
+        btn.textContent = `${label} を読み返す`;
+        const next = nextScheduledAt(_story, Date.now());
+        if (next) sub.append(_clockIcon(), _timeEl(next));
+    } else if (auto) {
+        state = 'mid';
+        href = autoSaveHref(auto);
+        label = autoSaveLabel(auto);
+        btn.textContent = '続きから読む';
+        sub.textContent = label;
+        _ctaGo = () => writeResumeJump(auto);
+    } else {
+        state = 'first';
+        const first = secs[0];
+        href = first ? secHref(first.ep.id, first.sec) : withQuery('contents/01-00.html');
+        label = first ? `第${first.ep.id}話` : '第1話';
+        btn.textContent = '第一話から読む';
     }
+    document.body.dataset.reader = state;
+    btn.href = href;
+    if (resume && resumeLabel) {
+        resume.href = href;
+        resumeLabel.textContent = label;
+        resume.setAttribute('aria-label', `${btn.textContent}（${label}）`);
+    }
+}
 
-    // 表紙ギャラリーの履歴を作り直し、**閲覧位置は最新へ戻す**（stage が変わったのに古い位置へ
-    // 留まらない）。イベント登録は _wireHeroGalleryOnce が 1 度だけ行うので、この関数は
-    // 「読破状況をクリア」で再実行されても安全（＝冪等）。
-    _rebuildHeroGallery(stage, story);
+function _clockIcon(): SVGSVGElement {
+    const t = document.getElementById('idx-news-next')?.querySelector('svg');
+    return (t?.cloneNode(true) as SVGSVGElement | undefined) ?? document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+}
+
+function _timeEl(at: Date): HTMLTimeElement {
+    const time = document.createElement('time');
+    time.dateTime = at.toISOString();
+    time.textContent = formatScheduledAt(at);
+    return time;
+}
+
+function initCta(): void {
+    for (const id of ['idx-cta-btn', 'idx-topbar-resume']) {
+        document.getElementById(id)?.addEventListener('click', () => { _ctaGo?.(); });
+    }
+}
+
+// ----- 右カラム：最新 -----
+
+// 最後に公開した節を扉絵つきの 1 枚で。下に次回の更新（予定が無ければ出さない）。公開済みの節が無ければ枠ごと出さない
+function renderNews(): void {
+    const box = document.getElementById('idx-news') as HTMLAnchorElement | null;
+    if (!box) return;
+    const secs = publishedSecs(_story);
+    const latest = secs[secs.length - 1] as SecPos | undefined;
+    box.hidden = !latest;
+    if (!latest) return;
+    box.href = secHref(latest.ep.id, latest.sec);
+    const cover = document.getElementById('idx-news-cover') as HTMLImageElement | null;
+    if (cover) {
+        // 扉絵がまだ無い話（公開を先にして絵を後から足す場合）は、壊れた画像の印を出さず絵の列ごと畳む（話のバナーと同じ扱い）
+        box.classList.remove('idx-news--nocover');
+        cover.onerror = () => { box.classList.add('idx-news--nocover'); };
+        setSrc(cover, coverUrl(latest.vol, latest.ep));
+        cover.style.objectPosition = coverPosition(latest.ep);
+    }
+    const pos = document.getElementById('idx-news-pos');
+    if (pos) pos.textContent = posLabel(latest.ep.id, latest.sec);
+    const title = document.getElementById('idx-news-title');
+    if (title) { title.textContent = ''; applyRuby(latest.ep.title, title); }
+    const next = nextScheduledAt(_story, Date.now());
+    const nextEl = document.getElementById('idx-news-next');
+    const time = nextEl?.querySelector('time');
+    if (nextEl && time) {
+        nextEl.hidden = !next;
+        if (next) { time.dateTime = next.toISOString(); time.textContent = formatScheduledAt(next); }
+    }
+}
+
+// ----- 物語進行段階と巻の素材 -----
+
+// stage を <html data-story-stage> に反映し、巻の素材（ロゴ・ページの背景・ヒーローの絵）と favicon を stage の組へ差し替える。
+// read セットは本文 sec キーとあとがきキーの混在だが、computeStoryStage が本文 sec 用 regex でフィルタするので
+// あとがきキーは stage に影響しない。「読破を消す」で再実行されても安全（冪等）。
+// applyStoryStage(): void
+function applyStoryStage(): void {
+    if (_story.length === 0) return;
+    // localStorage を直読みして最新の read セットを取る（storage.getRead() は init 時に固定したキャッシュ）
+    const read = Array.from(storage.loadReadKeys());
+    // computeStoryStage は types.ts の StoryData を受けるが、ローカルの StoryVolume は判定に要るフィールド
+    // （volume・epRange・episodes.sections.published）を全て持つので構造的に互換
+    const stage = computeStoryStage(read, _story as unknown as Parameters<typeof computeStoryStage>[1]);
+    document.documentElement.dataset.storyStage = String(stage);
+    // 次回ロードの早期スクリプト（全シェル）が読むキャッシュ。値は 1〜5 の文字列のみ
+    try { localStorage.setItem('lirmena.storyStage', String(stage)); } catch { /* noop */ }
+
+    setSrc(document.querySelector<HTMLImageElement>('#idx-hero-logo'), themeUrl(stage, 'logo.webp'));
+    const bg = document.querySelector<HTMLImageElement>('#idx-page-bg');
+    if (bg) { bg.hidden = false; setSrc(bg, themeUrl(stage, 'page-bg.avif')); }
+    // favicon は stage の属する vol の物（vol[XX]/favicon[N].png で N=stage。完結は最終 vol 直下の favicon[巻数+1].png）
+    const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
+    if (favicon) favicon.href = `${BASE}vol${pad(Math.min(stage, _story.length))}/favicon${stage}.png`;
+
+    // 表紙ギャラリーの履歴を作り直し、閲覧位置は今の stage へ戻す（stage が変わったのに古い位置に留まらない）
+    _rebuildHeroGallery(stage);
 }
 
 // ----- 表紙ギャラリー（要件 06-7）-----
-// **閲覧位置は stage ではない。** 過去の表紙を見ている間も、stage 由来の状態は現在 stage のまま保つ：
-//   ・localStorage 'lirmena.heroCard'（次回ロードの初期表示）
-//   ・<html data-story-stage> と、そこから派生するキーカラー
-//   ・favicon
-//   ・巻カードの初期 open
-// ここを混ぜると「過去の表紙が次回の初期表示として保存される」＝ちらつき修正そのものが壊れる。
-// そのため書き込み系（キャッシュ・favicon・dataset）は applyStoryStage だけが行い、以下の関数群は
-// #idx-hero-img の src/alt とナビの見た目しか触らない。
+// **閲覧位置は stage ではない。** 過去の表紙を見ている間も、stage 由来の状態（data-story-stage・キーカラー・ロゴ・
+// favicon・lirmena.storyStage・巻カードの初期 open）は今の stage のまま＝書き込み系は applyStoryStage だけが行い、
+// 以下の関数群はヒーローの絵（#idx-hero-img と隣の #idx-hero-peer）とナビの見た目しか触らない。
+// 絵は 1 枚ずつ枠（.idx-hero-slide）に入れ、払う間は枠ごと指に付いてくる。確定は「幅の 1/5 以上」か「0.5px/ms より速い払い」。
 
-// ギャラリーの 1 コマ。stage は物語進行段階、volume は画像の置き場所（vol[XX]/）、rel は BASE_URL からの相対パス。
-type HeroShot = { stage: number; volume: number; rel: string; label: string };
+// ギャラリーの 1 コマ。[0] が今の stage の絵で、末尾が第1巻。**未来の巻は入れない**（ネタバレ）
+type HeroShot = { url: string; label: string };
+let _shots: HeroShot[] = [];
+// 閲覧位置。0 = 今の stage。**永続化しない**
+let _pos = 0;
+let _sliding = false;
+// 先読み：URL → decode 済みの Promise。全巻は読まない（過去の表紙を見ない読者が大半で、スマホの通信量が無駄になる）
+const _ready = new Map<string, Promise<void>>();
+// toc-page.css の .idx-hero-slide とは独立（動きは JS が transition を書く）
+const SLIDE = 'translate 0.32s cubic-bezier(.2, .8, .2, 1)';
+const SLIDE_FALLBACK_MS = 450;
 
-// [0] が現在 stage の表紙で、末尾が第1巻。**未来の巻は入れない**（ネタバレ）。
-let _heroShots: HeroShot[] = [];
-// 閲覧位置。0 = 最新。**永続化しない**＝再訪時は必ず最新から始まる。
-let _heroPos = 0;
-// イベント登録は 1 度だけ。applyStoryStage は「読破状況をクリア」でも再実行されるので、ここで
-// ガードしないとクリックやスワイプが 2 回・3 回と多重に発火する。
-let _heroWired = false;
-// 画像の読み込み（decode）中だけ立てるフラグ。ここで弾かないと前面と背面のレイヤーが入れ違う。
-// **スライド中（CSS transition）は弾かない**：300ms のあいだ操作を捨てると「押したのに動かない」に
-// なるので、進行中のスライドは _finishHeroSlide で即座に畳んでから次へ進む。
-let _heroBusy = false;
-// 進行中スライドの後始末タイマー。次の操作が来たら打ち消して即座に畳む。
-let _heroSlideTimer: number | null = null;
-// 遷移の世代。decode やフレーム待ちの最中に次の操作が来たら、古い遷移は自分の描画を諦めて降りる
-// （降りないと新しい遷移の途中で古い transform を書き込んでしまう）。
-let _heroGen = 0;
+const _heroEl = {
+    art: () => document.getElementById('idx-hero-art'),
+    slide: () => document.getElementById('idx-hero-slide'),
+    peer: () => document.getElementById('idx-hero-slide-peer'),
+    img: () => document.getElementById('idx-hero-img') as HTMLImageElement | null,
+    peerImg: () => document.getElementById('idx-hero-peer') as HTMLImageElement | null,
+};
 
-// スタイルの確定を挟んで次の描画フレームまで待つ（double rAF）。
-// transition を有効にしたのと同じフレームで transform まで変えると、ブラウザが開始値を取り違えて
-// アニメーションを飛ばすことがある。1 フレーム空けて開始値を確実に固定する。
-// _nextFrame(): Promise<void>
-function _nextFrame(): Promise<void> {
-    return new Promise((resolve) => {
-        requestAnimationFrame(() => { requestAnimationFrame(() => { resolve(); }); });
-    });
-}
-
-// toc.css の transition と対の値。片方だけ変えるとスライドが途中で切れる（同期を見る検査は無い）。
-const HERO_SLIDE_MS = 300;
-// スワイプと判定する最小の横移動量。モックで手触りを確認して決めた。
-const HERO_SWIPE_MIN_PX = 45;
-
-// stage の表示名。物語完結 stage（story.length + 1）だけ「完結」で、他は「第N巻」。
-function _heroLabel(stage: number, volCount: number): string {
-    return stage > volCount ? '完結' : `第${stage}巻`;
-}
-
-// 現在 stage から遡れる表紙を新しい順に並べる。stage を 1 つずつ下げて resolveHeroCard に解かせるので、
-// 完結カード（最終 vol の heroCardCompleted）も自然に先頭へ入る。
-// _buildHeroShots(stage: number, story: StoryVolume[]): HeroShot[]
-function _buildHeroShots(stage: number, story: StoryVolume[]): HeroShot[] {
-    const data = story as unknown as Parameters<typeof resolveHeroCard>[1];
-    const shots: HeroShot[] = [];
+// _rebuildHeroGallery(stage: StoryStage): void — stage から 1 まで遡る履歴を作り、今の stage の絵を出す
+function _rebuildHeroGallery(stage: StoryStage): void {
+    _shots = [];
     for (let s = stage; s >= 1; s--) {
-        const ref = resolveHeroCard(s as Parameters<typeof resolveHeroCard>[0], data);
-        if (!ref) continue;
-        shots.push({ stage: s, volume: ref.volume, rel: ref.rel, label: _heroLabel(s, story.length) });
+        _shots.push({ url: themeUrl(s, 'hero-wide.avif'), label: s > _story.length ? '完結' : `第${s}巻` });
     }
-    return shots;
+    _pos = 0;
+    _buildHeroDots();
+    _renderHero();
+    // ページが落ち着いたら 1 つ前の巻だけ先読み（払い始めてから読むと、届くまで枠の地が見える）
+    const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1500));
+    idle(() => _preload(1));
 }
 
-// 履歴の作り直し。何度呼んでも同じ状態になる（イベント登録は _wireHeroGalleryOnce 側でガード）。
-// _rebuildHeroGallery(stage: number, story: StoryVolume[]): void
-function _rebuildHeroGallery(stage: number, story: StoryVolume[]): void {
-    _heroShots = _buildHeroShots(stage, story);
-    _heroPos = 0;
-    const img = document.querySelector<HTMLImageElement>('#idx-hero-img');
-    if (img && _heroShots.length > 0) img.alt = `${_heroShots[0].label}の表紙`;
-    _wireHeroGalleryOnce();
-    _renderHeroNav();
+// 今の閲覧位置の絵とナビを描く。ナビは遡れる表紙が 1 枚なら出さず、端の向きのボタンは押せなくする
+function _renderHero(): void {
+    const shot = _shots[_pos];
+    const img = _heroEl.img();
+    if (!shot || !img) return;
+    setSrc(img, shot.url);
+    img.alt = `${shot.label}の表紙`;
+    // 空気（PC）の背景。CSS 変数の url() は使う側のスタイルシートの場所で解決されるので絶対 URL で渡す
+    document.getElementById('idx-hero-ext')?.style.setProperty('--art-url', `url("${img.src}")`);
+    const many = _shots.length > 1;
+    const newer = document.getElementById('idx-hero-newer') as HTMLButtonElement | null;
+    const older = document.getElementById('idx-hero-older') as HTMLButtonElement | null;
+    const focused = document.activeElement;
+    if (newer) { newer.hidden = !many; newer.disabled = _pos <= 0; }
+    if (older) { older.hidden = !many; older.disabled = _pos >= _shots.length - 1; }
+    // 端に来て押せなくなったボタンにフォーカスがあると、フォーカスがページの外（body）へ落ちて ← → も効かなくなる。
+    // 反対向きのボタンへ移す（キーボードの読者がヒーローの中に留まる）
+    if (focused === newer && newer?.disabled) older?.focus();
+    else if (focused === older && older?.disabled) newer?.focus();
+    // ドットは作り直さず印だけ替える（作り直すと、押したドットが消えてフォーカスが落ちる）
+    document.querySelectorAll<HTMLButtonElement>('#idx-hero-dots button[data-pos]').forEach((b) => {
+        b.setAttribute('aria-current', String(Number(b.dataset.pos) === _pos));
+    });
+    const status = document.getElementById('idx-hero-status');
+    if (status) status.textContent = many ? `${shot.label}の表紙（${_pos + 1} / ${_shots.length}）` : '';
 }
 
-// ナビの見た目だけを現在の閲覧位置に合わせる。履歴が 1 枚（stage 1）ならボタンごと隠す。
-// _renderHeroNav(): void
-function _renderHeroNav(): void {
-    const newer = document.querySelector<HTMLButtonElement>('#idx-hero-newer');
-    const older = document.querySelector<HTMLButtonElement>('#idx-hero-older');
-    const dots = document.querySelector<HTMLElement>('#idx-hero-dots');
-    const many = _heroShots.length > 1;
-    if (newer) { newer.hidden = !many; newer.disabled = _heroPos <= 0; }
-    if (older) { older.hidden = !many; older.disabled = _heroPos >= _heroShots.length - 1; }
+// ドットを履歴の枚数だけ作る（履歴が変わったとき＝_rebuildHeroGallery だけ）。遡れる表紙が 1 枚なら出さない
+function _buildHeroDots(): void {
+    const dots = document.getElementById('idx-hero-dots');
     if (!dots) return;
-
+    const many = _shots.length > 1;
+    dots.hidden = !many;
     dots.textContent = '';
     if (!many) return;
-    for (let i = 0; i < _heroShots.length; i++) {
-        const dot = document.createElement('span');
-        dot.className = 'idx-hero-dot';
-        dot.setAttribute('aria-hidden', 'true');
-        if (i === _heroPos) dot.dataset.on = '1';
-        dots.appendChild(dot);
-    }
-    // ドットは装飾なので、同じ情報を読み上げ用の文言でも置く（aria-live="polite" は HTML 側）。
-    const sr = document.createElement('span');
-    sr.className = 'idx-sr-only';
-    sr.textContent = `${_heroShots[_heroPos].label}の表紙（${_heroPos + 1} / ${_heroShots.length}）`;
-    dots.appendChild(sr);
-}
-
-// 表紙を delta 枚ぶん動かす（+1 = 過去へ、-1 = 新しい方へ）。端では何もしない。
-// _goHero(delta: number): Promise<void>
-async function _goHero(delta: number): Promise<void> {
-    if (_heroBusy) return;
-    // 進行中のスライドがあれば先に畳む＝連打しても 1 枚ずつ確実に進む
-    _finishHeroSlide();
-    const next = _heroPos + delta;
-    if (next < 0 || next >= _heroShots.length) return;
-    const card = document.querySelector<HTMLElement>('#idx-hero-card');
-    const img = document.querySelector<HTMLImageElement>('#idx-hero-img');
-    const prev = document.querySelector<HTMLImageElement>('#idx-hero-prev');
-    if (!card || !img || !prev) return;
-
-    _heroBusy = true;
-    const gen = ++_heroGen;
-    const shot = _heroShots[next];
-    const dir = delta > 0 ? 1 : -1;   // 過去へ進むときは新しい絵が右から入る
-
-    // 1. 去っていく絵を背面へ写す。currentSrc はブラウザキャッシュに載っているので即座に出る。
-    prev.src = img.currentSrc || img.src;
-    prev.style.transition = 'none';
-    prev.style.transform = 'translateX(0)';
-    prev.style.opacity = '1';
-
-    // 2. 前面を画面外へ出してから読み込む。**画面内のまま src を差し替えると読み込み中に絵が消える**
-    //    （過去の表紙は押されて初めて取得するので、ここで必ず待ちが入る）。
-    img.style.transition = 'none';
-    img.style.transform = `translateX(${dir * 100}%)`;
-    // **transition を切ったまま、ここで開始位置を確定させる**。この確定を後回しにすると、transition を
-    // 有効にした直後の確定が「0% → 100%」のアニメを走らせてしまい、続く 0% 指定と打ち消し合って
-    // スライドが起きない。decode がキャッシュで即返るときだけ顕在化するので、
-    // 「スマホで時々スライドせずに切り替わる」という形で出た（2026-09-09）。
-    void img.offsetWidth;
-    void prev.offsetWidth;
-
-    img.src = `${import.meta.env.BASE_URL}${shot.rel}`;
-    img.alt = `${shot.label}の表紙`;
-    try { await img.decode(); } catch { /* 404 等でも遷移は進める */ }
-    _heroBusy = false;
-    if (gen !== _heroGen) return;   // 待っている間に次の操作が来た＝この遷移は捨てる
-
-    // 3. スライド。時間とイージングは toc.css が data-hero-anim で持ち、ここは向きだけを与える。
-    card.dataset.heroAnim = '1';
-    img.style.transition = '';
-    prev.style.transition = '';
-    await _nextFrame();
-    if (gen !== _heroGen) return;
-    img.style.transform = 'translateX(0)';
-    prev.style.transform = `translateX(${dir * -100}%)`;
-
-    _heroPos = next;
-    _renderHeroNav();
-
-    _heroSlideTimer = window.setTimeout(_finishHeroSlide, HERO_SLIDE_MS);
-}
-
-// 進行中のスライドを畳む。タイマー満了で呼ばれるほか、次の操作が来たときにも前倒しで呼ぶ。
-// 何度呼んでも安全（冪等）。
-// _finishHeroSlide(): void
-function _finishHeroSlide(): void {
-    if (_heroSlideTimer !== null) {
-        window.clearTimeout(_heroSlideTimer);
-        _heroSlideTimer = null;
-    }
-    const card = document.querySelector<HTMLElement>('#idx-hero-card');
-    const prev = document.querySelector<HTMLImageElement>('#idx-hero-prev');
-    if (card) delete card.dataset.heroAnim;
-    if (prev) {
-        prev.style.transition = 'none';
-        prev.style.opacity = '0';
-        prev.style.transform = 'translateX(0)';
-    }
-}
-
-// シート（設定・共有・資料）か確認が開いているか。開いている間はギャラリーのキー操作を譲る。
-// _isPopupOpen(): boolean
-function _isPopupOpen(): boolean {
-    return sheet.anyOpen();
-}
-
-// クリック・キー・スワイプの登録。**1 度だけ**行う（applyStoryStage は再実行されるため）。
-// _wireHeroGalleryOnce(): void
-function _wireHeroGalleryOnce(): void {
-    if (_heroWired) return;
-    const card = document.querySelector<HTMLElement>('#idx-hero-card');
-    if (!card) return;
-    _heroWired = true;
-
-    document.querySelector('#idx-hero-newer')?.addEventListener('click', () => { void _goHero(-1); });
-    document.querySelector('#idx-hero-older')?.addEventListener('click', () => { void _goHero(1); });
-
-    // ← → は**カード内にフォーカスがあるときだけ**拾う。document で拾うと、設定・共有ポップアップや
-    // FAB を操作している最中にも表紙が動く（FAB は ArrowUp/Down、ポップアップは Escape を使っている）。
-    card.addEventListener('keydown', (e) => {
-        if (_isPopupOpen()) return;
-        if (e.key === 'ArrowRight') { e.preventDefault(); void _goHero(1); }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); void _goHero(-1); }
+    _shots.forEach((s, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.pos = String(i);
+        b.setAttribute('aria-label', `${s.label}の表紙`);
+        dots.appendChild(b);
     });
-
-    // スワイプ。縦移動のほうが大きいときは何もしない＝ページのスクロールを邪魔しない。
-    let sx = 0;
-    let sy = 0;
-    let tracking = false;
-    card.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'mouse') return;   // PC はボタンで操作する
-        sx = e.clientX; sy = e.clientY; tracking = true;
-    });
-    card.addEventListener('pointerup', (e) => {
-        if (!tracking) return;
-        tracking = false;
-        const dx = e.clientX - sx;
-        const dy = e.clientY - sy;
-        if (Math.abs(dx) < HERO_SWIPE_MIN_PX) return;
-        if (Math.abs(dx) < Math.abs(dy)) return;
-        void _goHero(dx < 0 ? 1 : -1);   // 左へ払う＝過去へ（右のボタンと同じ向き）
-    });
-    card.addEventListener('pointercancel', () => { tracking = false; });
-    card.addEventListener('dragstart', (e) => { e.preventDefault(); });
 }
 
-// ----- 目次本体（vol カード → ep → sec、直後にあとがきチップ） -----
+// 閲覧位置 pos の絵を「すぐ描ける」状態（decode 済み）にしておく。範囲外・読み済みは何もしない
+function _preload(pos: number): void {
+    const shot = _shots[pos];
+    if (!shot || _ready.has(shot.url)) return;
+    const im = new Image();
+    im.fetchPriority = 'low';
+    im.src = shot.url;
+    _ready.set(shot.url, im.decode().catch(() => { /* 404 でも払う操作は止めない */ }));
+}
 
-// story を vol 単位でループして目次を描画する。通常 vol は <details class="idx-vol-card">、
-// vol.preview を持つ予告 vol は <section class="idx-vol-card idx-vol-card--notice"> で描画する。
-// 初期 open は computeStoryStage(read, story) と vol.volume が一致する巻のみ
-// （storyStage === story.length + 1 の物語完結時は全 vol 閉じる）。開閉状態は永続化しない。
-// vol 単位の非表示：visibleEps（公開 sec を持つ ep + ep.preview を持つ ep）もあとがきも vol.preview も
-// 持たない vol は巻カード自体非表示。優先順位は完結 > 予告 > 連載中（integrity (e) 強化で完結×予告は禁止）。
-function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<string>): void {
+// 隣（step＝+1 で過去、-1 で新しい方。ドットからは 2 以上もある）の絵を外側に置く。範囲外なら false。
+// 間に合わなかったとき（遅い回線）に黒い地が見えないよう、枠の地に今の絵をぼかして敷く（--fallback。toc-page.css）
+function _placePeer(step: number): boolean {
+    const peer = _heroEl.peer();
+    const peerImg = _heroEl.peerImg();
+    const shot = _shots[_pos + step];
+    if (!peer || !peerImg || !shot || step === 0) { if (peer) peer.hidden = true; return false; }
+    setSrc(peerImg, shot.url);
+    peer.style.setProperty('--fallback', `url("${_heroEl.img()?.src ?? ''}")`);
+    peer.hidden = false;
+    _preload(_pos + step + Math.sign(step));   // さらにその先を先読み
+    return true;
+}
+
+// 指の位置 dx（px）に合わせて 2 枚を並べる（transition なし＝指に付いてくる）。左へ払う（dx < 0）と過去の巻が右から入る
+function _follow(dx: number, step: number = dx < 0 ? 1 : -1): void {
+    const art = _heroEl.art();
+    const slide = _heroEl.slide();
+    const peer = _heroEl.peer();
+    if (!art || !slide || !peer) return;
+    const w = art.clientWidth;
+    const has = _placePeer(step);
+    const d = has ? dx : dx / 4;   // 端の巻では 1/4 しか付いてこない＝「この先は無い」
+    slide.style.transition = peer.style.transition = 'none';
+    slide.style.translate = `${d}px 0`;
+    peer.style.translate = `${d + (step > 0 ? w : -w)}px 0`;
+}
+
+// el の transition が終わったら 1 度だけ fn。transitionend が来ない場合（動きを減らす設定・裏のタブ）に備えて時間でも締める
+function _afterSlide(el: HTMLElement, fn: () => void): void {
+    let done = false;
+    const end = () => { if (!done) { done = true; fn(); } };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { end(); return; }
+    el.addEventListener('transitionend', end, { once: true });
+    window.setTimeout(end, SLIDE_FALLBACK_MS);
+}
+
+// 確定：今の絵を外へ、隣の絵を真ん中へ滑らせてから、2 枚の役を入れ替える
+function _commit(step: number): void {
+    const art = _heroEl.art();
+    const slide = _heroEl.slide();
+    const peer = _heroEl.peer();
+    if (!art || !slide || !peer) return;
+    const w = art.clientWidth;
+    _sliding = true;
+    slide.style.transition = peer.style.transition = SLIDE;
+    slide.style.translate = `${step > 0 ? -w : w}px 0`;
+    peer.style.translate = '0 0';
+    _afterSlide(peer, () => {
+        _pos += step;
+        slide.style.transition = 'none';
+        _renderHero();                 // 前面に隣の絵を入れる（decode 済みの同じ画像なので見た目は変わらない）
+        slide.style.translate = '0 0';
+        peer.hidden = true;
+        _sliding = false;
+        _preload(_pos - 1); _preload(_pos + 1);
+    });
+}
+
+// 取り消し：2 枚とも元の位置へ滑って戻る
+function _cancel(step: number): void {
+    const art = _heroEl.art();
+    const slide = _heroEl.slide();
+    const peer = _heroEl.peer();
+    if (!art || !slide || !peer) return;
+    const w = art.clientWidth;
+    slide.style.transition = peer.style.transition = SLIDE;
+    slide.style.translate = '0 0';
+    peer.style.translate = `${step > 0 ? w : -w}px 0`;
+    _afterSlide(slide, () => { peer.hidden = true; });
+}
+
+// ボタン・ドット・矢印キーから：行き先の絵を外側に置いてから滑らせる（離れた巻へは 1 枚ずつではなく直接）
+function _goHero(step: number): void {
+    if (_sliding || !_placePeer(step)) return;
+    // 予約した時点で「動いている」にする（_commit まで 2 フレームあり、その間の連打・キーリピートが二重に確定して _pos が範囲外へ出る）
+    _sliding = true;
+    _follow(step > 0 ? -0.01 : 0.01, step);
+    // transition を切った位置を確定させてから動かす（同じフレームだと開始値を取り違えて動きが飛ぶ）
+    requestAnimationFrame(() => requestAnimationFrame(() => _commit(step)));
+}
+
+// クリック・キー・払う操作の登録（1 度だけ。applyStoryStage は「読破を消す」で再実行されるため、ここに置かない）
+function initHeroGallery(): void {
+    const art = _heroEl.art();
+    if (!art) return;
+    document.getElementById('idx-hero-older')?.addEventListener('click', () => _goHero(1));
+    document.getElementById('idx-hero-newer')?.addEventListener('click', () => _goHero(-1));
+    document.getElementById('idx-hero-dots')?.addEventListener('click', (e) => {
+        const b = (e.target as Element).closest<HTMLButtonElement>('button[data-pos]');
+        if (b && !_sliding) { const d = Number(b.dataset.pos) - _pos; if (d) _goHero(d); }
+    });
+    // ← → はヒーローの中にフォーカスがあるときだけ（ページのどこでも拾うと、シートの操作中にも絵が動く）
+    art.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') { e.preventDefault(); _goHero(1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); _goHero(-1); }
+    });
+    // 払う操作（指・ペン）：横の動きだけを拾い、縦のスクロールはブラウザに任せる（CSS の touch-action: pan-y）
+    let swipe: { x: number; y: number; t: number; id: number; dx: number; active: boolean } | null = null;
+    art.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' || _shots.length < 2 || _sliding) return;
+        swipe = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, dx: 0, active: false };
+    });
+    art.addEventListener('pointermove', (e) => {
+        if (!swipe || e.pointerId !== swipe.id) return;
+        const dx = e.clientX - swipe.x;
+        const dy = e.clientY - swipe.y;
+        if (!swipe.active) {
+            if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; }   // 縦のスクロールだった
+            if (Math.abs(dx) < 10) return;
+            swipe.active = true;
+            // 指が枠の外へ出ても追い続ける。捕まえられない指（すでに離れた等）でも払う操作は続ける
+            try { art.setPointerCapture(e.pointerId); } catch { /* noop */ }
+        }
+        swipe.dx = dx;
+        _follow(dx);
+    });
+    const endSwipe = (e: PointerEvent) => {
+        if (!swipe || e.pointerId !== swipe.id) return;
+        const { dx, active, t } = swipe;
+        swipe = null;
+        if (!active) return;
+        const step = dx < 0 ? 1 : -1;
+        const fast = Math.abs(dx) / Math.max(1, e.timeStamp - t) > 0.5;
+        const far = Math.abs(dx) > art.clientWidth / 5;
+        if ((far || fast) && e.type === 'pointerup' && !_heroEl.peer()?.hidden) _commit(step);
+        else _cancel(step);
+    };
+    art.addEventListener('pointerup', endSwipe);
+    art.addEventListener('pointercancel', endSwipe);
+    art.addEventListener('dragstart', (e) => { e.preventDefault(); });
+}
+
+// ----- 上の帯・右カラムの貼り付き -----
+
+// ヒーローを過ぎたら帯にする（JS は「過ぎたか」を <body data-past-hero> に写すだけ。見た目は toc-page.css）。
+// 右カラムの高さを --side-h に渡す（画面より高いとき、下端が見えたところで止めるため）
+function initLayoutObservers(): void {
+    const art = document.getElementById('idx-hero-art');
+    if (art && 'IntersectionObserver' in window) {
+        new IntersectionObserver(([e]) => { document.body.dataset.pastHero = String(!e.isIntersecting); },
+            { rootMargin: '-64px 0px 0px 0px' }).observe(art);
+    }
+    const side = document.getElementById('idx-side');
+    if (side && 'ResizeObserver' in window) {
+        new ResizeObserver(() => { document.body.style.setProperty('--side-h', `${side.offsetHeight}px`); }).observe(side);
+    }
+}
+
+// ----- 目次本体（巻カード → 話の扉絵バナー → 節のチップ、巻末にあとがきの帯） -----
+
+// story を巻ごとに描く。通常の巻は <details class="idx-vol-card">、予告の巻は <section class="idx-vol-card--notice">（見出しだけ）。
+// 初期 open は stage の巻だけ（物語完結は全部閉じる）。開閉は保存しない。
+// 表示できる話（公開済みの節がある・予告がある）もあとがきも予告も無い巻は出さない。優先順位は完結 > 予告 > 連載中。
+function renderStory(reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
     area.innerHTML = '';
+    const storyStage = computeStoryStage(Array.from(read), _story as unknown as Parameters<typeof computeStoryStage>[1]);
+    const auto = storage.getLatestAutoSave();
 
-    // 初期 open 判定用の storyStage を1回だけ算出（あとがきキーは stage 判定に影響しない・要件 06-5）。
-    // computeStoryStage は types.ts の StoryData（Volume[]）を受けるが、ローカル StoryVolume は判定に必要な
-    // フィールド（volume・epRange・episodes.sections.published）を全て持つため構造互換（applyStoryStage と同流儀）。
-    const storyStage = computeStoryStage(
-        Array.from(read),
-        story as unknown as Parameters<typeof computeStoryStage>[1],
-    );
-
-    for (const vol of story) {
-        // 表示可能な ep：公開 sec が1つ以上 OR **非空** ep.preview を持つ。
-        // 空 text preview（`{ text: "" }`）は事前配置テンプレなので「予告 ep」として扱わない
-        // ＝publishedSecs も preview も無い ep と同じで非表示（vol カードごと非表示条件にも寄与）。
-        // publishedSecs は sec chip 描画の入力、hasPreview は予告 ep 描画の分岐に使う。
+    for (const vol of _story) {
+        // 表示できる話：公開済みの節が 1 つ以上 OR **非空**の ep.preview（空 text は事前配置のテンプレ＝出さない）
         const visibleEps = vol.episodes
-            .map(ep => ({
-                ep,
-                publishedSecs: ep.sections.filter(s => s.published),
-                hasPreview: hasEffectivePreview(ep.preview),
-            }))
-            .filter(x => x.publishedSecs.length > 0 || x.hasPreview);
+            .map(ep => ({ ep, published: ep.sections.filter(s => s.published), hasPreview: hasEffectivePreview(ep.preview) }))
+            .filter(x => x.published.length > 0 || x.hasPreview);
         const hasAfterword = vol.afterword?.published === true;
         const hasVolPreview = hasEffectivePreview(vol.preview);
-        // vol 単位の非表示：表示可能な ep も vol.preview もあとがきも無い vol は巻カードを出さない
         if (visibleEps.length === 0 && !hasAfterword && !hasVolPreview) continue;
 
-        // 予告 vol は <details> ではなく <section> ＋ ヘッダのみ生成し、開閉不可・body 非生成にする。
-        // vol.preview は「予告」用途で、完結と併存する状況は integrity (e) 強化で禁止。
+        // 予告の巻：<details> ではなく <section>＋見出しだけ（開閉できない・中身を作らない）
         if (hasVolPreview && !hasAfterword) {
             const card = document.createElement('section');
             card.className = 'idx-vol-card idx-vol-card--notice';
@@ -515,25 +568,16 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
             continue;
         }
 
-        // 通常 vol：<details> でグルーピング。open 属性で初期表示を制御し、以後の開閉はブラウザ標準に委ねる。
         const card = document.createElement('details');
         card.className = 'idx-vol-card';
         if (vol.volume === storyStage) card.open = true;
         card.appendChild(_buildVolHead(vol, hasAfterword, visibleEps.length));
-
-        // 本体：ep ブロック（既存の idx-ep / idx-chip をそのまま使う）＋巻末あとがき
-        const body = document.createElement('div');
+        const body = document.createElement('section');
         body.className = 'idx-vol-body';
-
-        for (const { ep, publishedSecs, hasPreview } of visibleEps) {
-            body.appendChild(_buildEpBlock(ep, publishedSecs, hasPreview, reached, read));
+        for (const { ep, published, hasPreview } of visibleEps) {
+            body.appendChild(_buildEpBlock(vol.volume, ep, published, hasPreview, reached, read, auto));
         }
-
-        // 巻末あとがきチップ（vol.afterword.published=true のときのみ）
-        if (hasAfterword) {
-            body.appendChild(_buildAfterwordBlock(vol, reached, read));
-        }
-
+        if (hasAfterword) body.appendChild(_buildAfterwordBlock(vol, reached, read, auto));
         card.appendChild(body);
         area.appendChild(card);
     }
@@ -546,20 +590,12 @@ function renderStory(story: StoryVolume[], reached: Set<string>, read: Set<strin
     }
 }
 
-// vol の summary 相当ヘッダ（chev / 巻見出し / 状態バッジ）を生成する。
-// 通常 vol は <details> の <summary>、予告 vol は <section> の <header> として使う。
-// タグは <summary>（<details> 用）か <div>（<section> 用）を返せば済むが、両者は用途が違うので
-// クラス名で解決する（<summary> でないと <details> の開閉ハンドラが繋がらない）。
-// pill の中身は「完結 > 予告 > 連載中」の優先順位で決める（完結と予告の併存は integrity (e) 強化で禁止）。
+// 巻の見出し（▶・「第N巻」・状態の札）。通常の巻は <summary>（<details> の開閉に要る）、予告の巻は <header>
+// （<header> は必ず <section class="idx-vol-card--notice"> の内側に置く：外に出すとランドマーク banner が 2 つ目に生える）。
+// 札は「完結（全M話）> 予告の文 > 連載中」
 function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount: number): HTMLElement {
     const hasVolPreview = hasEffectivePreview(vol.preview);
-    // 予告 vol は <header>、通常 vol は <summary>（<details> の toggle に必要）。同じ .idx-vol-head クラスを共有し、
-    // CSS 側で .idx-vol-card--notice > .idx-vol-head の cursor/hover を打ち消す。
-    // <header> は必ず <section class="idx-vol-card--notice"> の内側に置くこと：セクショニング要素の外に出すと
-    // ARIA ロールが banner にマップされ、ページに2つ目のランドマークが静かに生える。
-    const head = hasVolPreview && !hasAfterword
-        ? document.createElement('header')
-        : document.createElement('summary');
+    const head = document.createElement(hasVolPreview && !hasAfterword ? 'header' : 'summary');
     head.className = 'idx-vol-head';
 
     const chev = document.createElement('span');
@@ -576,8 +612,7 @@ function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount:
     const pill = document.createElement('span');
     pill.className = 'idx-vol-pill';
     if (hasAfterword) {
-        // 「巻完結」＝当 vol の全 ep 全 sec 公開（story-integrity の (e)/(e') により vol.afterword.published と同義）。
-        // pill 表示テキストには「巻完結」を出さず「全M話」だけ（判定名としてだけ使い分ける・要件 06-7）
+        // 「巻完結」は判定名だけ。札には「全M話」だけを出す（要件 06-7）
         pill.textContent = `全${visibleEpsCount}話`;
     } else if (hasVolPreview) {
         pill.classList.add('idx-vol-pill--notice');
@@ -586,32 +621,39 @@ function _buildVolHead(vol: StoryVolume, hasAfterword: boolean, visibleEpsCount:
         pill.textContent = '連載中';
     }
     head.appendChild(pill);
-
     return head;
 }
 
-// ep 1個分のブロック（タイトル＋sec chip 群 or 予告テキスト）を生成する。
-// publishedSecs が空 かつ hasPreview=true の場合は ep.preview を <span class="idx-ep-notice"> で描画。
-// それ以外は従来通り公開 sec の chip 群を描画し、**部分公開 ep**（公開 sec 1つ以上 かつ 未公開 sec
-// 1つ以上）では続けて未公開 sec を ghost chip（.idx-chip--ghost・破線グレー・非リンク・aria-hidden）
-// として末尾に並べて「まだ続く」を示唆する（案 B-1・要件 06-7「部分公開 ep のゴースト chip」）。
-// 完全公開 ep ではゴースト chip は生成されず vol/物語完結時は視覚差ゼロ（B-1 の既知の欠点）。
-// 両者混在ケース（公開 sec 有り + 非空 ep.preview）は integrity (l) で禁止＝発生しない。
-// ep タイトルは prefix span（.idx-ep-prefix「第◯話」）＋半角スペースのテキストノード＋
-// 本体（applyRuby でルビ展開する ep.title）の 3 ノード構成（要件 06-7）。
-// prefix は本体よりトーンを落とす（CSS の opacity で親色継承・stage 非依存）。
-// applyRuby の正規表現は `|` と `《》` を要求するので prefix には副作用ゼロ＝本体だけに適用しても挙動不変。
+// 話の扉絵バナー：絵を全面に敷き（タイトルページと同じ扉絵）、見出し（「第◯話」＋ルビ展開したタイトル）と節のチップを載せる。
+// 予告の話（公開済みの節が無く非空の ep.preview）は絵を敷かず、タイトルと予告の文だけ。
+// 部分公開の話は公開済みのチップの後ろに未公開の節のゴーストのチップ（.idx-chip--ghost・非リンク・aria-hidden）を並べる。
+// 見出しは prefix（.idx-ep-prefix「第◯話」）＋半角スペースのテキストノード＋本体の 3 ノード（要件 06-7）
 function _buildEpBlock(
+    vol: number,
     ep: Episode,
-    publishedSecs: { id: number; published: boolean }[],
+    published: Section[],
     hasPreview: boolean,
     reached: Set<string>,
     read: Set<string>,
+    auto: LatestAutoSave | null,
 ): HTMLElement {
     const epEl = document.createElement('article');
     epEl.className = 'idx-ep';
+    const isPreview = published.length === 0 && hasPreview;
 
-    const titleEl = document.createElement('p');
+    if (!isPreview) {
+        const cover = document.createElement('img');
+        cover.className = 'idx-ep-cover';
+        cover.alt = '';
+        cover.loading = 'lazy';
+        cover.src = coverUrl(vol, ep);
+        cover.style.objectPosition = coverPosition(ep);
+        // 扉絵がまだ無い話（公開を先にして絵を後から足す場合）は、空の大きな枠を残さず文字の高さに縮める
+        cover.addEventListener('error', () => { cover.hidden = true; epEl.classList.add('idx-ep--nocover'); }, { once: true });
+        epEl.appendChild(cover);
+    }
+
+    const titleEl = document.createElement('h3');
     titleEl.className = 'idx-ep-title';
     const prefixEl = document.createElement('span');
     prefixEl.className = 'idx-ep-prefix';
@@ -621,386 +663,276 @@ function _buildEpBlock(
     applyRuby(ep.title, titleEl);
     epEl.appendChild(titleEl);
 
-    const chipsEl = document.createElement('div');
+    const chipsEl = document.createElement('p');
     chipsEl.className = 'idx-chips';
-
-    if (publishedSecs.length === 0 && hasPreview) {
-        // 予告 ep：sec chip は生成せず、破線ボックスで予告テキストのみ出す
+    if (isPreview) {
         epEl.classList.add('idx-ep--preview');
         const notice = document.createElement('span');
         notice.className = 'idx-ep-notice';
         notice.textContent = ep.preview!.text;
         chipsEl.appendChild(notice);
     } else {
-        // 通常 ep：公開 sec を chip で並べる
-        for (const sec of publishedSecs) {
-            const isReached = isSectionInSet(ep.id, sec.id, reached);
-            const isRead = isSectionInSet(ep.id, sec.id, read);
-
+        for (const sec of published) {
+            const isReached = reached.has(secKey(ep.id, sec.id));
+            const isRead = read.has(secKey(ep.id, sec.id));
+            const isHere = auto?.kind === 'sec' && auto.ep === ep.id && auto.sec === sec.id;
             const link = document.createElement('a');
             link.className = 'idx-chip'
                 + (isReached ? ' idx-chip--reached' : '')
-                + (isRead ? ' idx-chip--read' : '');
-            link.href = sec.id === 1
-                ? withQuery(`contents/${pad(ep.id)}-00.html`)
-                : withQuery(`contents/${pad(ep.id)}-${pad(sec.id)}.html`);
-
+                + (isRead ? ' idx-chip--read' : '')
+                + (isHere ? ' idx-chip--here' : '');
+            link.href = secHref(ep.id, sec.id);
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
-            if (isRead) link.setAttribute('aria-label', `${pad(sec.id)} 読破`);
-            else if (isReached) link.setAttribute('aria-label', `${pad(sec.id)} 既読`);
             link.appendChild(labelEl);
-
+            // 文字を減らしても読み上げの名前は残す：読破（読了）＞既読（到達）、オートセーブの位置なら「続きから」
+            const marks = [isRead ? '読破' : isReached ? '既読' : '', isHere ? '続きから' : ''].filter(Boolean);
+            if (marks.length > 0) link.setAttribute('aria-label', `${pad(sec.id)} ${marks.join(' ')}`);
             chipsEl.appendChild(link);
         }
-
-        // 未公開 sec を破線グレーの ghost chip として末尾に並べる（案 B-1・部分公開 ep の未完示唆）。
-        // rule (d) が「未公開 sec は末尾のみ」を保証しているため story.json 定義順そのまま append する
-        // だけで公開 chip の後ろに整列する。href なし・非リンク・既読/読破マーク／aria-label なし。
-        // ghost は視覚シグナル専用（非コンテンツ・非対話）なので aria-hidden="true" で支援技術には
-        // 隠す — 非視覚読者は公開 chip 列だけをナビ導線として認識する形にする。
+        // 未公開の節（story-integrity (d) により末尾に集まっている）。視覚だけの「まだ続く」の印＝支援技術には隠す
         for (const sec of ep.sections.filter(s => !s.published)) {
             const ghost = document.createElement('span');
             ghost.className = 'idx-chip idx-chip--ghost';
             ghost.setAttribute('aria-hidden', 'true');
-
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
             ghost.appendChild(labelEl);
-
             chipsEl.appendChild(ghost);
         }
     }
-
     epEl.appendChild(chipsEl);
     return epEl;
 }
 
-// 巻末あとがきチップ（vol.afterword.published=true のときのみ呼ばれる）を生成する。
-// ep タイトルは巻情報なしの「あとがき」だけ（巻カード内に置かれるので巻情報は summary の「第N巻」で足りる）。
-// chip の視覚 label は `**`（視覚シンボル・aria-hidden で支援技術からは隠す）／link の aria-label は
-// 「第N巻 あとがき」を巻ごとに必ず含める（複数完結巻それぞれに `**` chip がある場合の識別可能性を担保・
-// 未読／既読／読破の 3 分岐すべてで常時セット）。本文ページ側 `#btn-afterword` の「第◯巻あとがき」表記
-// とは意図的に非対称（要件 06-7）。
-function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>): HTMLElement {
-    const afterwordEl = document.createElement('article');
-    afterwordEl.className = 'idx-ep idx-ep--afterword';
+// 巻末のあとがきの帯（vol.afterword.published のときだけ）。絵を敷かない低い帯で（話のバナーと並べると、絵つきの低い帯は
+// 中途半端に見えた）、チップは「01」1 つ（話の節のチップと同じ数字。
+// 以前は「**」、次に「読む」だったが、チップの列の中で 1 つだけ動詞になって日本語として浮いた）。
+// チップの文字は飾り（aria-hidden）で、名前は link の aria-label「第N巻 あとがき（ 既読／読破）」が持つ
+// （完結した巻が複数あっても読み上げで区別できる）。記録のキーは "vol[XX]-af"（本文の節と同じ Set に入る）
+function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>, auto: LatestAutoSave | null): HTMLElement {
+    const el = document.createElement('article');
+    el.className = 'idx-ep idx-ep--afterword';
 
-    const titleEl = document.createElement('p');
+    const titleEl = document.createElement('h3');
     titleEl.className = 'idx-ep-title';
     titleEl.textContent = 'あとがき';
-    afterwordEl.appendChild(titleEl);
+    el.appendChild(titleEl);
 
-    const chips = document.createElement('div');
+    const chips = document.createElement('p');
     chips.className = 'idx-chips';
-
-    const isReached = isAfterwordInSet(vol.volume, reached);
-    const isRead = isAfterwordInSet(vol.volume, read);
-
+    const key = storage.afterwordKey(vol.volume);
+    const isReached = reached.has(key);
+    const isRead = read.has(key);
+    const isHere = auto?.kind === 'afterword' && auto.vol === vol.volume;
     const link = document.createElement('a');
     link.className = 'idx-chip'
         + (isReached ? ' idx-chip--reached' : '')
-        + (isRead ? ' idx-chip--read' : '');
-    link.href = withQuery(`contents/vol${pad(vol.volume)}-afterword.html`);
-
-    const baseAria = `第${vol.volume}巻 あとがき`;
-    if (isRead) link.setAttribute('aria-label', `${baseAria} 読破`);
-    else if (isReached) link.setAttribute('aria-label', `${baseAria} 既読`);
-    else link.setAttribute('aria-label', baseAria);
-
+        + (isRead ? ' idx-chip--read' : '')
+        + (isHere ? ' idx-chip--here' : '');
+    link.href = afterwordHref(vol.volume);
+    const marks = [isRead ? '読破' : isReached ? '既読' : '', isHere ? '続きから' : ''].filter(Boolean);
+    link.setAttribute('aria-label', [`第${vol.volume}巻 あとがき`, ...marks].join(' '));
     const labelEl = document.createElement('span');
-    labelEl.textContent = '**';
+    labelEl.textContent = '01';
     labelEl.setAttribute('aria-hidden', 'true');
     link.appendChild(labelEl);
     chips.appendChild(link);
-
-    afterwordEl.appendChild(chips);
-    return afterwordEl;
+    el.appendChild(chips);
+    return el;
 }
 
 // ----- 栞 -----
 
-function fmtDate(savedAt: number): string {
-    const d = new Date(savedAt);
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 function locLabel(ep: number, sec: number): string {
     const epTitle = _episodes.find(e => e.id === ep)?.title ?? '';
-    return epTitle ? `第${ep}話 ${epTitle} #${sec}` : `第${ep}話 #${sec}`;
+    return epTitle ? `第${ep}話 ${plainTitle(epTitle)} #${sec}` : `第${ep}話 #${sec}`;
 }
 
-// あとがきのオートセーブ用ラベル：「第◯巻あとがき」
-function afterwordLabel(vol: number): string {
-    return `第${vol}巻あとがき`;
-}
+const percent = (ratio: number) => `${Math.round(ratio * 100)}%`;
 
-function fmtRatioPercent(ratio: number): string {
-    return `${Math.round(ratio * 100)}%`;
-}
-
-function buildSlotCard(slotLabel: string, locText: string, dateText: string, actions: HTMLElement | null): HTMLElement {
-    const card = document.createElement('article');
-    card.className = 'idx-bm-card' + (actions ? '' : ' idx-bm-card--empty');
-
-    const info = document.createElement('div');
-    info.className = 'idx-bm-info';
-
-    const slotEl = document.createElement('p');
-    slotEl.className = 'idx-bm-slot';
-    slotEl.textContent = slotLabel;
-    info.appendChild(slotEl);
-
-    const locEl = document.createElement('p');
-    locEl.className = 'idx-bm-loc';
-    applyRuby(locText, locEl);
-    info.appendChild(locEl);
-
-    if (dateText) {
-        const dateEl = document.createElement('p');
-        dateEl.className = 'idx-bm-date';
-        dateEl.textContent = dateText;
-        info.appendChild(dateEl);
+// 1 行（index.html の #idx-bm-row-tpl）。go は押したときにすること（pendingJump を書く）、del は確認のあとに消すこと
+function _bmRow(o: { auto: boolean; name: string; loc: string; detail: string; href: string; ratio: number; go: () => void; del: () => void }): HTMLElement {
+    const tpl = document.getElementById('idx-bm-row-tpl') as HTMLTemplateElement;
+    const row = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+    const link = row.querySelector<HTMLAnchorElement>('.idx-bm-go')!;
+    if (o.auto) {
+        row.classList.add('idx-bm-slot--auto');
+        const icon = (document.getElementById('idx-bm-auto-icon-tpl') as HTMLTemplateElement).content.firstElementChild!.cloneNode(true);
+        link.querySelector('svg')?.replaceWith(icon);
     }
-
-    card.appendChild(info);
-    if (actions) card.appendChild(actions);
-    return card;
+    link.href = o.href;
+    link.title = `${o.name}：${o.detail}`;
+    link.setAttribute('aria-label', `${o.name}：${o.detail}`);
+    link.addEventListener('click', o.go);
+    row.querySelector('.idx-bm-loc')!.textContent = o.loc;
+    (row.querySelector('.idx-bm-ratio') as HTMLMeterElement).value = o.ratio;
+    const del = row.querySelector<HTMLButtonElement>('.idx-bm-del')!;
+    del.setAttribute('aria-label', `${o.name}を消す`);
+    del.addEventListener('click', () => {
+        void confirmAndRun(`${o.name}（${o.loc}）を削除しますか？`, () => {
+            // 欄は描き直す＝押した × は消える。フォーカスがページの外（body）へ落ちないよう、同じ位置かその上の × へ移す
+            const at = [...document.querySelectorAll('#bookmark-slots .idx-bm-slot')].indexOf(row);
+            o.del();
+            _focusBookmarkNear(at);
+        });
+    });
+    return row;
 }
 
-// 栞欄。スロット0＝オートセーブ（本編／あとがき union の新しい方）、スロット1〜3＝手動栞（本編のみ）。
+// 栞の欄を描き直したあとのフォーカス：at 行目以降で最初の ×、無ければその上の最後の ×、それも無ければ栞の見出し
+function _focusBookmarkNear(at: number): void {
+    const rows = [...document.querySelectorAll<HTMLElement>('#bookmark-slots .idx-bm-slot')];
+    const delAt = (r: HTMLElement | undefined) => r?.querySelector<HTMLButtonElement>('.idx-bm-del') ?? null;
+    const target = rows.slice(at).map(delAt).find(Boolean) ?? rows.slice(0, at).reverse().map(delAt).find(Boolean)
+        ?? document.getElementById('idx-bm-label');
+    // 確認（<dialog>）が閉じたときの「開いた要素へ戻す」が先に走るので、その後で移す
+    requestAnimationFrame(() => target?.focus());
+}
+
+// 栞の欄。スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方。無ければ出さない）、スロット1〜3＝手動栞（常に出す）
 function renderBookmarks(): void {
     const container = document.getElementById('bookmark-slots');
     if (!container) return;
     container.innerHTML = '';
 
-    // スロット0：オートセーブ（本編／あとがきのうち savedAt が新しい方）
     const latest = storage.getLatestAutoSave();
     if (latest) {
-        const actions = document.createElement('div');
-        actions.className = 'idx-bm-btns';
-        const resumeBtn = document.createElement('a');
-        resumeBtn.className = 'idx-bm-go';
-        resumeBtn.href = latest.kind === 'afterword'
-            ? withQuery(`contents/vol${pad(latest.vol)}-afterword.html`)
-            : withQuery(`contents/${pad(latest.ep)}-${pad(latest.sec)}.html`);
-        resumeBtn.textContent = '続きから読む';
-        resumeBtn.addEventListener('click', () => { writeResumeJump(latest); });
-        actions.appendChild(resumeBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'idx-bm-del';
-        delBtn.type = 'button';
-        delBtn.textContent = '削除';
-        // 削除は該当オートセーブ（本編／あとがき）のキーを消す
-        delBtn.addEventListener('click', () => {
-            if (latest.kind === 'afterword') storage.clearAutoSaveAfterword();
-            else storage.clearAutoSave();
-            renderBookmarks();
-        });
-        actions.appendChild(delBtn);
-
-        const locText = latest.kind === 'afterword'
-            ? `${afterwordLabel(latest.vol)}（${fmtRatioPercent(latest.ratio)}）`
-            : `${locLabel(latest.ep, latest.sec)}（${fmtRatioPercent(latest.ratio)}）`;
-        const card = buildSlotCard('スロット0：オートセーブ', locText, fmtDate(latest.savedAt), actions);
-        card.classList.add('idx-bm-card--auto');
-        container.appendChild(card);
+        const detail = latest.kind === 'afterword'
+            ? `第${latest.vol}巻あとがき（${percent(latest.ratio)}）`
+            : `${locLabel(latest.ep, latest.sec)}（${percent(latest.ratio)}）`;
+        container.appendChild(_bmRow({
+            auto: true, name: 'オートセーブ', loc: autoSaveLabel(latest), detail,
+            href: autoSaveHref(latest), ratio: latest.ratio,
+            go: () => writeResumeJump(latest),
+            del: () => {
+                if (latest.kind === 'afterword') storage.clearAutoSaveAfterword(); else storage.clearAutoSave();
+                refreshRecords();
+            },
+        }));
     }
 
-    // スロット1〜3：手動栞（本編 sec のみ・あとがきは手動栞対象外）
     const bySlot = new Map(storage.getBookmarksWithSlots().map(b => [b.slot, b]));
+    const emptyTpl = document.getElementById('idx-bm-empty-tpl') as HTMLTemplateElement;
     for (let slot = 1; slot <= 3; slot++) {
         const entry = bySlot.get(slot);
         if (!entry) {
-            container.appendChild(buildSlotCard(`スロット${slot}`, '空き', '', null));
+            const row = (emptyTpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+            row.querySelector('.idx-sr-only')!.textContent = `栞 ${slot}：`;   // 見える文字は「空き」だけ（HTML）。読み上げはどのスロットかを足す
+            container.appendChild(row);
             continue;
         }
-
         const { ep, sec, scene } = entry;
-        const actions = document.createElement('div');
-        actions.className = 'idx-bm-btns';
-
-        const jumpBtn = document.createElement('a');
-        jumpBtn.className = 'idx-bm-go';
-        jumpBtn.href = withQuery(`contents/${pad(ep)}-${pad(sec)}.html`);
-        jumpBtn.textContent = 'ここから読む';
-        jumpBtn.addEventListener('click', () => {
-            storage.writePendingJump({ ep, sec, scene, ratio: entry.ratio });
-        });
-        actions.appendChild(jumpBtn);
-
-        const clearBtn = document.createElement('button');
-        clearBtn.className = 'idx-bm-del';
-        clearBtn.type = 'button';
-        clearBtn.textContent = '削除';
-        clearBtn.addEventListener('click', () => {
-            storage.removeBookmark(entry.slot);
-            renderBookmarks();
-        });
-        actions.appendChild(clearBtn);
-
-        const locText = locLabel(ep, sec) + (scene === 0 ? '（タイトル画面）' : `（${fmtRatioPercent(entry.ratio)}）`);
-        container.appendChild(buildSlotCard(`スロット${slot}`, locText, fmtDate(entry.savedAt), actions));
+        container.appendChild(_bmRow({
+            auto: false, name: `栞 ${slot}`, loc: posLabel(ep, sec),
+            detail: locLabel(ep, sec) + (scene === 0 ? '（タイトル画面）' : `（${percent(entry.ratio)}）`),
+            href: withQuery(`contents/${pad(ep)}-${pad(sec)}.html`), ratio: scene === 0 ? 0 : entry.ratio,
+            go: () => storage.writePendingJump({ ep, sec, scene, ratio: entry.ratio }),
+            del: () => { storage.removeBookmark(entry.slot); refreshRecords(); },
+        }));
     }
 }
 
-// ----- 設定ポップアップ・共有ポップアップ -----
+// 読者の記録（栞・既読・読破・オートセーブ）が変わったあとに、それを映す所をまとめて描き直す
+function refreshRecords(): void {
+    renderStory(storage.loadReachedKeys(), storage.loadReadKeys());
+    renderBookmarks();
+    renderCta();
+}
 
-// 設定ポップアップ（ui/settings-panel。markup は templates/parts/settings.html＝本文ページと同じ断片）の host を目次用に結ぶ。
-// 目次ページは本文を持たないので CSS 変数・<html data-writing-mode> へは反映せず、localStorage への保存だけを行う
-// （反映するのは本文側の settings.ts だけ＝目次が縦書きになる事故が構造的に起きない）。
-// 「設定を初期値に戻す」は表示設定 5 項目と読書点のキーを消す（removeSettings）。本文側は既定値を書くが、読み手が
-// null を既定へ倒すので読者にとっては同値（e2e/settings-reset.spec.ts が目次側のキーの網羅と、本文での解決を見る）。
-// Escape で閉じる順番は initFab のキー処理が決めるので、パネル自身には Escape を拾わせない。
-// initSettingsPopup(story: StoryVolume[]): void
-function initSettingsPopup(story: StoryVolume[]): void {
+// ----- 世界（資料ページへの入口） -----
+
+// 3 つのタイルの href に今のクエリを付け直す（?dev の引き継ぎ＝作者の閲覧を計測させない）。story.json を待たない
+function initWorldLinks(): void {
+    for (const [id, page] of [['idx-world-chara', 'characters.html'], ['idx-world-map', 'map.html'], ['idx-world-glossary', 'glossary.html']]) {
+        const link = document.getElementById(id);
+        if (link instanceof HTMLAnchorElement) link.href = withQuery(page);
+    }
+}
+
+// ----- 設定（上の帯の ⚙）・共有 -----
+
+// 設定シート（ui/settings-panel。markup は templates/parts/settings.html＝本文ページと同じ断片）の host を目次用に結ぶ。
+// 目次は本文を持たないので CSS 変数・<html data-writing-mode> へは反映せず、保存だけ（目次が縦書きになる事故が構造的に起きない）。
+// PC では開いている間、ページ全体を本文の見本（#idx-preview）にして、選んだ設定をそこへ写す。
+// 「設定を初期値に戻す」は表示設定 5 項目と読書点のキーを消す（removeSettings。本文側は既定値を書くが、読み手が null を
+// 既定へ倒すので読者にとっては同値。e2e/settings-reset.spec.ts）。
+function initSettings(): void {
     settingsPanel.init({
         current: loadSettings,
-        select: saveSetting,
+        select: (key, value) => { saveSetting(key, value); renderPreview(); },
         preset: (id) => {
             const preset = PRESETS.find((p) => p.id === id);
             if (preset) saveSettings(preset.values);
+            renderPreview();
         },
-        reset: removeSettings,
-        clearBookmarks: () => {
-            storage.clearSlots();
-            renderBookmarks();
-        },
-        clearReached: () => {
-            storage.clearReached();
-            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
-        },
+        reset: () => { removeSettings(); renderPreview(); },
+        clearBookmarks: () => { storage.clearAllBookmarks(); refreshRecords(); },   // 手動の栞とオートセーブ
+        clearReached: () => { storage.clearReached(); refreshRecords(); },
         clearRead: () => {
-            clearReadStatus();
-            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
-            applyStoryStage(story);
+            storage.clearRead();
+            refreshRecords();
+            applyStoryStage();
         },
     });
+    const btn = document.getElementById('idx-btn-settings');
+    const preview = document.getElementById('idx-preview');
+    btn?.addEventListener('click', () => {
+        const wide = matchMedia(PC_QUERY).matches;
+        if (wide && preview) { renderPreview(); preview.hidden = false; }
+        // スマホは見本を出さないので全画面（本文から開くときは裏の本文が見本になる＝断片の段のまま）
+        settingsPanel.open(btn, { detent: wide ? undefined : 'full' });
+    });
+    document.getElementById('settings-popup')?.addEventListener('close', () => { if (preview) preview.hidden = true; });
 }
 
-// ----- FAB メニュー -----
-
-function initFab(story: StoryVolume[]): void {
-    const toggleOrNull = document.getElementById('fab-toggle');
-    const panelOrNull  = document.getElementById('fab-panel');
-    if (!toggleOrNull || !panelOrNull) return;
-
-    const toggle = toggleOrNull as HTMLButtonElement;
-    const panel  = panelOrNull  as HTMLUListElement;
-
-    function isOpen() { return !panel.hidden; }
-
-    function openFab() {
-        panel.hidden = false;
-        toggle.setAttribute('aria-expanded', 'true');
-        toggle.setAttribute('aria-label', 'メニューを閉じる');
-        panel.querySelector<HTMLButtonElement>('.fab-item')?.focus();
-    }
-
-    function closeFab() {
-        panel.hidden = true;
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.setAttribute('aria-label', 'メニューを開く');
-    }
-
-    function addItem(label: string, handler: () => void): void {
-        const li = document.createElement('li');
-        li.setAttribute('role', 'presentation');
-        const btn = document.createElement('button');
-        btn.className = 'fab-item';
-        btn.type = 'button';
-        btn.setAttribute('role', 'menuitem');
-        btn.textContent = label;
-        btn.addEventListener('click', () => { closeFab(); handler(); });
-        li.appendChild(btn);
-        panel.appendChild(li);
-    }
-
-    const latest = storage.getLatestAutoSave();
-    if (latest) addItem('続きから読む', () => { resumeReading(latest); });
-    addItem('栞をすべてクリア', () => {
-        confirmAndRun('保存した栞をすべて削除しますか？', () => {
-            storage.clearSlots();
-            renderBookmarks();
-        });
-    });
-    addItem('既読をクリア', () => {
-        confirmAndRun('既読の記録をすべて削除しますか？', () => {
-            storage.clearReached();
-            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
-        });
-    });
-    addItem('読破状況をクリア', () => {
-        confirmAndRun('読破の記録をすべて削除しますか？', () => {
-            clearReadStatus();
-            renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
-            applyStoryStage(story);
-        });
-    });
-    // 閉じたときのフォーカス戻り先に FAB のボタンを渡す（押された項目は閉じたパネルの中にいる）
-    addItem('設定', () => { settingsPanel.open(toggle); });
-    addItem('共有', () => { share.open(toggle); });
-
-    toggle.addEventListener('click', () => { if (isOpen()) closeFab(); else openFab(); });
-
-    document.addEventListener('click', (e) => {
-        const container = document.getElementById('fab-container');
-        if (isOpen() && container && !container.contains(e.target as Node)) {
-            closeFab();
-        }
-    });
-
-    panel.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-        e.preventDefault();
-        const items = Array.from(panel.querySelectorAll<HTMLButtonElement>('.fab-item'));
-        const idx = items.indexOf(document.activeElement as HTMLButtonElement);
-        if (e.key === 'ArrowDown') {
-            items[(idx + 1) % items.length]?.focus();
-        } else {
-            items[(idx - 1 + items.length) % items.length]?.focus();
-        }
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        // シートか確認（<dialog>）が開いていれば、一番上のものをブラウザが閉じる。ここは手を出さない
-        // （以前はポップアップを閉じる順番をここに手書きしていた）
-        if (sheet.anyOpen()) return;
-        if (isOpen()) closeFab(); else openFab();
-    });
+// 本文の見本に今の設定を写す（data-* だけ。組みは toc-page.css）
+function renderPreview(): void {
+    const text = document.getElementById('idx-preview-text');
+    if (!text) return;
+    const s = loadSettings();
+    text.dataset.writingMode = s.writingMode;
+    text.dataset.lineGap = s.lineGap;
+    text.dataset.font = s.fontFamily;
+    text.dataset.size = s.fontSize;
+    text.dataset.weight = s.fontWeight;
 }
 
-// ----- 更新履歴 -----
+function initShare(): void {
+    share.init();
+    const btn = document.getElementById('idx-btn-share');
+    btn?.addEventListener('click', () => share.open(btn));
+}
 
-// 版種別スイッチで ON の種別（初期値はメジャー＋マイナー。永続化しない＝ページを開くたびにこの値へ戻る）と、
-// 「すべて表示」の展開状態。どちらも _applyChangelogFilter が唯一の読み手。
+// ----- 変更履歴 -----
+
+// 版種別スイッチで ON の種別（初期値はメジャー＋マイナー。永続化しない）と、「すべて表示」の展開状態
 const _changelogKinds = new Set<VersionKind>(['major', 'minor']);
 let _changelogExpanded = false;
 
 /**
- * 版種別フィルタと展開状態を #content-changelog-list に反映する。表示の出し入れはこの関数だけが決める。
- * 初期件数（CHANGELOG_INITIAL_COUNT）は絞り込み後の何件目かで数える。該当 0 件なら空表示、
- * 絞り込み後の件数が初期件数を超えるときだけ「すべて表示／閉じる」を出す。
+ * 版種別と展開状態を #content-changelog-list に反映する。表示の出し入れはこの関数だけが決める。
+ * 初期件数は絞り込み後の何件目かで数える。該当 0 件なら空表示、初期件数を超えるときだけ「すべて表示（N 件）／閉じる」。
+ * 展開したら枠の中だけをスクロールさせる（ページを伸ばさない＝ .is-expanded。toc-page.css）
  * _applyChangelogFilter(): void
  */
 function _applyChangelogFilter(): void {
-    const listEl    = document.getElementById('content-changelog-list');
-    const emptyEl   = document.getElementById('content-changelog-empty');
+    const listEl = document.getElementById('content-changelog-list');
+    const emptyEl = document.getElementById('content-changelog-empty');
     const toggleBtn = document.getElementById('content-changelog-toggle');
     if (!listEl) return;
-
     let shown = 0;
     listEl.querySelectorAll<HTMLLIElement>('li.cl-entry').forEach(li => {
         const match = _changelogKinds.has(li.dataset.kind as VersionKind);
         li.hidden = !match || (!_changelogExpanded && shown >= CHANGELOG_INITIAL_COUNT);
         if (match) shown++;
     });
+    listEl.classList.toggle('is-expanded', _changelogExpanded);
     if (emptyEl) emptyEl.hidden = shown > 0;
     if (toggleBtn) {
         toggleBtn.hidden = shown <= CHANGELOG_INITIAL_COUNT;
-        toggleBtn.textContent = _changelogExpanded ? '閉じる' : 'すべて表示';
+        toggleBtn.textContent = _changelogExpanded ? '閉じる' : `すべて表示（${shown} 件）`;
+        toggleBtn.setAttribute('aria-expanded', String(_changelogExpanded));
     }
 }
 
@@ -1021,69 +953,58 @@ function _initChangelogControls(): void {
     });
 }
 
+// 1 行＝日付・版・話ごとのコミットへのリンク（上の行）＋変更の内容。記述順のまま全件を描く
 function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
     const listEl = document.getElementById('content-changelog-list');
     if (!listEl) return;
     listEl.innerHTML = '';
-
-    entries.forEach(entry => {
+    for (const entry of entries) {
         const li = document.createElement('li');
         li.className = 'cl-entry';
         li.dataset.kind = versionKind(entry.version);
 
-        const header = document.createElement('p');
+        const header = document.createElement('header');
         header.className = 'cl-header';
-
-        const versionSpan = document.createElement('span');
-        versionSpan.className = 'cl-version';
-        versionSpan.textContent = `v${entry.version}`;
-        header.appendChild(versionSpan);
-
-        const dateSpan = document.createElement('span');
-        dateSpan.className = 'cl-date';
-        dateSpan.textContent = entry.date;
-        header.appendChild(dateSpan);
+        const date = document.createElement('time');
+        date.className = 'cl-date';
+        date.textContent = entry.date;
+        header.appendChild(date);
+        const ver = document.createElement('span');
+        ver.className = 'cl-version';
+        ver.textContent = `v${entry.version}`;
+        header.appendChild(ver);
+        entry.ep.forEach((epNum, j) => {
+            // sha は ep と同じ並びの前提だが手で後入れするので揃わないことがある。揃っていなければリンクにしない
+            const sha = entry.sha?.[j] ?? '';
+            let chip: HTMLElement;
+            if (SHORT_SHA_RE.test(sha)) {
+                const link = document.createElement('a');
+                link.href = `https://github.com/${GITHUB_REPO}/commit/${sha}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                chip = link;
+            } else {
+                chip = document.createElement('span');
+            }
+            chip.className = 'cl-ep-link';
+            chip.textContent = `第${epNum}話`;
+            header.appendChild(chip);
+        });
         li.appendChild(header);
 
         const changeEl = document.createElement('p');
         changeEl.className = 'cl-change';
         changeEl.textContent = entry.change;
         li.appendChild(changeEl);
-
-        if (entry.ep.length > 0) {
-            const epLinks = document.createElement('div');
-            epLinks.className = 'cl-ep-links';
-            entry.ep.forEach((epNum, j) => {
-                // sha 配列は ep 配列と同じ長さ・同じ並びである前提だが、正のソースの epNN-changelog.json
-                // は手書きで sha が後入れなので揃わない状態が起こり得る。揃っていなければリンクにせず
-                // ラベルだけ出す（生成側の対応ズレは tool/changelog/convert.mjs が検出する）。
-                const sha = entry.sha?.[j] ?? '';
-                let chip: HTMLElement;
-                if (SHORT_SHA_RE.test(sha)) {
-                    const link = document.createElement('a');
-                    link.href   = `https://github.com/${GITHUB_REPO}/commit/${sha}`;
-                    link.target = '_blank';
-                    link.rel    = 'noopener noreferrer';
-                    chip = link;
-                } else {
-                    chip = document.createElement('span');
-                }
-                chip.className   = 'cl-ep-link';
-                chip.textContent = `第${epNum}話`;
-                epLinks.appendChild(chip);
-            });
-            li.appendChild(epLinks);
-        }
-
         listEl.appendChild(li);
-    });
-
+    }
     _applyChangelogFilter();
 }
 
-function _updateVersionBadge(type: 'content' | 'site', version: string): void {
+// 足もとの版（本文・サイト）。changelog の先頭の版
+function _updateVersion(type: 'content' | 'site', version: string): void {
     const el = document.getElementById(`badge-${type}-version`);
-    if (el) el.textContent = `${type} version ${version}`;
+    if (el) el.textContent = version;
 }
 
 async function loadChangelog(type: 'content' | 'site'): Promise<void> {
@@ -1092,11 +1013,11 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         if (type === 'content') {
             const entries = (await res.json()) as ContentChangelogEntry[];
-            _updateVersionBadge('content', entries[0]?.version ?? '');
+            _updateVersion('content', entries[0]?.version ?? '');
             _renderContentChangelog(entries);
         } else {
             const entries = (await res.json()) as SiteChangelogEntry[];
-            _updateVersionBadge('site', entries[0]?.version ?? '');
+            _updateVersion('site', entries[0]?.version ?? '');
         }
     } catch {
         if (type === 'content') {
@@ -1106,33 +1027,29 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     }
 }
 
-// ----- 付録カード（キャラクター紹介・エシュカ地図・用語集） -----
-
-// 付録カードの資料の 3 つ（<a href="characters.html"> など）に現在のクエリを付け直す（要件 06-7・06-15）。
-// 資料ページへの遷移なので、エピソード一覧と同じく withQuery で ?dev を引き継ぐ＝作者の閲覧を計測させない。
-// 目次からはページへ移るだけ（資料シートは本文から開く）。以前は人物・地図だけ資料シートを開き、用語集だけ
-// ページへ移っていた＝同じ付録の中で開き方が混ざっていたので揃えた。
-// initAppendixLinks(): void
-function initAppendixLinks(): void {
-    for (const [id, page] of [['appendix-chara', 'characters.html'], ['appendix-map', 'map.html'], ['appendix-glossary', 'glossary.html']]) {
-        const link = document.getElementById(id);
-        if (link instanceof HTMLAnchorElement) link.href = withQuery(page);
-    }
-}
-
 // ----- エントリポイント -----
 
 async function main(): Promise<void> {
-    // 栞・オートセーブのスキーマ移行（schemaVersion 5：単一スロット化＋割合化）を確実に走らせる（移行の持ち主は core/storage だけ）。
+    // 栞・オートセーブのスキーマ移行を確実に走らせる（移行の持ち主は core/storage だけ）
     storage.init();
-    // 付録の資料の href に ?dev を引き継ぐ。story.json の取得を待たない（待つ間に押されると素の href で遷移する）
-    initAppendixLinks();
+    // 廃止した表紙の URL のキャッシュ（P4 まで index.ts と main.ts が書いていた）を掃除する
+    try { localStorage.removeItem('lirmena.heroCard'); } catch { /* noop */ }
+    // story.json の取得を待たずに結線する（待つ間に押されても素の href で動く）
+    initWorldLinks();
+    initCta();
+    renderCta();
+    initHeroGallery();
+    initLayoutObservers();
+    initSettings();
+    initShare();
+    _initChangelogControls();
+    void loadChangelog('content');
+    void loadChangelog('site');
 
-    let story: StoryVolume[] = [];
     try {
         const res = await fetch('story.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        story = (await res.json()) as StoryVolume[];
+        _story = (await res.json()) as StoryVolume[];
     } catch {
         const area = document.getElementById('episodes-area');
         if (area) {
@@ -1143,20 +1060,10 @@ async function main(): Promise<void> {
             area.appendChild(msg);
         }
     }
-
-    _episodes = story.flatMap(vol => vol.episodes);
-    renderStory(story, storage.loadReachedKeys(), storage.loadReadKeys());
-    renderBookmarks();
-    applyStoryStage(story);
-    _initChangelogControls();
-    loadChangelog('content');
-    loadChangelog('site');
-
-    initResumeButton();
-
-    initSettingsPopup(story);
-    share.init();
-    initFab(story);
+    _episodes = _story.flatMap(vol => vol.episodes);
+    refreshRecords();
+    renderNews();
+    applyStoryStage();
 }
 
-main();
+void main();

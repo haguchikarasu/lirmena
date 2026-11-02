@@ -107,6 +107,31 @@ describe('キー名を変えない', () => {
     });
 });
 
+describe('栞をすべて消す', () => {
+    it('clearAllBookmarks は手動の栞とオートセーブ（本編・あとがき）を消し、既読・読破は残す', () => {
+        localStorage.setItem('schemaVersion', '5');
+        storage.init();
+        localStorage.setItem('bookmarks', JSON.stringify([{ slot: 1, ep: 1, sec: 1, scene: 1, ratio: 0.3, savedAt: 100 }]));
+        localStorage.setItem('autosave', JSON.stringify({ ep: 1, sec: 2, ratio: 0.4, savedAt: 100 }));
+        localStorage.setItem('autosaveAfterword', JSON.stringify({ vol: 1, ratio: 0.2, savedAt: 200 }));
+        localStorage.setItem('read', JSON.stringify(['01-01']));
+        localStorage.setItem('reached', JSON.stringify(['01-01']));
+        storage.clearAllBookmarks();
+        expect(localStorage.getItem('bookmarks')).toBeNull();
+        expect(storage.getLatestAutoSave()).toBeNull();
+        expect(json('read')).toEqual(['01-01']);
+        expect(json('reached')).toEqual(['01-01']);
+    });
+
+    it('clearSlots は手動の栞だけを消す（オートセーブは残る）', () => {
+        localStorage.setItem('bookmarks', JSON.stringify([{ slot: 1, ep: 1, sec: 1, scene: 1, ratio: 0.3, savedAt: 100 }]));
+        localStorage.setItem('autosave', JSON.stringify({ ep: 1, sec: 2, ratio: 0.4, savedAt: 100 }));
+        storage.clearSlots();
+        expect(localStorage.getItem('bookmarks')).toBeNull();
+        expect(storage.getLatestAutoSave()).not.toBeNull();
+    });
+});
+
 describe('目次の表示用の読み出し', () => {
     it('loadReachedKeys / loadReadKeys は毎回 localStorage を読み直し、旧 sceneRead の完了マーカーも足す', () => {
         localStorage.setItem('schemaVersion', '5');

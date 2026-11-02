@@ -31,8 +31,7 @@ const SEED: Record<string, string> = { ...DISPLAY_KEYS, [READING_ANCHOR_KEY]: '7
 const ALL_KEYS = Object.keys(SEED);
 
 const openSettingsFromToc = async (page: import('@playwright/test').Page) => {
-    await page.locator('#fab-toggle').click();
-    await page.getByRole('menuitem', { name: '設定' }).click();
+    await page.locator('#idx-btn-settings').click();
     await expect(page.locator('#settings-popup')).toBeVisible();
 };
 

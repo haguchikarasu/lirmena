@@ -2,7 +2,6 @@
   {
     "volume": 1,
     "epRange": [1, 4],
-    "heroCard": { "file": "vol01.avif" },
     "afterword": { "published": false },
     "episodes": [
       {
@@ -10,6 +9,7 @@
         "title": "太陽の行く先",
         "coverFile": "title01.avif",
         "coverPositionX": "20%",
+        "tocCoverPositionY": "23%",
         "sections": [
           { "id": 1, "published": true },
           { "id": 2, "published": true }
@@ -20,6 +20,7 @@
         "title": "|翠昴晶《ペラティラ》さがし -前編-",
         "coverFile": "title02.avif",
         "coverPositionX": "20%",
+        "tocCoverPositionY": "35%",
         "sections": [
           { "id": 1, "published": true },
           { "id": 2, "published": true },
@@ -32,6 +33,7 @@
         "title": "|翠昴晶《ペラティラ》さがし -後編-",
         "coverFile": "title03.avif",
         "coverPositionX": "50%",
+        "tocCoverPositionY": "29%",
         "preview": { "text": "" },
         "sections": [
           { "id": 1, "published": true },
@@ -47,6 +49,7 @@
         "title": "街へいこうよ",
         "coverFile": "title04.avif",
         "coverPositionX": "65%",
+        "tocCoverPositionY": "35%",
         "coverPositionY": "50%",
         "sections": [
           { "id": 1, "published": true },
@@ -64,7 +67,6 @@
   {
     "volume": 2,
     "epRange": [5, 7],
-    "heroCard": { "file": "vol02.avif" },
     "afterword": { "published": false },
     "preview": { "text": "2027年春頃公開予定" },
     "episodes": [
@@ -100,7 +102,6 @@
   {
     "volume": 3,
     "epRange": [8, 10],
-    "heroCard": { "file": "vol03.avif" },
     "afterword": { "published": false },
     "preview": { "text": "" },
     "episodes": [
@@ -136,8 +137,6 @@
   {
     "volume": 4,
     "epRange": [11, 14],
-    "heroCard": { "file": "vol04.avif" },
-    "heroCardCompleted": { "file": "vol04-completed.avif" },
     "afterword": { "published": false },
     "preview": { "text": "" },
     "episodes": [

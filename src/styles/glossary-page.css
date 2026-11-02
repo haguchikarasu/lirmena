@@ -1,7 +1,7 @@
 /* glossary-page.css — 用語集ページ（glossary.html）だけの差分。
    土台は toc.css（目次と同じ紙面：リセット・body・パレット・stage 別キーカラー）、上の帯と 1 画面に固定する枠組みは
    world-page.css、一覧の見た目は _glossary.css。ここには検索欄・五十音の固定バーと一覧の器だけを書く。
-   幅と左右の余白は目次の .idx-body（600px・1.5rem）に揃える＝目次から来た読者に同じ紙面に見せる */
+   幅は 600px・左右の余白は 1.5rem（一覧を読む行の長さ。以前の目次の本文の幅に揃えた値） */
 
 #gl-page-body {
   max-width: 600px;

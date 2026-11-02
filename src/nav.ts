@@ -76,7 +76,7 @@ let _readDetectionArmed = false;
 // init(): void
 // 読了を記録した直後に呼ばれるフック。main が注入する。
 // 読了の瞬間は**物語進行段階（stage）が上がりうる唯一の瞬間**なので、ここで目次向けのキャッシュ
-// （lirmena.storyStage / lirmena.heroCard）を更新しないと、次に目次を開いたときに 1 段古い表紙・
+// （lirmena.storyStage）を更新しないと、次に目次を開いたときに 1 段古い表紙・
 // キーカラーが一瞬見える。nav 自身が volumes を呼ぶと依存辺が増えるので注入で返す
 // （architecture.md「依存グラフに現れない結線」の onWritingModeChange などと同じ流儀）。
 export type NavOptions = { onReadRecorded?: () => void };

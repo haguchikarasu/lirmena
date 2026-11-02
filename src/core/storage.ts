@@ -19,6 +19,7 @@
  *                                    読者が保存先 slot を選び、同 slot は上書きする。記録: menu.ts が栞追加で addBookmark(address, ratio, slot) を呼ぶ
  *   "autosave"    : AutoSaveEntry    最新1件のみ上書き { ep, sec, ratio, savedAt }。ratio はスクロール範囲比（0〜1・方向非依存）
  *                                    記録: reader.ts がスクロール通知をスロットルして saveAutoSave() を呼ぶ
+ *                                    設定「栞をすべて消す」の対象（clearAllBookmarks＝手動の栞と一緒に消す）
  *   "pendingJump" : PendingJump      位置ジャンプ受け渡し { ep, sec, scene, ratio }。栞ジャンプ（menu.ts / index.ts）と
  *                                    「続きから読む」（index.ts がオートセーブの ratio を載せる）が書く。
  *                                    遷移先ページがロード時に読んで復元・消去する（明示前進ナビより優先＝必ず復元される）
@@ -252,11 +253,21 @@ export function getBookmarks(): BookmarkEntry[] {
     return [..._bookmarks];
 }
 
-// 全栞を削除する（「栞をすべて消す」）。
+// 手動の栞（スロット1〜3）だけを削除する。設定の「栞をすべて消す」は clearAllBookmarks（オートセーブも消す）を使う。
 // clearSlots(): void
 export function clearSlots(): void {
     _bookmarks = [];
     localStorage.removeItem(KEY_BOOKMARKS);
+}
+
+// 設定の「栞をすべて消す」：手動の栞（スロット1〜3）とオートセーブ（本編・あとがき）をまとめて削除する。
+// 目次の栞の欄ではオートセーブを「スロット0」として並べているので、栞と一緒に消す（2026-11-03 ユーザー決定。以前はオートセーブが
+// 残り、目次の「続きから読む」を初期化する方法が栞の欄の行の × しか無かった）。既読・読破は消さない（別のボタン）。
+// clearAllBookmarks(): void
+export function clearAllBookmarks(): void {
+    clearSlots();
+    clearAutoSave();
+    clearAutoSaveAfterword();
 }
 
 // ── オートセーブ ──────────────────────────────────────────────────

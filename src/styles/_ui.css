@@ -66,7 +66,9 @@
 
 /* menu.ts が動的生成するメニューアイテムボタン */
 #menu-panel button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
   width: 100%;
   padding: 0.8rem 1.25rem;
   background: none;
@@ -100,14 +102,6 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
-/* 資料の 3 つ（キャラクター紹介・エシュカ地図・用語集）はキーカラーの印でまとめる（menu.ts が .menu-item--world を付ける） */
-#menu-panel .menu-item--world::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-inline-end: 0.7em;
-  border-radius: 50%;
-  background: var(--progress-fill-color);
-  vertical-align: 0.15em;
-}
+/* 項目の頭のアイコン（menu.ts が #menu-icon-tpl から複製する。線の太さ・塗りは _sheet.css の .ic）。
+   色は全項目で同じ（資料の 3 つだけキーカラーにすると、その 3 つだけ浮いて見えた。まとまりは区切り線で見せる） */
+#menu-panel button .ic { width: 18px; height: 18px; color: #a8a49b; }

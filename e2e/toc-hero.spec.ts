@@ -1,35 +1,35 @@
 /*
- * 目次ヒーローカードの初期表示 E2E（ちらつき回避・plans/2026-09-09-toc-hero-flicker.md）。
+ * 目次のヒーロー E2E：巻の素材の初期表示（ちらつき回避）と表紙ギャラリー（要件 06-7）。
  *
- * 守りたい不変条件：**stage 2 以上の読者に vol01 の表紙を一瞬も見せない**。
- * index.html の <img id="idx-hero-img"> は src 属性を持たず、直後の早期 <script> が localStorage
- * 'lirmena.heroCard' から相対パスを入れる。src 属性を書き戻すとプリロードスキャナが vol01 を先読みして
- * 再発するが、それを止める機械ゲートは他に無い（tsc は HTML を見ず、depcruise は import しか見ない）。
+ * 守りたい不変条件：**stage 2 以上の読者に第1巻の絵を一瞬も見せない**。
+ * index.html の <img id="idx-hero-img">（とロゴ・背景）は src 属性を持たず、直後の早期 <script> が端末の stage
+ * （lirmena.storyStage）から core/theme.ts の規約どおり URL を組んで入れる。src 属性を書き戻すとプリロードスキャナが
+ * 第1巻を先読みして再発するが、それを止める機械ゲートは他に無い（tsc は HTML を見ず、depcruise は import しか見ない）。
+ * 早期スクリプトの「stage → 素材の組」は core/theme.ts の themeKeyForStage の複製なので、ここで照合する。
  *
  * 実データの story.json は触らず page.route で fixture に差し替える（toc-preview.spec.ts と同じ流儀）。
- * **画像も route で 1x1 PNG に差し替える**：fixture の vol02.avif は draft にしか無く、main の public では
- * 404 → onerror が vol01 へ落として観点 1 が必ず落ちるため。拡張子が .avif でもブラウザは Content-Type を
- * 見るので描画され、onerror は発火しない。
+ * **素材も route で 1x1 PNG に差し替える**：main の public には第2巻・完結の素材が無い（404 → onerror が第1巻へ落とす）。
+ * 拡張子が .avif でもブラウザは Content-Type を見るので描画され、onerror は発火しない。
  *
  * 検証観点：
- *   1. キャッシュと read が stage 2 で整合しているとき、vol01 の画像を一度も取得しない（＝ちらつかない）
- *   2. 初回訪問（localStorage 空）は vol01 にフォールバックし、ロード後に stage 相応の値が入る
- *   3. キャッシュが古くて read と食い違うときは story.json が正で、最終的に vol02 へ収束しキャッシュも直る
- *   4. 不正値のキャッシュは読取側で弾かれ、保存し直されない（保存側と読取側の規則が同一であること）
+ *   1. キャッシュと read が stage 2 で整合しているとき、第1巻の絵を一度も取得しない（＝ちらつかない）
+ *   2. 初回訪問は第1巻で描き、ロード後に stage がキャッシュされる。食い違うキャッシュは story.json が正
+ *   3. 早期スクリプトの対応（1〜4 → volNN、5 → final、不正値 → 第1巻）が core/theme.ts の規約と同じ
+ *   4. 表紙ギャラリー：未来の巻を見せない・閲覧位置と stage を混ぜない・ボタン／ドット／払う操作で移れる
+ *   5. 隣の巻の絵の先読み（R17）：落ち着いたら 1 つ前の巻を取得しておく。遅い回線でも黒い板を見せない
  */
 
 import { test, expect } from './_fixtures';
 import type { Page, Route } from '@playwright/test';
 
-// stage 2 になる最小 fixture。vol1 は ep2-sec1 が未公開＝全 sec 公開ではないので afterword:false と整合し
-// （story-integrity (e')）、vol2 は最終 vol なので heroCardCompleted を持つ（(g)）。
-// 通し番号は 01-01=0 / 01-02=1 / 03-01=2。read=['01-02'] で vol1 の最終公開 sec に到達し、
-// 次巻冒頭 03-01 が公開済みなので stage 2 になる。
+// stage 2 になる最小 fixture。vol1 は ep2-sec1 が未公開＝全 sec 公開ではないので afterword:false と整合する
+// （story-integrity (e')）。通し番号は 01-01=0 / 01-02=1 / 03-01=2。read=['01-02'] で vol1 の最終公開 sec に到達し、
+// 次巻冒頭 03-01 が公開済みなので stage 2。read に 03-01 も足すと最終巻の最終公開 sec に達して stage 3＝物語完結
+// （2 巻の fixture なので完結は stage 3。実データでは 5）
 const FIXTURE_STORY = [
     {
         volume: 1,
         epRange: [1, 2],
-        heroCard: { file: 'vol01.avif' },
         afterword: { published: false },
         episodes: [
             { id: 1, title: '第1話', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
@@ -39,16 +39,16 @@ const FIXTURE_STORY = [
     {
         volume: 2,
         epRange: [3, 3],
-        heroCard: { file: 'vol02.avif' },
-        heroCardCompleted: { file: 'vol02-fin.avif' },
         afterword: { published: false },
         episodes: [
             { id: 3, title: '第3話', sections: [{ id: 1, published: true }, { id: 2, published: false }] },
         ],
     },
 ];
+const READ_STAGE2 = ['01-02'];
+const READ_COMPLETED = ['01-02', '03-01'];
 
-// 1x1 透明 PNG。拡張子 .avif のリクエストにこれを返しても Content-Type が優先されるので描画される。
+// 1x1 透明 PNG。拡張子 .avif / .webp のリクエストにこれを返しても Content-Type が優先されるので描画される。
 const PNG_1X1 = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
     'base64',
@@ -60,360 +60,307 @@ async function mockStoryJson(page: Page, story: unknown): Promise<void> {
     });
 }
 
-// 表紙画像を実体から切り離す（main の public には vol02.avif が無いため）。
-async function mockCoverImages(page: Page): Promise<void> {
-    await page.route('**/vol0*/*.avif', (route: Route) => {
-        route.fulfill({ status: 200, contentType: 'image/png', body: PNG_1X1 });
+// 巻の素材（*/theme/*）を実体から切り離す。delayFor に当たる URL だけ遅らせる（遅い回線の模擬）
+async function mockThemeFiles(page: Page, delayFor?: { match: string; ms: number }): Promise<void> {
+    await page.route('**/theme/*', async (route: Route) => {
+        if (delayFor && route.request().url().includes(delayFor.match)) {
+            await new Promise((r) => setTimeout(r, delayFor.ms));
+        }
+        await route.fulfill({ status: 200, contentType: 'image/png', body: PNG_1X1 });
     });
 }
 
-// ページが取得した表紙画像の URL を時系列で集める。
-function collectCoverRequests(page: Page): string[] {
+// ページが取得したヒーローの絵の URL を時系列で集める
+function collectHeroRequests(page: Page): string[] {
     const seen: string[] = [];
     page.on('request', (req) => {
-        const url = req.url();
-        if (url.includes('.avif')) seen.push(url);
+        const url = decodeURI(req.url());
+        if (url.includes('/theme/hero-wide')) seen.push(url);
     });
     return seen;
 }
 
-test.describe('目次ヒーローカードの初期表示', () => {
-    test('stage 2 のキャッシュがあるとき vol01 を一度も取得しない（ちらつき回帰）', async ({ page }) => {
-        await page.addInitScript(() => {
-            localStorage.setItem('read', JSON.stringify(['01-02']));
-            localStorage.setItem('lirmena.heroCard', 'vol02/vol02.avif');
+async function seed(page: Page, items: Record<string, string>): Promise<void> {
+    await page.addInitScript((kv) => {
+        for (const [k, v] of Object.entries(kv)) localStorage.setItem(k, v);
+    }, items);
+}
+
+const img = (page: Page) => page.locator('#idx-hero-img');
+
+test.describe('目次のヒーロー：巻の素材の初期表示', () => {
+    test('stage 2 のキャッシュがあるとき第1巻の絵を一度も取得しない（ちらつき回帰）', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2), 'lirmena.storyStage': '2' });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        const heroes = collectHeroRequests(page);
+
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area .idx-vol-card').first()).toBeVisible();
+
+        // 第1巻の絵が先に要求されていたら「一瞬見えた」ということ（落ち着いたあとの先読みは別。最初の 1 枚を見る）
+        expect(heroes[0]).toMatch(/\/vol02\/theme\/hero-wide\.avif$/);
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', /vol02\/theme\/logo\.webp$/);
+        await expect(page.locator('#idx-page-bg')).toHaveAttribute('src', /vol02\/theme\/page-bg\.avif$/);
+    });
+
+    test('初回訪問は第1巻で描き、ロード後に stage がキャッシュされる', async ({ page }) => {
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area .idx-vol-card').first()).toBeVisible();
+
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        expect(await page.evaluate(() => localStorage.getItem('lirmena.storyStage'))).toBe('1');
+    });
+
+    test('キャッシュが read と食い違うときは story.json が正で、第2巻の素材に収束しキャッシュも直る', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2), 'lirmena.storyStage': '1' });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        await page.goto('/lirmena/');
+
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', /vol02\/theme\/logo\.webp$/);
+        expect(await page.evaluate(() => localStorage.getItem('lirmena.storyStage'))).toBe('2');
+    });
+
+    // 早期スクリプトだけの振る舞いを見る：story.json を返さない（index.ts が stage を算出し直さない）
+    for (const [stage, dir] of [['3', 'vol03'], ['5', 'final'], ['9', 'vol01'], ['', 'vol01']] as const) {
+        test(`早期スクリプト：キャッシュ "${stage}" → ${dir}/theme（core/theme.ts の規約と同じ対応）`, async ({ page }) => {
+            if (stage) await seed(page, { 'lirmena.storyStage': stage });
+            await page.route('**/story.json', (route) => route.abort());
+            await mockThemeFiles(page);
+            await page.goto('/lirmena/');
+            await expect(img(page)).toHaveAttribute('src', new RegExp(`(^|/)${dir}/theme/hero-wide\\.avif$`));
+            await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', new RegExp(`(^|/)${dir}/theme/logo\\.webp$`));
+            await expect(page.locator('#idx-page-bg')).toHaveAttribute('src', new RegExp(`(^|/)${dir}/theme/page-bg\\.avif$`));
         });
+    }
+
+    test('廃止した表紙の URL のキャッシュ（lirmena.heroCard）は起動時に消える', async ({ page }) => {
+        await seed(page, { 'lirmena.heroCard': 'vol01/vol01.avif' });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-        const covers = collectCoverRequests(page);
-
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        // vol01 の絵が一度でも要求されていたら「一瞬見えた」ということ
-        expect(covers.filter((u) => u.includes('vol01'))).toHaveLength(0);
-        expect(covers.some((u) => u.includes('vol02/vol02.avif'))).toBe(true);
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol02\/vol02\.avif$/);
-    });
-
-    test('初回訪問はキャッシュが無いので vol01 で描き、ロード後に stage 相応の値が入る', async ({ page }) => {
-        await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-
-        await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        // read が空＝stage 1 なので vol01 のまま。キャッシュは stage 1 の値で埋まる
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
-        const cached = await page.evaluate(() => localStorage.getItem('lirmena.heroCard'));
-        expect(cached).toBe('vol01/vol01.avif');
-    });
-
-    test('キャッシュが read と食い違うときは story.json が正で vol02 に収束しキャッシュも直る', async ({ page }) => {
-        await page.addInitScript(() => {
-            localStorage.setItem('read', JSON.stringify(['01-02']));
-            localStorage.setItem('lirmena.heroCard', 'vol01/vol01.avif'); // 古い（stage 1 時代の残留）
-        });
-        await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-
-        await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        // このロードでは vol01 が先に出る（＝ちらつく）が、それは想定内。story.json が最終的な正であること、
-        // キャッシュが直って次回はちらつかないことを見る
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol02\/vol02\.avif$/);
-        const cached = await page.evaluate(() => localStorage.getItem('lirmena.heroCard'));
-        expect(cached).toBe('vol02/vol02.avif');
-    });
-
-    test('不正値のキャッシュは読取側で弾かれ、保存し直されない', async ({ page }) => {
-        await page.addInitScript(() => {
-            localStorage.setItem('read', JSON.stringify(['01-02']));
-            localStorage.setItem('lirmena.heroCard', '../../etc/passwd');
-        });
-        await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-        const covers = collectCoverRequests(page);
-
-        await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        // 不正値は使わず vol01 へフォールバックし、その後 applyStoryStage が正しい値で上書きする
-        expect(covers.some((u) => u.includes('etc/passwd'))).toBe(false);
-        const cached = await page.evaluate(() => localStorage.getItem('lirmena.heroCard'));
-        expect(cached).toBe('vol02/vol02.avif');
-    });
-
-    // vol[XX]/ の中から出る値の回帰（Codex code レビュー 2026-09-09）。
-    // "vol01/../vol02/..." はブラウザが vol02 として解決するので、**stage 2 の読者に完結カードが出る**
-    // ＝ネタバレになる。HTML 側の早期スクリプトの正規表現を e2e で見張る（volumes.test.ts が見るのは
-    // TS 側の複製だけで、HTML 側は素通りするため）。
-    test('vol[XX]/ の外を指すキャッシュは弾く（正規化で未来の表紙を出させない）', async ({ page }) => {
-        await page.addInitScript(() => {
-            localStorage.setItem('read', JSON.stringify(['01-02']));
-            localStorage.setItem('lirmena.heroCard', 'vol01/../vol02/vol02-fin.avif');
-        });
-        await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-        const covers = collectCoverRequests(page);
-
-        await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        expect(covers.some((u) => u.includes('vol02-fin'))).toBe(false);
-        const cached = await page.evaluate(() => localStorage.getItem('lirmena.heroCard'));
-        expect(cached).toBe('vol02/vol02.avif');
-    });
-
-    // 本文ページ側でもキャッシュを書くことの回帰（Codex code レビュー P1）。
-    // stage が上がるのは本文を読み終えた瞬間（nav → bookmark.recordRead）で、目次のロードより後。
-    // 目次側だけで書いていると「上がった直後に初めて目次へ戻る」場面で古い表紙が一瞬見える＝
-    // 直したはずのちらつきが、いちばん自然な読者体験の場面で残る。
-    // ロード時の書き込みと混ざらないよう、いったん消してから pagehide だけを発火させて見る。
-    test('本文ページの離脱時に表紙キャッシュが書き直される', async ({ page }) => {
-        await page.goto('/lirmena/contents/01-01.html');
-        // _bootstrapSec は async。ロード時の書き込みが終わるのを待ってから消さないと、初期化があとから
-        // 書き直してしまい pagehide の寄与を分離できない（待たずに書いて実際に落ちた）。
-        await page.waitForFunction(() => localStorage.getItem('lirmena.heroCard') !== null);
-        await page.evaluate(() => localStorage.removeItem('lirmena.heroCard'));
+        await expect(page.locator('#episodes-area .idx-vol-card').first()).toBeVisible();
         expect(await page.evaluate(() => localStorage.getItem('lirmena.heroCard'))).toBeNull();
-
-        await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-
-        const cached = await page.evaluate(() => localStorage.getItem('lirmena.heroCard'));
-        expect(cached).toMatch(/^vol\d{2}\/.+$/);
     });
 });
 
 /*
  * 表紙ギャラリー（要件 06-7）。守りたいのは 2 つ：
  *   (a) 未来の巻を見せない（ネタバレ）
- *   (b) **閲覧位置と stage を混ぜない** — 過去の表紙を見ても heroCard キャッシュ・data-story-stage・
- *       favicon は現在 stage のまま。ここが崩れると過去の表紙が次回の初期表示として保存され、
- *       ちらつき修正そのものが壊れる
+ *   (b) **閲覧位置と stage を混ぜない** — 過去の表紙を見てもロゴ・data-story-stage・favicon・lirmena.storyStage は
+ *       今の stage のまま。ここが崩れると過去の表紙が次回の初期表示になり、ちらつき修正そのものが壊れる
  */
-
-// FIXTURE_STORY は 2 vol。read で stage を作り分ける。
-const READ_STAGE2 = ['01-02'];              // vol1 の最終公開 sec に到達 → stage 2
-const READ_COMPLETED = ['01-02', '03-01'];  // vol2 の最終公開 sec にも到達 → stage 3（＝物語完結）
-
-const openSettingsFromFab = async (page: Page): Promise<void> => {
-    await page.locator('#fab-toggle').click();
-    await page.getByRole('menuitem', { name: '設定' }).click();
-    await expect(page.locator('#settings-popup')).toBeVisible();
-};
-
-test.describe('目次ヒーローカードの表紙ギャラリー', () => {
+test.describe('目次のヒーロー：表紙ギャラリー', () => {
     test('stage 1（履歴が 1 枚）ではナビもドットも出ない', async ({ page }) => {
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
+        await expect(page.locator('#episodes-area .idx-vol-card').first()).toBeVisible();
 
         await expect(page.locator('#idx-hero-older')).toBeHidden();
         await expect(page.locator('#idx-hero-newer')).toBeHidden();
-        await expect(page.locator('.idx-hero-dot')).toHaveCount(0);
+        await expect(page.locator('#idx-hero-dots')).toBeHidden();
     });
 
-    test('stage 2 では 2 枚を往復でき、両端でボタンが disabled になる', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_STAGE2);
+    test('stage 2 では 2 枚を往復でき、両端で向きのボタンが disabled になる', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
 
-        const img = page.locator('#idx-hero-img');
         const older = page.locator('#idx-hero-older');
         const newer = page.locator('#idx-hero-newer');
-
-        // 初期は最新（vol02）。新しい方向へは行けない
-        await expect(img).toHaveAttribute('src', /vol02\/vol02\.avif$/);
-        await expect(page.locator('.idx-hero-dot')).toHaveCount(2);
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-dots button')).toHaveCount(2);
         await expect(newer).toBeDisabled();
         await expect(older).toBeEnabled();
 
-        // 過去へ 1 枚。今度は逆側が端になる
         await older.click();
-        await expect(img).toHaveAttribute('src', /vol01\/vol01\.avif$/);
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        await expect(img(page)).toHaveAttribute('alt', '第1巻の表紙');
         await expect(older).toBeDisabled();
         await expect(newer).toBeEnabled();
+        await expect(page.locator('#idx-hero-dots button').nth(1)).toHaveAttribute('aria-current', 'true');
 
-        // 戻れる（往復）
         await newer.click();
-        await expect(img).toHaveAttribute('src', /vol02\/vol02\.avif$/);
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
         await expect(newer).toBeDisabled();
     });
 
-    test('物語完結 stage は完結カードを起点に 3 枚を新しい順で辿れる', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_COMPLETED);
+    test('物語完結は final の絵を起点に、ドットで離れた巻へ直接移れる', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_COMPLETED) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
 
-        const img = page.locator('#idx-hero-img');
-        const older = page.locator('#idx-hero-older');
-
-        await expect(img).toHaveAttribute('src', /vol02\/vol02-fin\.avif$/);
-        await older.click();
-        await expect(img).toHaveAttribute('src', /vol02\/vol02\.avif$/);
-        await older.click();
-        await expect(img).toHaveAttribute('src', /vol01\/vol01\.avif$/);
-        await expect(older).toBeDisabled();
+        await expect(img(page)).toHaveAttribute('src', /final\/theme\/hero-wide\.avif$/);
+        const dots = page.locator('#idx-hero-dots button');
+        await expect(dots).toHaveCount(3);
+        await expect(dots.nth(0)).toHaveAttribute('aria-label', '完結の表紙');
+        // 2 巻離れた第1巻へ 1 回で（隣の第2巻の絵を挟まない）
+        await dots.nth(2).click();
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-status')).toHaveText('第1巻の表紙（3 / 3）');
     });
 
-    test('未来の巻の表紙は DOM にもリクエストにも出ない', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_STAGE2);
+    test('未来の巻の絵は DOM にもリクエストにも出ない', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-        const covers = collectCoverRequests(page);
-
+        await mockThemeFiles(page);
+        const heroes = collectHeroRequests(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
 
-        // stage 2 の読者に完結カードは見えない。端まで遡っても取得されない
         await page.locator('#idx-hero-older').click();
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
-        expect(covers.some((u) => u.includes('vol02-fin'))).toBe(false);
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        expect(heroes.some((u) => u.includes('/final/'))).toBe(false);
     });
 
-    test('過去の表紙を見ても stage 由来の状態（キャッシュ・data-story-stage・favicon）は動かない', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_STAGE2);
+    test('送りボタンの連打（動き出す前の 2 回目）は 1 巻ぶんしか進まない', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
 
+        // Playwright の click() は 1 回ごとに落ち着くのを待つので、同じタスクで 2 回押して「_commit 前の 2 回目」を作る
+        await page.evaluate(() => {
+            const b = document.getElementById('idx-hero-older') as HTMLButtonElement;
+            b.click(); b.click();
+        });
+        await expect(page.locator('#idx-hero-status')).toHaveText('第1巻の表紙（2 / 2）');
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        // 範囲の外へ出ていなければ、新しい方へ 1 回で戻れる
+        await page.locator('#idx-hero-newer').click();
+        await expect(page.locator('#idx-hero-status')).toHaveText('第2巻の表紙（1 / 2）');
+    });
+
+    test('過去の表紙を見ても stage 由来の状態（ロゴ・data-story-stage・favicon・キャッシュ）は動かない', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        await page.goto('/lirmena/');
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
         const faviconBefore = await page.locator('#app-favicon').getAttribute('href');
 
         await page.locator('#idx-hero-older').click();
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
 
-        // 表示は vol01 に変わったが、stage 由来の 3 つは stage 2 のまま
-        expect(await page.evaluate(() => localStorage.getItem('lirmena.heroCard'))).toBe('vol02/vol02.avif');
+        await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', /vol02\/theme\/logo\.webp$/);
         await expect(page.locator('html')).toHaveAttribute('data-story-stage', '2');
         expect(await page.locator('#app-favicon').getAttribute('href')).toBe(faviconBefore);
+        expect(await page.evaluate(() => localStorage.getItem('lirmena.storyStage'))).toBe('2');
     });
 
-    test('「読破を消す」で履歴が縮退し、閲覧位置も最新へ戻る', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_STAGE2);
+    test('「読破を消す」で履歴が縮退し、閲覧位置も今の stage へ戻る', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        // 過去へ移動した状態でクリアする
         await page.locator('#idx-hero-older').click();
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
 
-        await openSettingsFromFab(page);
+        await page.locator('#idx-btn-settings').click();
         await page.locator('.settings-action', { hasText: '読破を消す' }).click();
         await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
         await page.locator('#settings-popup').getByRole('button', { name: '閉じる' }).click();
 
-        // stage 1 に落ちる＝履歴は 1 枚。ナビは消え、表紙は現在 stage（vol01）のまま
         await expect(page.locator('#idx-hero-older')).toBeHidden();
-        await expect(page.locator('#idx-hero-newer')).toBeHidden();
-        await expect(page.locator('.idx-hero-dot')).toHaveCount(0);
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol01\/vol01\.avif$/);
+        await expect(page.locator('#idx-hero-dots')).toBeHidden();
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', /vol01\/theme\/logo\.webp$/);
     });
 
-    test('applyStoryStage が再実行されてもクリックが多重発火しない（イベント登録は 1 度だけ）', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_COMPLETED);
+    test('指で左へ払うと過去の巻へ、右へ払うと戻る（横の動きだけを拾う）', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
 
-        // 「既読を消す」は stage に影響しないが applyStoryStage 経路を通る描画更新を起こす。
-        // ここでイベントを再登録していると、次の 1 クリックで 2 枚進んでしまう。
-        await openSettingsFromFab(page);
-        await page.locator('.settings-action', { hasText: '既読を消す' }).click();
-        await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
-        await page.locator('#settings-popup').getByRole('button', { name: '閉じる' }).click();
+        const art = page.locator('#idx-hero-art');
+        const swipe = async (dx: number, dy = 0): Promise<void> => {
+            const o = { pointerType: 'touch', pointerId: 7, isPrimary: true };
+            await art.dispatchEvent('pointerdown', { ...o, clientX: 300, clientY: 300 });
+            await art.dispatchEvent('pointermove', { ...o, clientX: 300 + dx / 2, clientY: 300 + dy / 2 });
+            await art.dispatchEvent('pointermove', { ...o, clientX: 300 + dx, clientY: 300 + dy });
+            await art.dispatchEvent('pointerup', { ...o, clientX: 300 + dx, clientY: 300 + dy });
+        };
+        // 縦の動きのほうが大きい＝スクロール。表紙は替わらない
+        await swipe(-40, -200);
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await swipe(-260);
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
+        await swipe(260);
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+    });
+
+    test('落ち着いたら 1 つ前の巻の絵を先読みする（押す前に取得している。R17）', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        const heroes = collectHeroRequests(page);
+        await page.goto('/lirmena/');
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await expect.poll(() => heroes.some((u) => u.includes('/vol01/theme/hero-wide.avif')), { timeout: 5000 }).toBe(true);
+    });
+
+    test('遅い回線：隣の絵が届く前に動かしても、枠の地に今の絵をぼかして敷く（黒い板を見せない。R17）', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_STAGE2) });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page, { match: '/vol01/theme/hero-wide', ms: 2500 });
+        await page.goto('/lirmena/');
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
 
         await page.locator('#idx-hero-older').click();
-        // 1 枚だけ進んでいること（多重登録なら vol01 まで飛ぶ）
-        await expect(page.locator('#idx-hero-img')).toHaveAttribute('src', /vol02\/vol02\.avif$/);
+        const peer = page.locator('#idx-hero-slide-peer');
+        // 隣の絵の枠に、今の巻（第2巻）の絵が地として渡っている
+        await expect.poll(() => peer.evaluate((el) => el.style.getPropertyValue('--fallback'))).toMatch(/vol02\/theme\/hero-wide\.avif/);
+        // 届いたら第1巻へ替わりきる
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/, { timeout: 6000 });
+        await expect(peer).toBeHidden();
     });
 
-    // ヒーローカードは aspect-ratio で高さを固定し overflow:hidden で外を切るので、**内側に入れて
-    // いいのは表紙とナビだけ**。ギャラリー追加時に </figure> を書き落として版数バッジが中に入り、
-    // 丸ごと切り取られた（2026-09-09・Codex code レビューが検出。既存 e2e は 59 件とも素通りした）。
-    // 「ヒーローカードの子孫に版数バッジが無い」ことを機械で見張る。
-    test('版数バッジはヒーローカードの外にある（閉じタグの書き落とし回帰）', async ({ page }) => {
+    test('キーボード：ドットや送りボタンで移っても、フォーカスはヒーローの中に留まり ← → で続けて移れる', async ({ page }) => {
+        await seed(page, { read: JSON.stringify(READ_COMPLETED) });
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
+        await mockThemeFiles(page);
         await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
+        await expect(img(page)).toHaveAttribute('src', /final\/theme\/hero-wide\.avif$/);
 
-        await expect(page.locator('#idx-hero-card #idx-version-badges')).toHaveCount(0);
-        await expect(page.locator('#idx-version-badges')).toBeVisible();
+        const dots = page.locator('#idx-hero-dots button');
+        await dots.nth(1).focus();
+        await page.keyboard.press('Enter');
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        // ドットは作り直さない＝押したドットにフォーカスが残る
+        await expect(dots.nth(1)).toBeFocused();
+        await page.keyboard.press('ArrowRight');
+        await expect(img(page)).toHaveAttribute('src', /vol01\/theme\/hero-wide\.avif$/);
 
-        // バッジの上端がヒーロー画像の下端より下にある＝カードに飲み込まれていない
-        const card = await page.locator('#idx-hero-card').boundingBox();
-        const badges = await page.locator('#idx-version-badges').boundingBox();
-        expect(card).not.toBeNull();
-        expect(badges).not.toBeNull();
-        expect(badges!.y).toBeGreaterThanOrEqual(card!.y + card!.height - 1);
+        // 端まで来て押せなくなったボタンからは、反対向きのボタンへ移る
+        await page.locator('#idx-hero-newer').focus();
+        await page.keyboard.press('Enter');
+        await expect(img(page)).toHaveAttribute('src', /vol02\/theme\/hero-wide\.avif$/);
+        await page.keyboard.press('Enter');
+        await expect(img(page)).toHaveAttribute('src', /final\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-older')).toBeFocused();
     });
 
-    // 「切り替わるがスライドしない」の回帰（2026-09-09・スマホで発生）。
-    // transition を有効にしたのと同じフレームで transform まで変えると、ブラウザが開始値を取り違えて
-    // アニメーションを飛ばす。**画像がキャッシュ済みで decode が即返るときだけ**顕在化するので、
-    // 先に 1 往復してキャッシュを温めてから測る。src の変化だけを見る検査では素通りする。
-    test('表紙の切り替えで実際に transition が走る（キャッシュ済みでも飛ばない）', async ({ page }) => {
-        await page.addInitScript((read) => {
-            localStorage.setItem('read', JSON.stringify(read));
-        }, READ_COMPLETED);
+    test('ヒーローの絵が届くまで、背景・ロゴ・ボタンを隠して読み込み中の印を出す', async ({ page }) => {
         await mockStoryJson(page, FIXTURE_STORY);
-        await mockCoverImages(page);
-        await page.goto('/lirmena/');
-        await expect(page.locator('#episodes-area')).toBeVisible();
-
-        const result = await page.evaluate(async () => {
-            const img = document.querySelector<HTMLImageElement>('#idx-hero-img');
-            const older = document.querySelector<HTMLButtonElement>('#idx-hero-older');
-            const newer = document.querySelector<HTMLButtonElement>('#idx-hero-newer');
-            if (!img || !older || !newer) return null;
-            const wait = (ms: number): Promise<void> => new Promise((r) => { window.setTimeout(r, ms); });
-
-            // 1 往復してブラウザキャッシュを温める（ここで decode が即返る状態を作る）
-            older.click();
-            await wait(600);
-            newer.click();
-            await wait(600);
-
-            let fired = false;
-            img.addEventListener('transitionstart', () => { fired = true; }, { once: true });
-            older.click();
-            // 0.3s のスライドの途中を覗く。ここで既に定位置なら「飛んでいる」＝スライドしていない。
-            // transitionstart だけでは足りない：飛ぶ場合も一瞬アニメが走って発火するため。
-            await wait(100);
-            const matrix = window.getComputedStyle(img).transform;
-            await wait(600);
-            return { fired, matrix };
-        });
-
-        expect(result).not.toBeNull();
-        expect(result!.fired).toBe(true);
-
-        // matrix(a,b,c,d,tx,ty) か matrix3d(...) の平行移動成分。スライド中なら 0 から大きく離れている。
-        const nums = result!.matrix.replace(/^matrix(3d)?\(/, '').replace(/\)$/, '').split(',').map(Number);
-        const tx = nums.length === 16 ? nums[12] : nums[4];
-        expect(Math.abs(tx)).toBeGreaterThan(5);
+        await mockThemeFiles(page, { match: '/vol01/theme/hero-wide', ms: 1500 });
+        // 既定の goto は load（画像の到着）まで待つ＝絵が届いた後になる。DOM ができた時点で止める
+        await page.goto('/lirmena/', { waitUntil: 'domcontentloaded' });
+        const loading = () => page.evaluate(() => document.documentElement.hasAttribute('data-hero-loading'));
+        expect(await loading()).toBe(true);
+        await expect(page.locator('#idx-hero-loading')).toBeVisible();
+        await expect(page.locator('#idx-page-bg')).toHaveCSS('opacity', '0');
+        // 届いたら外れる
+        await expect.poll(loading, { timeout: 5000 }).toBe(false);
+        await expect(page.locator('#idx-hero-loading')).toBeHidden();
     });
 });

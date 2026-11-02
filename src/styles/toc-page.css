@@ -1,0 +1,751 @@
+/* toc-page.css — 目次（index.html）だけの見た目（要件 06-7）。共通の紙面（リセット・パレット・stage 別キーカラー・dev 札）は
+   toc.css、シートと確認は _sheet.css。見本はモック（過去モック/toc-rich-mock/mock.css）で、値はそこから写した。
+   キーカラーは --idx-accent（toc.css。<html data-story-stage> で切り替わる）だけを使い、ここに stage の色を直接書かない
+   （スマホのヒーローの地の色 --idx-art-c1〜3 だけは巻の絵に合わせた値。下の「巻ごとに変わる値」）。
+   PC とスマホの境目は 900px（_sheet.css と index.ts の PC_QUERY と同じ）。 */
+
+/* ===== 巻ごとに変わる値（stage 連動） =====
+   --idx-art-c1〜3 … スマホ：ヒーローの絵が下で消えたあとの地の色（中心 → 外へ暗くした 3 段）。巻の絵ができたら足す
+   --idx-logo-at   … PC：横長の絵の中でロゴの列の中心を置く位置（絵の左端から。単位は絵の高さの %＝cqh）。
+                     全巻共通＝アタリのロゴ枠の中心 x 3744 ÷ 21.6。巻をめくってもロゴが動かないよう巻ごとには変えない */
+:root {
+  --idx-art-c1: hsl(var(--stage-hue) 45% 18%);
+  --idx-art-c2: hsl(var(--stage-hue) 50% 11%);
+  --idx-art-c3: hsl(var(--stage-hue) 50% 5%);
+  --idx-logo-at: 173.3;
+  --idx-text: #e8e0d0;
+  --idx-dim: #9a9a9a;
+  --idx-panel: rgba(14, 14, 14, 0.72);
+  --idx-line: rgba(255, 255, 255, 0.1);
+}
+html[data-story-stage="1"] { --idx-art-c1: #0b4d5e; --idx-art-c2: #063241; --idx-art-c3: #03161d; }
+html[data-story-stage="2"] { --idx-art-c1: #1d3036; --idx-art-c2: #122025; --idx-art-c3: #070d10; }
+
+/* body の背景は透明にして、html の地（#080808）の上に背景の風景（z-index: -1）を見せる。
+   body に背景があると、それが負の z-index の要素より上に塗られて風景が隠れる */
+html > body {
+  background: transparent;
+  color: var(--idx-text);
+}
+a { color: inherit; text-decoration: none; }
+/* 塗りのアイコン（▶）。.ic（_sheet.css。後から読まれる）の fill: none に勝つよう 2 つのクラスで指す */
+.ic.idx-ic-fill { fill: currentColor; stroke: none; }
+
+/* ===== ページの背景の風景（巻ごと。読み進めても替わらない） ===== */
+#idx-page-bg {
+  position: fixed;
+  inset: -20px;
+  z-index: -1;
+  width: calc(100% + 40px);
+  height: calc(100% + 40px);
+  object-fit: cover;
+  filter: blur(5px) brightness(0.3) saturate(0.9);
+  pointer-events: none;
+}
+
+/* ===== ヒーロー ===== */
+#idx-hero { position: relative; }
+#idx-hero-art {
+  position: relative;
+  overflow: hidden;
+  /* 横の払う操作は index.ts が受け、縦のスクロールはブラウザに任せる */
+  touch-action: pan-y;
+}
+/* ヒーローの地（PC は黒、スマホは巻の色）。下端をページの背景へ溶かす。溶かすのは地と空気だけで、ヒーロー全体には
+   マスクを掛けない（掛けると下端のドットまで消えかける）。絵は自分のマスクで下を溶かす */
+#idx-hero-art::before,
+#idx-hero-ext {
+  -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
+}
+#idx-hero-art::before { content: ""; position: absolute; inset: 0; background: var(--idx-hero-ground, transparent); }
+#idx-hero-img, #idx-hero-peer { position: absolute; display: block; }
+.idx-hero-slide { position: absolute; inset: 0; overflow: hidden; }
+/* 隣の巻の絵が間に合わないときの地：今の絵をぼかして暗く敷く（黒い板が見えるより自然。--fallback は index.ts）。
+   地は上から下へ暗く溶ける＝絵の下側と同じ暗さになる（R17） */
+#idx-hero-slide-peer::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: var(--fallback) center / cover no-repeat;
+  filter: blur(24px) brightness(0.5);
+  -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent 72%);
+  mask-image: linear-gradient(180deg, #000 40%, transparent 72%);
+}
+#idx-hero-ext, #idx-hero-shade, #idx-hero-glow { position: absolute; pointer-events: none; }
+#idx-hero-ext, #idx-hero-shade { display: none; }
+/* ロゴの後ろの光と罫の色：ロゴと同じく読者の今の stage の色（ギャラリーで過去の巻の絵を見ても替えない） */
+#idx-hero-glow { background: radial-gradient(closest-side, hsl(var(--stage-hue) 91% 57% / 0.12), transparent 80%); }
+
+/* 読み込み中：ヒーローの絵が届くまで、背景の風景・絵・ロゴ・ボタン・ギャラリーのナビを隠して印だけを出す
+   （<html data-hero-loading> は index.html の早期スクリプトが付け、絵の load で外す）。届いたら一緒にふわっと出す */
+#idx-page-bg, #idx-hero-art > :not(#idx-hero-loading) { transition: opacity 0.4s; }
+html[data-hero-loading] #idx-page-bg,
+html[data-hero-loading] #idx-hero-art > :not(#idx-hero-loading) { opacity: 0; }
+#idx-hero-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--idx-dim);
+  font-size: 13px;
+  letter-spacing: 0.3em;
+}
+/* 0.3 秒待ってから出す（手元にある絵ならその前に届く＝印がちらつかない） */
+html[data-hero-loading] #idx-hero-loading { display: flex; animation: idx-fade-in 0.3s 0.3s both; }
+.idx-hero-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid hsl(var(--stage-hue) 91% 57% / 0.25);
+  border-top-color: var(--idx-accent);
+  border-radius: 50%;
+  animation: idx-spin 0.9s linear infinite;
+}
+@keyframes idx-spin { to { transform: rotate(360deg); } }
+@keyframes idx-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .idx-hero-spinner { animation-duration: 2.4s; } }
+
+/* 送りボタン：PC はヒーローにマウスを載せたときとフォーカスのときだけ見せる。スマホは払うので出さない（DOM には残す） */
+.idx-hero-nav {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(8, 8, 8, 0.45);
+  backdrop-filter: blur(6px);
+  color: #eee;
+  font: 26px/1 serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#idx-hero-newer { left: 20px; }
+#idx-hero-older { right: 20px; }
+#idx-hero-art:hover .idx-hero-nav:not([disabled]),
+.idx-hero-nav:focus-visible { opacity: 1; }
+.idx-hero-nav[disabled] { opacity: 0; pointer-events: none; }
+.idx-hero-nav:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+
+#idx-hero-dots {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+#idx-hero-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: transparent;
+  cursor: pointer;
+}
+#idx-hero-dots button[aria-current="true"] { background: rgba(255, 255, 255, 0.9); }
+#idx-hero-dots button:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+
+/* ロゴの列：ロゴ・締めの飾り・読み始めるボタンを縦に積む */
+#idx-hero-side {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#idx-hero-side h1 { display: contents; }
+#idx-cta { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+/* 読み始めるボタン */
+#idx-cta-btn {
+  display: block;
+  min-width: 260px;
+  padding: 14px 28px;
+  text-align: center;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  color: var(--idx-accent);
+  border: 1px solid hsl(var(--stage-hue) 91% 57% / 0.6);
+  background: rgba(8, 8, 8, 0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+}
+#idx-cta-btn:hover { background: hsl(var(--stage-hue) 91% 57% / 0.12); }
+#idx-cta-btn:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 3px; }
+/* 最新まで読んだ人：ボタンは「読み返す」なので一段控えめに */
+body[data-reader="caught"] #idx-cta-btn { color: #d8d8d8; border-color: rgba(255, 255, 255, 0.28); font-size: 15px; letter-spacing: 0.12em; }
+/* ボタンの下の小さい行（途中＝位置、最新まで読了＝時計＋次回の更新。初めては空） */
+#idx-cta-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 1.4em;
+  color: #d8d8d8;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 6px #000;
+}
+#idx-cta-sub .ic { width: 15px; height: 15px; color: var(--idx-accent); }
+
+/* ----- PC：横長の一枚絵（5760×2160、比 2.67。文字なし。ロゴは HTML で重ねる） -----
+   絵の高さ＝ヒーローの高さ＝画面の高さ。既定は絵の中央を画面の中央に置く。ロゴの列の中心は「絵の左端＋--idx-logo-at」。
+   画面が縦長でロゴが収まらないときは、(1) 絵を最大 15cqh 左へずらし、(2) ロゴを画面の右端に寄せ、
+   (3) 比 1.9 未満ではロゴの後ろだけを暗くして絵から浮かせる。比 2.67 より横長の画面では、絵の左右の縁を引き伸ばして
+   ぼかした空気で埋める */
+@media (min-width: 901px) {
+  #idx-hero-art {
+    --idx-hero-ground: var(--idx-bg);
+    height: 100svh;
+    min-height: 560px;
+    container-type: size;
+  }
+  #idx-hero-art > * {
+    --logo-cqh: calc(var(--idx-logo-at) * 1cqh);
+    --art-l: clamp(50cqw - 148cqh, 100cqw - var(--logo-cqh) - 21cqh, 50cqw - 133.333cqh);
+    --logo-x: min(var(--art-l) + var(--logo-cqh), 100cqw - 21cqh);
+  }
+  #idx-hero-ext { display: block; inset: 0; filter: blur(60px) brightness(0.8); }
+  #idx-hero-ext::before,
+  #idx-hero-ext::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 52%;
+    background-image: var(--art-url);
+    background-repeat: no-repeat;
+    background-size: 4000% 100%;
+  }
+  #idx-hero-ext::before { left: 0; background-position: 0% 0%; }
+  #idx-hero-ext::after { right: 0; background-position: 100% 0%; }
+  /* 端を溶かすマスクは 2 枚重ね（左右の端＋下）。重ねるときは mask-composite: intersect が要る（既定の足し合わせだと効かない） */
+  #idx-hero-img, #idx-hero-peer {
+    height: 100cqh;
+    width: auto;
+    top: 0;
+    left: var(--art-l);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%), linear-gradient(180deg, #000 72%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%), linear-gradient(180deg, #000 72%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+  #idx-hero-side {
+    left: var(--logo-x);
+    width: 34cqh;
+    transform: translateX(-50%);
+    top: 7cqh;
+    bottom: 9cqh;
+    justify-content: center;
+    gap: 3.2cqh;
+  }
+  /* 絵の線がロゴの後ろを横切っても字が読めるよう、字形のすぐ外に暗い縁を何層か重ねる（絵には手を付けない） */
+  #idx-hero-logo {
+    height: 56cqh;
+    width: auto;
+    filter: drop-shadow(0 0 0.3cqh rgba(2, 4, 6, 0.85)) drop-shadow(0 0 0.8cqh rgba(2, 4, 6, 0.75)) drop-shadow(0 0 2.4cqh rgba(2, 4, 6, 0.65)) drop-shadow(0 0 5cqh rgba(2, 4, 6, 0.4));
+  }
+  #idx-hero-glow { left: var(--logo-x); top: 44%; width: 50cqh; height: 85cqh; transform: translate(-50%, -50%); }
+  #idx-hero-dots { left: var(--logo-x); bottom: 3.5cqh; }
+  /* 締め：罫と ✦（巻の表記の代わり）。ロゴの星を小さく繰り返し、ロゴとボタンの間に区切りを置く */
+  #idx-hero-rule {
+    display: flex;
+    align-items: center;
+    gap: 1.4cqh;
+    width: 24cqh;
+    margin: -0.6cqh 0;
+    color: hsl(var(--stage-hue) 80% 72%);
+    font-size: 1.5cqh;
+    line-height: 1;
+    text-shadow: 0 0 1cqh hsl(var(--stage-hue) 91% 57% / 0.8);
+  }
+  #idx-hero-rule::before,
+  #idx-hero-rule::after { content: ""; flex: 1; height: 1px; }
+  #idx-hero-rule::before { background: linear-gradient(90deg, transparent, hsl(var(--stage-hue) 70% 70% / 0.6)); }
+  #idx-hero-rule::after { background: linear-gradient(270deg, transparent, hsl(var(--stage-hue) 70% 70% / 0.6)); }
+}
+@media (min-width: 901px) and (max-aspect-ratio: 19 / 10) {
+  #idx-hero-shade {
+    display: block;
+    inset: 0;
+    background: radial-gradient(28cqh 50cqh at var(--logo-x) 44%, rgba(4, 7, 9, 0.72), rgba(4, 7, 9, 0.35) 60%, transparent 100%);
+  }
+}
+
+/* ===== 上の帯（FAB の代わり） ===== */
+#idx-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 max(12px, calc(50% - 590px));
+  border-bottom: 1px solid transparent;
+  transition: background 0.3s, border-color 0.3s;
+}
+.idx-top-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 8, 8, 0.45);
+  backdrop-filter: blur(8px);
+  color: #ece6da;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+.idx-top-btn:hover { border-color: hsl(var(--stage-hue) 91% 57% / 0.7); color: #fff; }
+.idx-top-btn:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+.idx-top-btn .ic { width: 18px; height: 18px; }
+/* タイトルと「▶ 第N話#M」はヒーローを過ぎてから出す（ヒーローの上では透明でボタンだけ） */
+/* opacity と pointer-events だけではマウスの対象から外れるだけで、Tab では止まる（見えない所にフォーカスが入る）。
+   visibility で Tab の順番からも外す（transition に visibility を入れると、消えるときは薄くなってから外れる） */
+#idx-topbar-mark, #idx-topbar-resume { opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+#idx-topbar-mark { font-size: 15px; letter-spacing: 0.2em; color: var(--idx-accent); }
+#idx-topbar-resume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid hsl(var(--stage-hue) 91% 57% / 0.6);
+  border-radius: 999px;
+  color: var(--idx-accent);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+#idx-topbar-resume .ic { width: 14px; height: 14px; }
+/* 帯の並び：左に「輝くもの」、右にボタン。間を空けるのはタイトル */
+#idx-topbar-mark { margin-right: auto; }
+/* dev 札：PC は帯の右端（ボタンの後ろ。資料ページの札と同じ右上の位置）。帯の中に流れで置く＝資料ページのように
+   右上に重ねると、幅の狭い PC で「共有」に重なる。ヒーローの上でも見える。スマホは左端（下の @media） */
+html[data-dev] #idx-topbar #badge-dev { position: static; order: 1; margin-left: 4px; }
+body[data-past-hero="true"] #idx-topbar {
+  background: rgba(8, 8, 8, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom-color: var(--idx-line);
+}
+body[data-past-hero="true"] #idx-topbar-mark,
+body[data-past-hero="true"] #idx-topbar-resume { opacity: 1; visibility: visible; }
+
+/* ===== 本体：PC は 2 カラム（右を貼り付け）、スマホは 1 カラム ===== */
+#idx-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 24px 120px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 32px;
+  align-items: start;
+}
+/* 右カラムの貼り付け：上の帯（64px）の下に貼る。右カラムが画面より高いときは、下端が画面の下に来たところで止まる
+   （--side-h は index.ts が右カラムの高さを入れる）＝右カラムのどこも必ず見られる */
+#idx-side { position: sticky; top: min(80px, calc(100vh - var(--side-h, 0px) - 16px)); }
+
+/* ===== 巻カード（<details>。見出し全体が押せる。▶ は開くと 90° 回る） ===== */
+.idx-vol-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  list-style: none;
+  cursor: pointer;
+}
+.idx-vol-head::-webkit-details-marker { display: none; }
+.idx-vol-head:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 4px; border-radius: 6px; }
+.idx-vol-chev {
+  /* U+25B6 を UA によって絵文字化させないため、monospace 系フォントに固定 */
+  font-family: monospace, sans-serif;
+  font-size: 12px;
+  color: var(--idx-dim);
+  transition: transform 0.18s, color 0.18s;
+}
+.idx-vol-card[open] > .idx-vol-head .idx-vol-chev { transform: rotate(90deg); color: var(--idx-accent); }
+.idx-vol-card:not([open]) > .idx-vol-head { margin-bottom: 0; }
+.idx-vol-k { font-size: 22px; font-weight: 500; letter-spacing: 0.08em; color: var(--idx-text); }
+.idx-vol-head:hover .idx-vol-k { color: var(--idx-accent); }
+/* 札は stage 非依存の中立色（stage 5 の黄色などのキーカラーに巻き込まれて主張が強くなるのを避ける） */
+.idx-vol-pill {
+  font-size: 12px;
+  border: 1px solid var(--idx-line);
+  border-radius: 999px;
+  padding: 1px 10px;
+  color: var(--idx-dim);
+  white-space: nowrap;
+}
+.idx-vol-card + .idx-vol-card { margin-top: 28px; }
+@media (prefers-reduced-motion: reduce) { .idx-vol-chev { transition: none; } }
+
+/* 予告の巻（開けない。見出しだけ）：▶ は場所を保って隠し、札は長い文でも折り返す */
+.idx-vol-card--notice > .idx-vol-head { cursor: default; flex-wrap: wrap; margin-bottom: 0; }
+.idx-vol-card--notice > .idx-vol-head .idx-vol-chev { visibility: hidden; }
+.idx-vol-card--notice > .idx-vol-head .idx-vol-k,
+.idx-vol-card--notice > .idx-vol-head:hover .idx-vol-k { color: var(--idx-dim); }
+.idx-vol-pill--notice { white-space: normal; min-width: 0; flex-shrink: 1; }
+
+/* ===== 話の扉絵バナー：絵を全面に敷き、左側（スマホは下側）を暗くして文字を載せる ===== */
+.idx-ep {
+  position: relative;
+  overflow: hidden;
+  min-height: 168px;
+  margin-bottom: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--idx-line);
+  border-radius: 10px;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+}
+.idx-ep-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.idx-ep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 8, 8, 0.94) 0%, rgba(8, 8, 8, 0.7) 40%, rgba(8, 8, 8, 0.05) 100%);
+}
+.idx-ep-title, .idx-chips { position: relative; z-index: 1; }
+.idx-ep-title { font-size: 21px; font-weight: 500; line-height: 1.9; color: var(--idx-text); text-shadow: 0 1px 8px #000; }
+.idx-ep-title rt { font-size: 10px; color: #cfcfcf; }
+/* 「第◯話」：本体よりトーンを落とす（opacity で親の色を継承＝予告の話の暗い色にもなじむ） */
+.idx-ep-prefix { margin-right: 0.3em; font-size: 14px; opacity: 0.65; letter-spacing: 0.08em; }
+.idx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 予告の話：絵を敷かず、タイトルと予告の文だけ（まだ読めないことが分かる暗さ） */
+.idx-ep--preview { min-height: 0; background: transparent; border-style: dashed; }
+/* 扉絵が見つからない話（index.ts が付ける）：空の大きな枠を残さず文字の高さに縮める */
+.idx-ep--nocover { min-height: 0; }
+.idx-ep--nocover::after { content: none; }
+.idx-ep--preview::after { content: none; }
+.idx-ep--preview .idx-ep-title { color: var(--idx-dim); text-shadow: none; }
+.idx-ep-notice { font-size: 13px; color: var(--idx-dim); letter-spacing: 0.05em; }
+
+/* あとがきの帯：話のバナーより低く、絵も暗く */
+/* 絵を敷かない低い帯（話のバナーの下に添える）。暗い地に細い枠だけ */
+.idx-ep--afterword { min-height: 0; padding: 10px 22px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 28px; background: rgba(8, 8, 8, 0.55); }
+.idx-ep--afterword::after { content: none; }
+.idx-ep--afterword .idx-ep-title { font-size: 16px; line-height: 1.6; letter-spacing: 0.3em; text-shadow: none; }
+
+/* ===== 節のチップ（B 案：点） =====
+   読了（--read）＝右上の小さな点、到達（--reached）か読了＝数字が明るい、未到達＝数字が暗い、
+   オートセーブの位置（--here）＝細いキーカラーの枠、未公開（--ghost）＝点線。**読了が優先**：読了なら到達の記録が
+   無くても「読了かつ到達」と同じ見た目（読了だけ・到達なしは既読だけを消したときしか起きない）。塗り・光は使わない */
+.idx-chip {
+  position: relative;
+  min-width: 44px;
+  padding: 3px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #8f8a80;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 8, 8, 0.45);
+  border-radius: 3px;
+}
+a.idx-chip:hover { border-color: rgba(255, 255, 255, 0.4); }
+/* 指で操作する端末：見た目を少し高くし、押せる範囲を上下に広げて 44px にする（行の間を空けて隣の行と重ねない） */
+@media (pointer: coarse) {
+  .idx-chips { gap: 12px 6px; }
+  .idx-chip { min-height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+  a.idx-chip::before { content: ""; position: absolute; inset: -6px -3px; }
+}
+a.idx-chip:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+.idx-chip--reached, .idx-chip--read { color: #f2ede3; }
+.idx-chip--read::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--stage-hue) 85% 60%);
+}
+.idx-chip--here { border-color: hsl(var(--stage-hue) 91% 57% / 0.85); }
+.idx-chip--ghost { border-style: dashed; color: #555; background: transparent; cursor: default; }
+
+/* ===== 右カラム ===== */
+.idx-side-box {
+  display: block;
+  background: var(--idx-panel);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--idx-line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+/* 見出し：白の太字で、アイコンだけキーカラー（文字までキーカラーにすると stage 5 の黄色などが暗い地で読みにくい） */
+.idx-side-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--idx-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.idx-side-label .ic { width: 15px; height: 15px; color: var(--idx-accent); }
+
+/* 最新 */
+#idx-news { display: grid; grid-template-columns: 96px 1fr; grid-template-rows: auto auto 1fr; column-gap: 12px; }
+#idx-news[hidden] { display: none; }
+#idx-news:hover { border-color: hsl(var(--stage-hue) 91% 57% / 0.5); }
+#idx-news .idx-side-label { grid-column: 1 / 3; }
+#idx-news-cover { grid-row: 2 / 4; width: 96px; height: 72px; object-fit: cover; border-radius: 6px; }
+/* 扉絵が見つからない（index.ts が付ける）：絵の列ごと畳む */
+#idx-news.idx-news--nocover { grid-template-columns: 1fr; }
+#idx-news.idx-news--nocover #idx-news-cover { display: none; }
+#idx-news-latest { display: grid; font-weight: 500; font-size: 15px; }
+#idx-news-title { font-weight: 400; font-size: 12px; color: var(--idx-dim); }
+#idx-news-title rt { font-size: 8px; }
+#idx-news-next { display: flex; align-items: center; gap: 5px; align-self: end; color: var(--idx-dim); font-size: 12px; }
+#idx-news-next[hidden] { display: none; }
+#idx-news-next .ic { width: 14px; height: 14px; }
+
+/* 世界：絵そのものを入口にする */
+#idx-world { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 112px 84px; gap: 8px; }
+#idx-world .idx-side-label { grid-column: 1 / 3; margin-bottom: 0; }
+.idx-wtile {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  padding: 8px 10px;
+  border: 1px solid var(--idx-line);
+  border-radius: 8px;
+  background: #111;
+}
+.idx-wtile:hover { border-color: hsl(var(--stage-hue) 91% 57% / 0.5); }
+.idx-wtile:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+.idx-wtile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(8, 8, 8, 0.85), transparent 60%); }
+.idx-wtile-label { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; font-size: 14px; letter-spacing: 0.12em; }
+.idx-wtile-label .ic { width: 16px; height: 16px; color: var(--idx-accent); }
+/* 人物：タイル専用の絵 1 枚（白い地に 3 人。1500×500）。上合わせ＝幅の広い端末ほど下が切れるが、顔は上 200px に
+   描いてあるのでどの幅でも見える（ガイド 過去モック/toc-rich-mock/guide/tile-chara-guide.png）。地は絵の白に合わせ、
+   少し沈めて暗い画面になじませる。以前は全身の絵 3〜4 人を並べて縮めていた（縮めすぎてジャギーが出ていた） */
+#idx-world-chara { grid-column: 1 / 3; background: #fafafa; }
+#idx-world-chara-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; filter: brightness(0.82); }
+/* 地図・用語：タイル専用の絵（1200×360）を中央合わせで（ガイド 過去モック/toc-rich-mock/guide/tile-glossary-guide.png）。
+   少し沈めて文字を読みやすくする（地図の街並みは明るいので強めに） */
+#idx-world-map > img, #idx-world-glossary > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
+#idx-world-map > img { filter: brightness(0.7); }
+#idx-world-glossary > img { filter: brightness(0.9); }
+
+/* 栞：アイコン＋場所＋節の中の位置の帯＋ × */
+.idx-bm-slot { display: flex; align-items: center; gap: 4px; margin: 0 -6px; border-radius: 6px; }
+.idx-bm-go { flex: 1; display: grid; grid-template-columns: 22px auto 1fr; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; }
+.idx-bm-go:hover { background: rgba(255, 255, 255, 0.04); }
+.idx-bm-go:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: -2px; }
+.idx-bm-slot .ic { width: 16px; height: 16px; color: var(--idx-dim); }
+.idx-bm-slot--auto .ic { color: var(--idx-accent); }
+.idx-bm-loc { font-weight: 500; font-size: 14px; }
+.idx-bm-ratio { width: 100%; height: 4px; }
+.idx-bm-ratio::-webkit-meter-bar { background: rgba(255, 255, 255, 0.12); border: none; border-radius: 2px; height: 4px; }
+.idx-bm-ratio::-webkit-meter-optimum-value { background: var(--idx-accent); border-radius: 2px; }
+.idx-bm-ratio::-moz-meter-bar { background: var(--idx-accent); border-radius: 2px; }
+.idx-bm-del {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--idx-dim);
+  cursor: pointer;
+  opacity: 0.5;
+}
+.idx-bm-slot:hover .idx-bm-del, .idx-bm-del:focus-visible { opacity: 1; }
+.idx-bm-del:focus-visible { outline: 2px solid var(--idx-accent); }
+.idx-bm-del .ic { width: 14px; height: 14px; }
+/* 押せる範囲は 44px（見た目の丸は 28px のまま）。行の高さの中に収まる */
+.idx-bm-del::before { content: ""; position: absolute; inset: -8px; }
+/* 指で操作する端末はホバーが無い＝× を最初から見せる */
+@media (hover: none) { .idx-bm-del { opacity: 0.85; } }
+.idx-bm-slot--empty { gap: 8px; padding: 6px; color: var(--idx-dim); font-size: 13px; opacity: 0.7; }
+.idx-bm-slot--empty .ic { stroke-dasharray: 2 2.4; }
+
+/* 変更履歴 */
+#content-changelog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+#content-changelog-head .idx-side-label { margin: 0; }
+/* fieldset には並び方を持たせない（Safari の fieldset の flex を検証できないため）。ボタンはインラインのまま */
+#content-changelog-filter { border: 0; min-inline-size: 0; margin: 4px 0 8px; }
+#content-changelog-filter button {
+  margin: 0 6px 4px 0;
+  padding: 2px 10px;
+  border: 1px solid var(--idx-line);
+  border-radius: 999px;
+  background: none;
+  color: #6f6b63;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+#content-changelog-filter button[aria-pressed="true"] { color: var(--idx-text); border-color: rgba(255, 255, 255, 0.3); }
+#content-changelog-filter button:focus-visible,
+#content-changelog-toggle:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 1px; }
+#content-changelog-list { list-style: none; }
+/* すべて表示：枠の中だけをスクロールさせる（ページを伸ばさない） */
+#content-changelog-list.is-expanded { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+.cl-entry { padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.cl-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 11.5px; color: var(--idx-dim); }
+.cl-version { font-family: ui-monospace, monospace; color: #bdb8ad; }
+/* コミットへ飛べるのは短縮 sha が揃っているときだけ（欠けていれば span）。↗ と色は押せる印なので a に限る */
+a.cl-ep-link { color: hsl(var(--stage-hue) 60% 65%); }
+a.cl-ep-link::after { content: " ↗"; }
+a.cl-ep-link:hover { text-decoration: underline; }
+.cl-change { margin-top: 2px; font-size: 13px; line-height: 1.7; }
+#content-changelog-empty { color: var(--idx-dim); font-size: 12px; }
+#content-changelog-toggle {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px solid var(--idx-line);
+  border-radius: 8px;
+  background: none;
+  color: var(--idx-dim);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+#content-changelog-toggle:hover { color: var(--idx-text); }
+
+/* リンク：名前だけ。外へ出るので ↗ */
+#idx-links { display: grid; gap: 2px; }
+#idx-links a { position: relative; padding: 7px 26px 7px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); font-weight: 500; }
+#idx-links .idx-side-label + a { border-top: none; }
+#idx-links a::after { content: "↗"; position: absolute; right: 2px; top: 50%; transform: translateY(-50%); color: var(--idx-dim); }
+#idx-links a:hover { color: #fff; }
+#idx-links a:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 2px; }
+
+/* ===== 足もと：版だけ ===== */
+#idx-foot { display: grid; place-items: center; padding: 0 0 48px; }
+#idx-foot-ver { font: 11px/1 ui-monospace, monospace; color: #666; letter-spacing: 0.05em; }
+
+/* ===== 設定の見本（PC だけ。設定シートを開いている間、ページ全体を本文の見本にする） ===== */
+#idx-preview { position: fixed; inset: 0; z-index: 30; overflow: hidden; background: #000; }
+#idx-preview[hidden] { display: none; }
+#idx-preview-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#idx-preview::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); }
+#idx-preview-tag {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  left: 16px;
+  padding: 2px 10px;
+  border: 1px solid var(--idx-line);
+  border-radius: 999px;
+  color: var(--idx-dim);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+/* 本文の見本の字：本番の本文と同じ値（_base.css・_layout.css）。総称の serif／sans-serif、行間 1.8、字間 0.1em、両端揃え、影。
+   大きさは 小 15.4／中 17.5／大 20.125px。ただし指で操作する端末の横書きだけ 12.32／14／16.1px。横書きの 1 行の上限は 780px。
+   シート（幅 460px）の左側いっぱいに置く */
+#idx-preview-text {
+  --fs-s: 15.4px;
+  --fs-m: 17.5px;
+  --fs-l: 20.125px;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 460px;
+  overflow: hidden;
+  padding: 14vh max(27px, calc((100vw - 460px - 780px) / 2)) 0;
+  color: #e8e0d0;
+  font-family: serif;
+  line-height: 1.8;
+  letter-spacing: 0.1em;
+  text-align: justify;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.5);
+}
+@media (pointer: coarse) { #idx-preview-text[data-writing-mode="horizontal"] { --fs-s: 12.32px; --fs-m: 14px; --fs-l: 16.1px; } }
+#idx-preview-text[data-writing-mode="vertical"] { writing-mode: vertical-rl; padding: 8vh 64px; }
+#idx-preview-text p { margin: 0; }
+#idx-preview-text[data-line-gap="on"] p { margin-block-end: 1em; }
+#idx-preview-text[data-line-gap="off"] p { text-indent: 1em; }
+/* 字下げしないのは始め括弧で始まる段落（要件 5-4。本番は renderer が判定する。見本は HTML の .ni で持つ） */
+#idx-preview-text[data-line-gap="off"] p.ni { text-indent: 0; }
+#idx-preview-text rt { font-size: 0.5em; }
+#idx-preview-text[data-font="sans"] { font-family: sans-serif; }
+#idx-preview-text[data-size="small"] { font-size: var(--fs-s); }
+#idx-preview-text[data-size="medium"] { font-size: var(--fs-m); }
+#idx-preview-text[data-size="large"] { font-size: var(--fs-l); }
+#idx-preview-text[data-weight="bold"] p { font-weight: 700; }
+
+/* ===== スマホ ===== */
+@media (max-width: 900px) {
+  .idx-top-btn { height: 36px; padding: 0 12px 0 10px; font-size: 13px; }
+  /* 帯のタイトルは幅が足りないので出さない。dev 札は左端、続きのボタンが右のボタンを押しやる */
+  #idx-topbar-mark { display: none; }
+  #idx-topbar-resume { margin-right: auto; }
+  html[data-dev] #idx-topbar #badge-dev { order: 0; margin-left: 0; }
+  /* 右カラムを解体して、最新 → 巻 → 世界 → 栞 → 変更履歴 → リンク の順に並べ直す */
+  #idx-main { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 20px 14px 120px; }
+  #idx-side { display: contents; }
+  #idx-news { order: -1; }
+  #idx-ep-nav { margin-bottom: 14px; }
+  #idx-cta-btn { min-width: 240px; }
+
+  /* 横長の絵の人物の枠（アタリ x 1400〜3260、中心 x 2330）を画面の左から 26% に置いて切り出し、右側を暗くしてロゴを重ねる。
+     ロゴの列は解体して個別に置く（display: contents で #idx-hero-art 基準の絶対配置にする）。締めの飾りは出さない */
+  #idx-hero-art {
+    height: 100svh;
+    min-height: 640px;
+    max-height: 920px;
+    container-type: size;
+    --idx-hero-ground: radial-gradient(ellipse 95% 62% at 42% 30%, var(--idx-art-c1) 0%, var(--idx-art-c2) 38%, var(--idx-art-c3) 72%, var(--idx-bg) 100%);
+  }
+  /* 絵の高さはヒーローの 80%（絵の 1px＝80/2160 cqh）。人物の中心 x 2330 を画面の左から 26% に置く。
+     絵は人物の左右にも背景が続くので、どの比率の画面でも絵が画面の端まで届く */
+  #idx-hero-img, #idx-hero-peer {
+    top: 0;
+    height: 80cqh;
+    width: auto;
+    left: calc(26cqw - 2330 * 80cqh / 2160);
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+    mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+  }
+  #idx-hero-shade { display: block; inset: 0 0 20% 0; background: linear-gradient(270deg, rgba(4, 7, 9, 0.7) 0%, rgba(4, 7, 9, 0.35) 30%, transparent 55%); }
+  #idx-hero-glow { left: 48%; top: 0; width: 60%; height: 64%; }
+  #idx-hero-side { display: contents; }
+  #idx-hero-rule { display: none; }
+  #idx-hero-logo { position: absolute; z-index: 1; right: 2%; top: 6%; height: 44%; width: auto; }
+  #idx-cta { position: absolute; z-index: 1; left: 50%; bottom: 9%; transform: translateX(-50%); }
+  #idx-hero-dots { left: 50%; bottom: 20%; gap: 4px; }
+  .idx-hero-nav { display: none; }
+  /* 指で押せる大きさ（見た目の点は小さいまま） */
+  #idx-hero-dots button { width: 32px; height: 32px; border: none; background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0 3px, transparent 3.5px); }
+  #idx-hero-dots button[aria-current="true"] { background: radial-gradient(circle, #fff 0 4px, transparent 4.5px); }
+
+  /* 扉絵バナーは絵を上、文字を下に。下から暗くする */
+  .idx-ep { min-height: 210px; justify-content: flex-end; padding: 16px; }
+  .idx-ep::after { background: linear-gradient(0deg, rgba(8, 8, 8, 0.96) 18%, rgba(8, 8, 8, 0.55) 55%, rgba(8, 8, 8, 0.05) 100%); }
+  .idx-ep--afterword { min-height: 0; padding: 10px 16px; justify-content: flex-start; }
+  .idx-ep--preview, .idx-ep--nocover { min-height: 0; }
+  .idx-ep-title { font-size: 18px; }
+  .idx-chip { min-width: 40px; }
+}

@@ -21,8 +21,7 @@ test('本文ページの表示設定が要件どおりの並びで表示され�
 
 test('目次ページの表示設定が本文ページと同じ並びで表示される', async ({ page }) => {
     await page.goto('/lirmena/');
-    await page.locator('#fab-toggle').click();
-    await page.getByRole('menuitem', { name: '設定' }).click();
+    await page.locator('#idx-btn-settings').click();
     await expect(page.locator('#settings-popup')).toBeVisible();
 
     expect(await page.locator('#settings-popup .settings-row__label').allTextContents()).toEqual(EXPECTED);

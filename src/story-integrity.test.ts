@@ -45,7 +45,6 @@ function _previewBaseStory(): StoryData {
         {
             volume: 1,
             epRange: [1, 2],
-            heroCard: { file: 'vol01.avif' },
             afterword: { published: false },
             episodes: [
                 { id: 1, title: 'ep1', sections: [{ id: 1, published: false }] },
@@ -55,8 +54,6 @@ function _previewBaseStory(): StoryData {
         {
             volume: 2,
             epRange: [3, 4],
-            heroCard: { file: 'vol02.avif' },
-            heroCardCompleted: { file: 'vol02-fin.avif' },
             afterword: { published: false },
             episodes: [
                 { id: 3, title: 'ep3', sections: [{ id: 1, published: false }] },
@@ -67,13 +64,12 @@ function _previewBaseStory(): StoryData {
 }
 
 // ベース story（全項目正しい）。個別テストで一部を壊して各エラーを再現する。
-// 2vol・全 sec 公開・afterword は非公開、最終 vol は heroCardCompleted を持つ。
+// 2vol・全 sec 公開・afterword は非公開。
 function _baseStory(): StoryData {
     return [
         {
             volume: 1,
             epRange: [1, 2],
-            heroCard: { file: 'vol01.avif' },
             afterword: { published: false },
             episodes: [
                 { id: 1, title: 'ep1', sections: [{ id: 1, published: true }] },
@@ -83,8 +79,6 @@ function _baseStory(): StoryData {
         {
             volume: 2,
             epRange: [3, 4],
-            heroCard: { file: 'vol02.avif' },
-            heroCardCompleted: { file: 'vol02-fin.avif' },
             afterword: { published: false },
             episodes: [
                 { id: 3, title: 'ep3', sections: [{ id: 1, published: true }] },
@@ -95,23 +89,20 @@ function _baseStory(): StoryData {
 }
 
 // vol 数だけを変えた story を作る（(m) の境界テスト用）。各 vol は ep 2 本・全 sec 公開・
-// epRange は隙間なく連続。最終 vol だけが heroCardCompleted を持つ（(b)(c)(f)(g) を巻き込まない形）。
+// epRange は隙間なく連続（(b)(c) を巻き込まない形）。
 function _storyOfVolumes(count: number): StoryData {
     return Array.from({ length: count }, (_, i): Volume => {
         const v = i + 1;
         const firstEp = i * 2 + 1;
-        const pad = String(v).padStart(2, '0');
         const vol: Volume = {
             volume: v,
             epRange: [firstEp, firstEp + 1],
-            heroCard: { file: `vol${pad}.avif` },
             afterword: { published: false },
             episodes: [
                 { id: firstEp,     title: `ep${firstEp}`,     sections: [{ id: 1, published: true }] },
                 { id: firstEp + 1, title: `ep${firstEp + 1}`, sections: [{ id: 1, published: true }] },
             ],
         };
-        if (v === count) vol.heroCardCompleted = { file: `vol${pad}-fin.avif` };
         return vol;
     });
 }
@@ -210,25 +201,11 @@ describe('validateStory — 壊したパターンで各違反が検出される'
         expect(errors.some(e => e.startsWith('(e)') && e.includes('epRange 全域'))).toBe(true);
     });
 
-    it('(f) heroCard.file が空文字列 → (f) エラー', () => {
-        const story = _baseStory();
+    it('(f)(g) 撤去した heroCard / heroCardCompleted は書かれていても止めない（巻の素材は (q) の規約で引く）', () => {
+        const story = _baseStory() as unknown as Array<Record<string, unknown>>;
         story[0].heroCard = { file: '' };
-        const errors = validateStory(story);
-        expect(errors.some(e => e.startsWith('(f)'))).toBe(true);
-    });
-
-    it('(g) 最終 vol でない vol が heroCardCompleted を持つ → (g) エラー', () => {
-        const story = _baseStory();
-        story[0].heroCardCompleted = { file: 'vol01-fin.avif' };
-        const errors = validateStory(story);
-        expect(errors.some(e => e.startsWith('(g)') && e.includes('最終 vol のみ'))).toBe(true);
-    });
-
-    it('(g) 最終 vol が heroCardCompleted を持たない → (g) エラー', () => {
-        const story = _baseStory();
-        delete story[1].heroCardCompleted;
-        const errors = validateStory(story);
-        expect(errors.some(e => e.startsWith('(g)') && e.includes('最終 vol'))).toBe(true);
+        const errors = validateStory(story as unknown as StoryData);
+        expect(errors.some(e => e.startsWith('(f)') || e.startsWith('(g)'))).toBe(false);
     });
 
     it('(h) 撤廃済み end フィールドが残っている → (h) エラー', () => {

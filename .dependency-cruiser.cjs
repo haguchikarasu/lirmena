@@ -88,9 +88,9 @@ module.exports = {
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    // 目次は core（storage・settings-model・query・preview・changelog）と ui（settings-panel・share・sheet・confirm・ruby）を読む。
-    // 資料（人物・地図・用語）は目次からはページへ移るだけなので、資料シートも部品も読まない。
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog)\\.ts|ui/(settings-panel|share|sheet|confirm)\\.ts)$' } },
+    // 目次は core（storage・settings-model・query・preview・changelog・theme・schedule）と ui（settings-panel・share・
+    // confirm・ruby）を読む。資料（人物・地図・用語）は目次からはページへ移るだけなので、資料シートも描画の部品も読まない。
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog|theme|schedule)\\.ts|ui/(settings-panel|share|confirm)\\.ts)$' } },
     // core の中の辺は無い（各モジュールが types だけを読む）。ui の部品は core の値の規則を読む。
     // シートを使う ui（設定・共有・資料）は器の ui/sheet を読む。設定は消す・戻す前の確認（ui/confirm）も読む。
     { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/sheet|ui/confirm)\\.ts$' } },
