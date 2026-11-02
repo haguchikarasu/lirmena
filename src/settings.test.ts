@@ -340,7 +340,8 @@ describe('段落の区切り（lineGap → CSS 変数 --paragraph-margin / --par
 });
 
 // 仕様（要件 06-4）：表示設定の行は「書字方向 → 段落間の空行 → フォント → 文字サイズ → 文字の太さ」の順に表示する。
-// 目次ページ（index.ts）は同じ並びを別実装で持つ。両ページの一致は e2e/settings-order.spec.ts が担保する。
+// 並びは断片 templates/parts/settings.html の 1 か所で、目次ページ（index.html）も同じ断片を差し込む（以前は二重実装で、
+// e2e の settings-order.spec.ts が一致を見ていた）。
 describe('表示設定の行順（要件 06-4）', () => {
     beforeEach(() => {
         mountSettingsPopup();
@@ -418,7 +419,7 @@ describe('クリアボタンの3系統 callback ルーティング＋confirm 承
 });
 
 // 仕様（要件 06-4）：プリセットは表示設定5項目の名前付きの組み合わせ（ウェブ小説風／書籍風）。
-// 定義は settings.ts が単一の源として持ち、目次側（index.ts）の複製とのズレは e2e/settings-preset.spec.ts が見る。
+// 定義は core/settings-model の PRESETS が単一の源として持ち、目次も同じ定義を使う（両ページの結線は e2e/settings-preset.spec.ts）。
 describe('プリセットの定義（要件 06-4）', () => {
     // desc（カードの内訳）を values から導くための表。desc を手で書き換えたときに気づけるようにする。
     const LABEL = {

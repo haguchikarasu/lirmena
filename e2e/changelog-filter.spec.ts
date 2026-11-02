@@ -2,9 +2,9 @@
  * 更新履歴の版種別フィルタ E2E（要件 06-7「更新履歴エリア（コンテンツ）」・06-1「変更履歴エリア」）。
  * 実データの changelog を触らず page.route で fixture に差し替えて検証する。
  *
- * 目次（index.ts）と ep タイトルページ（title.ts）は版種別の判定 versionKind とスイッチの markup を
- * それぞれ inline 複製で持つ（目次の独立方針）。本 spec はその**同期検査を兼ねる**：同じ版の並びを
- * 両ページに流し、全行の (version, data-kind) が一致することを見る（design/modules/index.md の複製表）。
+ * 版種別の判定 versionKind は core/changelog を目次（index.ts）とタイトルページ（title.ts）が共有する
+ * （判定そのものは src/core/pure.test.ts が見る）。スイッチの markup だけは index.html と templates/title.html に
+ * 複製が残るので、本 spec がその**同期検査を兼ねる**（design/modules/index.md の複製表）。
  *
  * JSON の形はページで違う（目次＝ep/sha が配列、ep 別＝sha が文字列）ので fixture は 2 形。版の並びは共通。
  *
@@ -13,7 +13,7 @@
  *   2. 目次：パッチを ON にすると出る／全 OFF で空表示が出てトグルボタンが消える
  *   3. タイトル：初期表示はパッチを隠す・パッチ ON で全件
  *   4. タイトル：パッチだけの ep は空表示（スイッチは出る）／履歴なしの ep は「更新履歴なし」でスイッチを出さない
- *   5. 両ページの版種別判定の一致
+ *   5. 両ページのスイッチの markup の一致
  */
 
 import { test, expect } from './_fixtures';
@@ -136,30 +136,22 @@ test.describe('ep タイトルページ 変更履歴の版種別フィルタ', (
     });
 });
 
-test('目次とタイトルページの版種別判定が一致する（inline 複製の同期検査）', async ({ page }) => {
-    const expected = VERSIONS.map(([v, kind]) => [`v${v}`, kind]);
-
+test('版種別スイッチの markup が目次とタイトルページで一致する（複製の同期検査）', async ({ page }) => {
+    // スイッチは履歴があるときだけ出るので、両ページに同じ版の並びを流してから読む
     await mockJson(page, '**/changelog/content-changelog.json', CONTENT_FIXTURE);
-    await page.goto('/lirmena/');
-    await expect(page.locator('#content-changelog-list li.cl-entry')).toHaveCount(VERSIONS.length);
-    // 折りたたみで hidden の行もあるので、可視性ではなく data-kind 属性で全行を集める
-    const toc = await page.locator('#content-changelog-list li.cl-entry').evaluateAll(lis =>
-        lis.map(li => [li.querySelector('.cl-version')?.textContent ?? '', (li as HTMLElement).dataset.kind ?? '']));
-
     await mockJson(page, '**/changelog/ep01-changelog.json', EP_FIXTURE);
-    await page.goto('/lirmena/contents/01-00.html');
-    await expect(page.locator('#title-screen-changelog-list .changelog-entry')).toHaveCount(VERSIONS.length);
-    const title = await page.locator('#title-screen-changelog-list .changelog-entry').evaluateAll(rows =>
-        rows.map(row => [row.querySelector('.changelog-version a')?.textContent ?? '', (row as HTMLElement).dataset.kind ?? '']));
-
-    expect(toc).toEqual(expected);
-    expect(title).toEqual(expected);
-
-    // スイッチの markup（ボタンの並び・表示文字列・初期 aria-pressed）も両ページで一致する
+    // ボタンの並び・表示文字列・初期 aria-pressed
     const readSwitch = (sel: string) => page.locator(`${sel} button[data-kind]`).evaluateAll(bs =>
         bs.map(b => [(b as HTMLElement).dataset.kind ?? '', b.textContent ?? '', b.getAttribute('aria-pressed') ?? '']));
+
+    await page.goto('/lirmena/contents/01-00.html');
+    await expect(page.locator('#title-screen-changelog-list .changelog-entry')).toHaveCount(VERSIONS.length);
     const titleSwitch = await readSwitch('#title-screen-changelog-filter');
+
     await page.goto('/lirmena/');
+    await expect(page.locator('#content-changelog-list li.cl-entry')).toHaveCount(VERSIONS.length);
     const tocSwitch = await readSwitch('#content-changelog-filter');
+
+    expect(tocSwitch.length).toBeGreaterThan(0);   // 両方空で一致、を通さない
     expect(titleSwitch).toEqual(tocSwitch);
 });

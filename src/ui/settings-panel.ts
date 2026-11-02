@@ -120,7 +120,7 @@ export function isOpen(): boolean {
 
 // プリセットのカードを PRESETS から .settings-preset の中に組む。
 // **カードは設定の「行」ではない**（.settings-row / .settings-row__label を使わない）＝行順を検査する
-// e2e/settings-order.spec.ts と settings.test.ts の対象外に保つ。要件 06-4 の「表示設定の行」は5つのまま。
+// settings.test.ts の対象外に保つ。要件 06-4 の「表示設定の行」は5つのまま。
 function _buildPresets(popup: HTMLElement): void {
     const box = popup.querySelector<HTMLElement>('.settings-preset');
     if (!box) return;

@@ -1,10 +1,9 @@
 /*
  * 骨格 E2E：表示設定のプリセット（要件 06-4）。
- * プリセットの定義は本文ページ（settings.ts の PRESETS）と目次ページ（index.ts の PRESETS）に
- * **複製**されている（index.ts は settings.ts を import できない＝.dependency-cruiser.cjs の
- * index-src-isolation）。この spec が複製の同期を機械で見張る役目を持つ。
- * 見ているのは 1) カードの表示文字列 2) 押した後の localStorage の値マップ 3) CSS の書き忘れ。
- * 特に 2) が本命で、表示名だけ揃っていて値が違う（＝「書籍風」が両ページで別物）状態を検出する。
+ * 定義は core/settings-model の PRESETS 1 か所で、カードは ui/settings-panel が組む（以前は目次の index.ts に
+ * 複製があり、この spec が同期を見張っていた）。今の役目は**両ページの結線**の確認：
+ * 1) カードの表示文字列 2) 押した後の localStorage の値マップ（目次は host の保存を index.ts が持つ）
+ * 3) CSS の読み忘れ（_sheet.css は本文が index.css、目次が index.ts から読む＝design/modules/settings.md）。
  *
  * _fixtures を使う理由：Task 3 以降は本文ページで初回ダイアログが自動表示され、同じ「ウェブ小説風」
  * 「書籍風」のボタンを持つオーバーレイがメニューのクリックを阻害する。fixture が presetAsked を
