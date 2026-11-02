@@ -154,7 +154,7 @@ function pages(root: string): Plugin {
       const staticPages = ['index.html', 'characters.html', 'map.html', 'glossary.html'].map(p => resolve(root, p))
       return { build: { rollupOptions: { input: [...staticPages, ...pagePaths] } } }
     },
-    // dev：story.json / characters.json / テンプレ・差し込みの断片の変更を監視し、再生成して full-reload する。
+    // dev：story.json / characters.json / テンプレ・差し込みの断片の変更を監視し、再生成して full-reload する（検査が落ちてもサーバは落とさない）。
     // characters.json は生成には使わないが、story-integrity (o) の入力なので直したら検査を走らせ直す。
     // 断片（templates/parts/*.html）は起動時にあるものだけを見る（足したら dev を立て直す）。
     configureServer(server) {
@@ -170,11 +170,24 @@ function pages(root: string): Plugin {
         ...parts,
       ].map((p) => p.replace(/\\/g, '/'))
       for (const f of watched) server.watcher.add(f)
+      // 再生成は変更が落ち着いてから 1 回だけ行い（sync-draft のように複数のファイルが続けて書き換わると、途中の
+      // 食い違った状態で検査が落ちる）、検査・JSON の失敗はログとブラウザのエラー表示に出すだけでサーバは落とさない
+      // （以前は例外が監視のコールバックから漏れて dev サーバのプロセスごと落ちた。2026-11-03 に sync-draft で実際に起きた）。
+      // 失敗したときは前回の生成物が残る＝直して保存すれば再生成される。
+      let timer: ReturnType<typeof setTimeout> | undefined
       server.watcher.on('change', (file) => {
-        if (watched.includes(file.replace(/\\/g, '/'))) {
-          generatePages(root)
-          server.ws.send({ type: 'full-reload' })
-        }
+        if (!watched.includes(file.replace(/\\/g, '/'))) return
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          try {
+            generatePages(root)
+            server.ws.send({ type: 'full-reload' })
+          } catch (e) {
+            const err = e instanceof Error ? e : new Error(String(e))
+            server.config.logger.error(`[lirmena-pages] ページを再生成できない（前回の生成物のまま）：\n${err.message}`, { timestamp: true })
+            server.ws.send({ type: 'error', err: { message: err.message, stack: err.stack ?? '' } })
+          }
+        }, 200)
       })
     },
     // 目次・資料ページ（root 直下の静的ページ）の差し込みを展開する。'pre' で Vite が HTML を解析する前に行う
