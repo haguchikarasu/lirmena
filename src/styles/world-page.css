@@ -13,6 +13,29 @@
      - PC はアドレスバーが出入りしないので固定しない（ページ全体がスクロールする）。地図だけはページが画面より
        長くならない高さ（svh から帯と上下の余白を引く） */
 
+/* ===== 背景（3 枚とも）=====
+   絵を暗くしてぼかして画面全体に敷く。地図・用語は目次のタイルの絵（public/img/tile-*.avif。1200×360 の横長）を
+   使い回す。人物はタイルの絵が白地で、暗くすると灰色に濁るだけなので、専用の絵（public/img/bg-chara.avif＝
+   イラスト vol01/ep02「修道兵院廊下」を 960px 幅に縮めたもの。ぼかすので解像度は要らない）を使う。
+   横長の絵を縦の画面に cover で伸ばすと 2〜3 倍に拡大されて粗くなるので、ぼかして色と雰囲気だけを残す。
+   - 画面に固定する（position: fixed の疑似要素）。background-attachment: fixed は iOS Safari で効かない
+   - inset を外へはみ出させる：blur は縁を透かすので、画面の端が明るくにじむのを防ぐ
+   - body に isolation: isolate を付けて重なりの基準にする。付けないと z-index: -1 の疑似要素が body 自身の
+     背景（toc.css の #080808）の下に潜って見えなくなる
+   - 明るさは絵ごとに目で合わせた値（地図の絵は暗い街並みなので、緑の明るい用語の絵より明るめにしないと沈んで消える） */
+body.wp-root { isolation: isolate; }
+body.wp-root::before {
+  content: "";
+  position: fixed;
+  inset: -32px;
+  z-index: -1;
+  background: center / cover no-repeat;
+  pointer-events: none;
+}
+body[data-world="characters"]::before { background-image: url("/img/bg-chara.avif"); filter: brightness(0.3) blur(10px); }
+body[data-world="map"]::before { background-image: url("/img/tile-map.avif"); filter: brightness(0.3) blur(10px); }
+body[data-world="glossary"]::before { background-image: url("/img/tile-glossary.avif"); filter: brightness(0.2) blur(10px); }
+
 /* ===== 上の帯 ===== */
 #wp-top {
   position: sticky;
@@ -93,6 +116,9 @@ body[data-world="map"] #wp-panel .mv {
   border: 1px solid var(--sheet-line);
   border-radius: 12px;
 }
+/* 地図の枠の地（_map.css の #0d0d0d）を透かして、冒頭の背景を見せる。.mv は資料シート（本文・目次のポップアップ）と
+   共用なので、部品側ではなくこのページでだけ上書きする */
+body[data-world="map"] #wp-panel .mv { background: transparent; }
 
 /* ===== スマホ：3 枚とも 1 画面に固定（冒頭の「高さ」） ===== */
 @media (max-width: 900px) {
