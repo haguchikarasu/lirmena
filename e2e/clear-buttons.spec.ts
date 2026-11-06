@@ -1,9 +1,9 @@
 /*
  * 骨格 E2E ⑤：目次側の記録の消去（栞・既読・読破）が独立に対応キーだけを削除し、設定を初期値に戻せる。
- * 要件 06-4「栞・既読・読破の 3 つの消去は独立で、それぞれ栞（bookmarks とオートセーブ）／既読（reached）／読破（read）のみを削除する。
+ * 要件 06-4「栞・既読・読破の 3 つの消去は独立で、それぞれ手動の栞（bookmarks）／既読（reached）／読破（read）とオートセーブ（autosave）を削除する。
  * どれも取り消せないので、実行前に確認（ui/confirm の <dialog>）を出し、「やめる」・Esc・背景なら何もしない」。
  * 目次 index.ts は unit テストを持たないため、確認 × localStorage 整合の担保はここに置く。
- * 導線は上の帯の ⚙ から開く設定シート（以前の FAB の 3 項目の行き先）と、栞の欄の各行の ×（1 件ずつ・確認つき）。
+ * 導線は上の帯の ⚙ から開く設定シート（以前の FAB の 3 項目の行き先）と、手動栞の行の ×（1 件ずつ・確認つき。スロット 0 に × は無い）。
  */
 
 import { test, expect } from './_fixtures';
@@ -51,7 +51,7 @@ test.describe('設定シート経由の 3 つの消去 × 確認', () => {
         await seedStorage(page);
     });
 
-    test('「栞をすべて消す」＋「削除する」で bookmarks とオートセーブを削除・既読・読破は温存', async ({ page }) => {
+    test('「栞をすべて消す」＋「削除する」で bookmarks だけを削除・オートセーブ・既読・読破は温存', async ({ page }) => {
         await page.addInitScript(() => {
             try { localStorage.setItem('autosave', JSON.stringify({ ep: 1, sec: 2, ratio: 0.5, savedAt: 200 })); } catch { /* noop */ }
         });
@@ -59,15 +59,15 @@ test.describe('設定シート経由の 3 つの消去 × 確認', () => {
         await expect(page.locator('#idx-cta-btn')).toHaveText('続きから読む');
         await openSettings(page);
         await page.locator('.settings-action', { hasText: '栞をすべて消す' }).click();
-        await expect(page.locator('#confirm-msg')).toHaveText('保存した栞とオートセーブをすべて削除しますか？');
+        await expect(page.locator('#confirm-msg')).toHaveText('保存した栞をすべて削除しますか？');
         await answerConfirm(page, '削除する');
 
-        const s = await readStorage(page);
-        expect(s.bookmarks).toBeNull();
         // 1 回読むだけだと、負荷の高いときに消える前の値を読んで落ちた（2026-11-03）＝消えるまで待つ
-        await expect.poll(() => page.evaluate(() => localStorage.getItem('autosave'))).toBeNull();
-        // 目次の「続きから読む」もその場で初めての状態に戻る
-        await expect(page.locator('#idx-cta-btn')).toHaveText('第一話から読む');
+        await expect.poll(() => page.evaluate(() => localStorage.getItem('bookmarks'))).toBeNull();
+        const s = await readStorage(page);
+        expect(await page.evaluate(() => localStorage.getItem('autosave'))).not.toBeNull();
+        // 「続きから読む」は栞では消えない
+        await expect(page.locator('#idx-cta-btn')).toHaveText('続きから読む');
         expect(s.reached).not.toBeNull();
         expect(s.read).not.toBeNull();
         expect(s.sceneRead).not.toBeNull();
@@ -88,16 +88,21 @@ test.describe('設定シート経由の 3 つの消去 × 確認', () => {
         expect(s.bookmarks).not.toBeNull();
     });
 
-    test('「読破を消す」＋「削除する」で read と sceneRead を削除・reached / bookmarks は温存', async ({ page }) => {
+    test('「読破を消す」＋「削除する」で read と sceneRead とオートセーブを削除・reached / bookmarks は温存', async ({ page }) => {
+        await page.addInitScript(() => {
+            try { localStorage.setItem('autosave', JSON.stringify({ ep: 1, sec: 2, ratio: 0.5, savedAt: 200 })); } catch { /* noop */ }
+        });
         await page.goto('/lirmena/');
         await openSettings(page);
         await page.locator('.settings-action', { hasText: '読破を消す' }).click();
+        await expect(page.locator('#confirm-note')).toHaveText('オートセーブも一緒に削除されます。');
         await answerConfirm(page, '削除する');
 
         const s = await readStorage(page);
         expect(s.read).toBeNull();
         // sceneRead も削除（loadReadSections が完了マーカーから読破を復活させないため）
         expect(s.sceneRead).toBeNull();
+        expect(await page.evaluate(() => localStorage.getItem('autosave'))).toBeNull();
         expect(s.reached).not.toBeNull();
         expect(s.bookmarks).not.toBeNull();
     });
@@ -164,19 +169,9 @@ test.describe('栞の欄の × × 確認（1 件ずつ消す）', () => {
         await expect(page.locator('#bookmark-slots .idx-bm-slot--empty')).toHaveCount(3);
     });
 
-    test('オートセーブの行の × ＋「やめる」なら消えず、「削除する」で消えて「続きから読む」も無くなる', async ({ page }) => {
+    test('オートセーブの行には × が無い（消す手段は「読破を消す」だけ）', async ({ page }) => {
         await page.goto('/lirmena/');
-        await expect(page.locator('#idx-cta-btn')).toHaveText('続きから読む');
-        const del = page.getByRole('button', { name: 'オートセーブを消す' });
-        await del.click();
-        await answerConfirm(page, 'やめる');
-        expect(await page.evaluate(() => localStorage.getItem('autosave'))).not.toBeNull();
-
-        await del.click();
-        await answerConfirm(page, '削除する');
-        // 1 回読むだけだと、負荷の高いときに消える前の値を読んで落ちた（2026-11-03）＝消えるまで待つ
-        await expect.poll(() => page.evaluate(() => localStorage.getItem('autosave'))).toBeNull();
-        await expect(page.locator('#bookmark-slots .idx-bm-slot--auto')).toHaveCount(0);
-        await expect(page.locator('#idx-cta-btn')).toHaveText('第一話から読む');
+        await expect(page.locator('#bookmark-slots .idx-bm-slot--auto')).toHaveCount(1);
+        await expect(page.getByRole('button', { name: 'オートセーブを消す' })).toHaveCount(0);
     });
 });

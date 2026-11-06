@@ -18,13 +18,15 @@
  *                                    縦書き⇔横書きで同一スロットを共有する（schemaVersion 5 で方向別スロットから単一スロットへ統合）。
  *                                    読者が保存先 slot を選び、同 slot は上書きする。記録: menu.ts が栞追加で addBookmark(address, ratio, slot) を呼ぶ
  *   "autosave"    : AutoSaveEntry    最新1件のみ上書き { ep, sec, ratio, savedAt }。ratio はスクロール範囲比（0〜1・方向非依存）
+ *                                    役割は「物語をどこまで読んだか」だけ（要件 06-5）。読む側は volumes.resolveResumePoint
  *                                    記録: reader.ts がスクロール通知をスロットルして saveAutoSave() を呼ぶ
- *                                    設定「栞をすべて消す」の対象（clearAllBookmarks＝手動の栞と一緒に消す）
+ *                                    設定「読破を消す」の対象（clearRead＝読破と一緒に消す）
  *   "pendingJump" : PendingJump      位置ジャンプ受け渡し { ep, sec, scene, ratio }。栞ジャンプ（menu.ts / index.ts）と
- *                                    「続きから読む」（index.ts がオートセーブの ratio を載せる）が書く。
+ *                                    「続きから読む」（地点がオートセーブの位置のとき、index.ts がその ratio を載せる）が書く。
  *                                    遷移先ページがロード時に読んで復元・消去する（明示前進ナビより優先＝必ず復元される）
- *   "pendingScrollEnd": SecAddress   戻る系の終端スクロール受け渡し { ep, sec }。書くのは title.ts（タイトル「戻る」＝前 ep 最終 sec）と
- *                                    nav.ts（本文の戻るボタン／開幕「もどる ›」＝前 sec）。遷移先がロード時に読んで本文末へスクロール・消去する（オートセーブより優先）
+ *   "pendingScrollEnd": SecAddress   終端スクロール受け渡し { ep, sec }。書くのは title.ts（タイトル「戻る」＝前 ep 最終 sec）・
+ *                                    nav.ts（開幕「もどる」＝前 sec）・index.ts（「続きから読む」の地点が読破した節の末尾のとき）。
+ *                                    遷移先がロード時に読み、読破済みなら本文末、未読なら先頭へ着地して消去する（オートセーブより優先）
  *   "schemaVersion": string          スキーマ版数。旧データ移行を一度だけ走らせるための番兵
  *
  * ── 旧データ移行（init() で schemaVersion を見て未変換時のみ1回実行）──────────────────────
@@ -39,6 +41,8 @@
  *     源。旧位置は保存時の可動域が不明で割合へ変換できないため、栞は ep/sec/scene のみ引き継ぎ ratio=0（scene>0 は復元時に
  *     シーン先頭へ粗着地）、オートセーブは ep/sec のみ引き継ぎ ratio=0（再開時に sec 先頭へ）とする。位置の厳密さは一度だけ失われる。
  *     方向別キー（v4）は孤児になるため掃除する。旧単一キーは冪等・復旧のため残す。
+ *   旧 "autosaveAfterword" / "pendingJumpAfterword"（あとがきの位置。廃止）は init() で版数に関係なく消す。
+ *     **版数は上げない**：上げると _migrate が再実行され、_migrateBookmarks / _migrateAutoSave が全読者の位置を ratio=0 に落とす。
  *   ★ 旧 "sceneRead" キーは変換後も削除せず保持する（冪等・復旧可能・目次先開きでの参照余地を残す。ユーザー合意済み）。
  *     ただし例外：設定の「既読を消す」（clearReached）／「読破を消す」（clearRead）実行時は削除する。
  *     残しておくと loadReachedKeys / loadReadKeys（目次の表示用）が旧マーカー "ep-sec-00" から既読／読破を
@@ -46,18 +50,17 @@
  *
  * セクション既読の判定ロジックは持たない。目次（index.ts）が loadReachedKeys / loadReadKeys を引くだけ。
  *
- * ── 目次の表示用の読み出し（loadReachedKeys / loadReadKeys / getLatestAutoSave / getBookmarksWithSlots）──
+ * ── 目次の表示用の読み出し（loadReachedKeys / loadReadKeys / getBookmarksWithSlots）──
  *   目次は init() のメモリキャッシュではなく localStorage を毎回読み直す（目次内で「読破状況をクリア」した直後の
  *   再計算で古い値を返さないため）。旧 "sceneRead" の完了マーカーも足し込む（移行前フォールバック）。
  *   以前は index.ts が同じ処理を複製して持っていた。
  *
- * ── 外部サイト/直接アクセスでの自動記録抑止 ──────────────────────────────────────
+ * ── 自動記録の抑止 ──────────────────────────────────────────────────
  * recordReached / recordRead は _reachedReadSuppressed の間 no-op、saveAutoSave は _autoSaveSuppressed の間 no-op になる。
- * main.ts が起動時に遷移元を判定し setAutoRecordSuppressed({ reachedRead, autoSave }) で 2 系統を独立に設定する
- * （判定条件は suppression.ts の純関数へ切り出し）。到達・読了とオートセーブで抑止条件を分けるのは、オートセーブが
- * 単一スロット・上書き型のため「過去に一度開いただけ（reached のみ）の sec を外部から再訪」した際に読者の
- * 現在の読みかけ位置を奪わないため（到達・読了は加算的で害がない）。栞追加（addBookmark）は
- * いずれのフラグの対象外＝明示操作は常に動く。
+ * main.ts が起動時に setAutoRecordSuppressed({ reachedRead, autoSave }) で設定する。判定は main.ts と volumes / suppression の純関数：
+ *   reachedRead … 保留中で最前線でない本文ページ（要件 06-5）
+ *   autoSave    … 上の場合に加えて、最大読破位置以前のページ（読み返し。volumes.canWriteAutoSave）とあとがき
+ * 栞追加（addBookmark）はいずれのフラグの対象外＝明示操作は常に動く。
  */
 
 import type {
@@ -67,8 +70,6 @@ import type {
     PendingJump,
     SecKey,
     AfterwordKey,
-    AutoSaveAfterwordEntry,
-    PendingJumpAfterword,
 } from '../types';
 
 // 栞1件。flat 形＋固定スロット（slot=1..3）。ratio はスクロール範囲比（0〜1・書字方向非依存）。
@@ -91,8 +92,9 @@ const KEY_BOOKMARKS = 'bookmarks';
 const KEY_AUTOSAVE = 'autosave';
 const KEY_PENDING_JUMP = 'pendingJump';
 const KEY_PENDING_SCROLL_END = 'pendingScrollEnd';
-const KEY_AUTOSAVE_AFTERWORD = 'autosaveAfterword';
-const KEY_PENDING_JUMP_AFTERWORD = 'pendingJumpAfterword';
+// 廃止したキー（あとがきの位置）。init() で消すためだけに名前を残す。
+const KEY_LEGACY_AUTOSAVE_AFTERWORD = 'autosaveAfterword';
+const KEY_LEGACY_PENDING_JUMP_AFTERWORD = 'pendingJumpAfterword';
 const KEY_SCHEMA_VERSION = 'schemaVersion';
 const KEY_LEGACY_SCENE_READ = 'sceneRead';
 
@@ -100,13 +102,12 @@ let _reached: Set<SecKey> = new Set();
 let _read: Set<SecKey> = new Set();
 let _bookmarks: BookmarkEntry[] = [];
 
-// 自動記録の抑止フラグ。到達・読了とオートセーブで 2 系統に分ける（判定条件が異なるため）。
-// 外部サイト/直接アクセスで開いた本文ページで main.ts が立てる（判定条件は suppression.ts の純関数）。
+// 自動記録の抑止フラグ。到達・読了とオートセーブで 2 系統に分ける（オートセーブだけ、読み返しでも止めるため）。
 // 栞追加（addBookmark）はいずれの対象外＝明示操作は常に動く。既定は false（記録する）。
 let _reachedReadSuppressed = false;
 let _autoSaveSuppressed = false;
 
-// setAutoRecordSuppressed の入力。到達・読了系（reachedRead）とオートセーブ系（autoSave）を独立に制御する。
+// setAutoRecordSuppressed の入力。到達・読了系（reachedRead）とオートセーブ系（autoSave）。
 export type AutoRecordSuppression = {
     reachedRead: boolean;
     autoSave: boolean;
@@ -136,11 +137,14 @@ export function init(): void {
         _migrate();
         localStorage.setItem(KEY_SCHEMA_VERSION, SCHEMA_VERSION);
     }
+    // あとがきの位置は廃止（要件 06-5）。版数を上げずに消す（理由は冒頭の「旧データ移行」）。
+    localStorage.removeItem(KEY_LEGACY_AUTOSAVE_AFTERWORD);
+    localStorage.removeItem(KEY_LEGACY_PENDING_JUMP_AFTERWORD);
 
     _bookmarks = _loadBookmarks();
 }
 
-// 自動記録の抑止を 2 系統独立に設定する。main.ts が起動時に遷移元と読者の履歴を判定して呼ぶ。
+// 自動記録の抑止を設定する。main.ts がページの起動時（と bfcache からの復帰時）に判定して呼ぶ。
 // reachedRead=true の間 recordReached / recordRead が no-op、autoSave=true の間 saveAutoSave が no-op になる
 // （栞追加 addBookmark は対象外。本文側 bookmark.ts の saveScrollToHistory も対象外）。
 // setAutoRecordSuppressed(suppression: AutoRecordSuppression): void
@@ -169,24 +173,10 @@ export function recordRead(ep: number, sec: number): void {
     if (_addTo(_reached, key)) _persistSet(KEY_REACHED, _reached);
 }
 
-// 到達セットに ep/sec が含まれるか。外部流入抑止判定（main.ts）で「当 sec 痕跡」の一つとして使う。
-// hasReached(ep: number, sec: number): boolean
-export function hasReached(ep: number, sec: number): boolean {
-    return _reached.has(secKey(ep, sec));
-}
-
-// 読了セットに ep/sec が含まれるか。外部流入抑止判定（main.ts）で「前 sec 読了」「当 sec 痕跡」の判定材料として使う。
+// 読了セットに ep/sec が含まれるか。「もどる」の着地（main.ts）が見る。
 // hasRead(ep: number, sec: number): boolean
 export function hasRead(ep: number, sec: number): boolean {
     return _read.has(secKey(ep, sec));
-}
-
-// autosave スロット（唯一の 1 件）が当ページの ep/sec を指しているか＝直前まで読んでいたセクションへ戻ってきたか。
-// 現行の main.ts _isResuming を bookmark 側に移設した相当。外部流入抑止判定で「読みかけ再開」の例外として使う。
-// isAutoSaveAt(ep: number, sec: number): boolean
-export function isAutoSaveAt(ep: number, sec: number): boolean {
-    const auto = getAutoSave();
-    return auto !== null && auto.ep === ep && auto.sec === sec;
 }
 
 // 到達セット（"EP-SEC" 配列）を返す。
@@ -211,7 +201,8 @@ export function clearReached(): void {
     localStorage.removeItem(KEY_LEGACY_SCENE_READ);
 }
 
-// 読了（読破）セットを削除する（設定の「読破を消す」）。既読（到達）は残す。
+// 読了（読破）セットとオートセーブを削除する（設定の「読破を消す」）。既読（到達）は残す。
+// オートセーブを一緒に消すのは「続きから読む」の地点が読破から決まるため（要件 06-4・06-5）。
 // 旧 "sceneRead" フォールバック源も併せて削除する（残しておくと目次の表示用 loadReadKeys が
 // 完了マーカー "ep-sec-00" から読破を復活させるため。clearReached と同方針＝既読／読破どちらの明示クリアも sceneRead を消す）。
 // data-story-stage は main.ts が起動時に1回書くだけなので即時反映されない＝次回ロード反映（既存の非対称に揃える）。
@@ -220,6 +211,7 @@ export function clearRead(): void {
     _read = new Set();
     localStorage.removeItem(KEY_READ);
     localStorage.removeItem(KEY_LEGACY_SCENE_READ);
+    localStorage.removeItem(KEY_AUTOSAVE);
 }
 
 // ── 栞 ────────────────────────────────────────────────────────────
@@ -253,21 +245,11 @@ export function getBookmarks(): BookmarkEntry[] {
     return [..._bookmarks];
 }
 
-// 手動の栞（スロット1〜3）だけを削除する。設定の「栞をすべて消す」は clearAllBookmarks（オートセーブも消す）を使う。
-// clearSlots(): void
-export function clearSlots(): void {
-    _bookmarks = [];
-    localStorage.removeItem(KEY_BOOKMARKS);
-}
-
-// 設定の「栞をすべて消す」：手動の栞（スロット1〜3）とオートセーブ（本編・あとがき）をまとめて削除する。
-// 目次の栞の欄ではオートセーブを「スロット0」として並べているので、栞と一緒に消す（2026-11-03 ユーザー決定。以前はオートセーブが
-// 残り、目次の「続きから読む」を初期化する方法が栞の欄の行の × しか無かった）。既読・読破は消さない（別のボタン）。
+// 設定の「栞をすべて消す」：手動の栞（スロット1〜3）だけを削除する。オートセーブ・既読・読破は消さない（要件 06-4）。
 // clearAllBookmarks(): void
 export function clearAllBookmarks(): void {
-    clearSlots();
-    clearAutoSave();
-    clearAutoSaveAfterword();
+    _bookmarks = [];
+    localStorage.removeItem(KEY_BOOKMARKS);
 }
 
 // ── オートセーブ ──────────────────────────────────────────────────
@@ -330,10 +312,10 @@ export function clearPendingJump(): void {
     localStorage.removeItem(KEY_PENDING_JUMP);
 }
 
-// ── pendingScrollEnd（タイトル「戻る」の終端スクロール受け渡し）─────
+// ── pendingScrollEnd（終端スクロール受け渡し）────────────────
 
-// 終端スクロール対象 sec を書く。title.ts の「戻る」（前 ep 最終 sec）・nav.ts の戻る（前 sec・開幕「もどる ›」含む）が
-// 遷移前に書き、遷移先がロード時に読んで本文末へ着地する。
+// 終端スクロール対象 sec を書く。title.ts の「戻る」（前 ep 最終 sec）・nav.ts の開幕「もどる」（前 sec）・
+// index.ts の「続きから読む」（地点が読破した節の末尾のとき）が遷移前に書く。遷移先の着地は main.ts が決める（読破済みなら本文末、未読なら先頭）。
 // writePendingScrollEnd(ep: number, sec: number): void
 export function writePendingScrollEnd(ep: number, sec: number): void {
     const entry: SecAddress = { ep, sec };
@@ -350,7 +332,7 @@ export function readPendingScrollEnd(): SecAddress | null {
     return null;
 }
 
-// pendingScrollEnd を消す（末尾へスクロール後に呼ぶ）。
+// pendingScrollEnd を消す（着地のあとに呼ぶ）。
 // clearPendingScrollEnd(): void
 export function clearPendingScrollEnd(): void {
     localStorage.removeItem(KEY_PENDING_SCROLL_END);
@@ -358,15 +340,10 @@ export function clearPendingScrollEnd(): void {
 
 // ── あとがき（vol[XX]-af）─────────────────────────────────────────────
 //
-// 巻末あとがきページ用の到達／読了／オートセーブ／pendingJump。
-// 到達／読了キーは本文 sec と同じ localStorage キー（"reached" / "read"）に "vol01-af" 形式で追加する
+// 巻末あとがきページ用の到達／読了。キーは本文 sec と同じ localStorage キー（"reached" / "read"）に "vol01-af" 形式で追加する
 // （キー regex `^vol\d{2}-af$` で本文 sec 用 `^\d{2}-\d{2}$` と区別可能）。
-// stage 判定（volumes.computeStoryStage）は本文 sec 用の regex でフィルタするので、あとがきキーは stage に影響しない。
-// autosave / pendingJump は独立キー（autosaveAfterword / pendingJumpAfterword）で並立させる：既存 autosave スキーマ
-// を union に拡張すると影響範囲が大きく、また本文とあとがきは別ページで並行して「続きから読む」候補になり得るため。
-// index.ts の「続きから読む」は autosave（本文）と autosaveAfterword（あとがき）を savedAt 比較で新しい方を採用する。
-// 抑止フラグ（_reachedReadSuppressed / _autoSaveSuppressed）は本文 sec と共通で、あとがきも同じ扱い（あとがきに
-// 外部から迷い込んでも同ゲート）。
+// あとがきは物語の線形の外にあり、印は目次に出すだけ。stage・オートセーブ・「続きから読む」の判定に使わない（要件 06-5）。
+// 位置は保存しない（autosaveAfterword / pendingJumpAfterword は廃止）。
 
 // あとがきキーの生成："vol01-af" 形式。目次が既読・読破の照合に使う（キーの形の持ち主はここだけ）。
 // afterwordKey(vol: number): AfterwordKey
@@ -392,77 +369,8 @@ export function recordReadAfterword(vol: number): void {
     if (_addTo(_reached, key)) _persistSet(KEY_REACHED, _reached);
 }
 
-// hasReachedAfterword(vol: number): boolean
-export function hasReachedAfterword(vol: number): boolean {
-    return _reached.has(afterwordKey(vol));
-}
-
-// hasReadAfterword(vol: number): boolean
-export function hasReadAfterword(vol: number): boolean {
-    return _read.has(afterwordKey(vol));
-}
-
-// あとがきのオートセーブ（独立キー autosaveAfterword）を保存。スロットルは呼び出し元（reader.ts）が行う。
-// saveAutoSaveAfterword(vol: number, ratio: number): void
-export function saveAutoSaveAfterword(vol: number, ratio: number): void {
-    if (_autoSaveSuppressed) return;
-    const entry: AutoSaveAfterwordEntry = { vol, ratio: _clamp01(ratio), savedAt: Date.now() };
-    localStorage.setItem(KEY_AUTOSAVE_AFTERWORD, JSON.stringify(entry));
-}
-
-// あとがきのオートセーブを返す。無ければ null。「続きから読む」は本編と savedAt 比較で新しい方を採用する。
-// getAutoSaveAfterword(): AutoSaveAfterwordEntry | null
-export function getAutoSaveAfterword(): AutoSaveAfterwordEntry | null {
-    try {
-        const raw = localStorage.getItem(KEY_AUTOSAVE_AFTERWORD);
-        if (!raw) return null;
-        const o = JSON.parse(raw) as Record<string, unknown>;
-        const vol = Number(o.vol);
-        if (!Number.isFinite(vol)) return null;
-        const ratio = Number(o.ratio);
-        return {
-            vol,
-            ratio: Number.isFinite(ratio) ? _clamp01(ratio) : 0,
-            savedAt: Number(o.savedAt) || Date.now(),
-        };
-    } catch { /* ignore */ }
-    return null;
-}
-
-// autosaveAfterword が当 vol を指しているか＝外部流入抑止判定の「読みかけ再開」例外に使う。
-// isAutoSaveAfterwordAt(vol: number): boolean
-export function isAutoSaveAfterwordAt(vol: number): boolean {
-    const auto = getAutoSaveAfterword();
-    return auto !== null && auto.vol === vol;
-}
-
-// あとがき用の pendingJump（栞ジャンプ／「続きから読む」の位置受け渡し。独立キー pendingJumpAfterword）。
-// writePendingJumpAfterword(jump: PendingJumpAfterword): void
-export function writePendingJumpAfterword(jump: PendingJumpAfterword): void {
-    localStorage.setItem(KEY_PENDING_JUMP_AFTERWORD, JSON.stringify(jump));
-}
-
-// readPendingJumpAfterword(): PendingJumpAfterword | null
-export function readPendingJumpAfterword(): PendingJumpAfterword | null {
-    try {
-        const raw = localStorage.getItem(KEY_PENDING_JUMP_AFTERWORD);
-        if (raw) return JSON.parse(raw) as PendingJumpAfterword;
-    } catch { /* ignore */ }
-    return null;
-}
-
-// clearPendingJumpAfterword(): void
-export function clearPendingJumpAfterword(): void {
-    localStorage.removeItem(KEY_PENDING_JUMP_AFTERWORD);
-}
-
 // ── 目次の表示用の読み出し ───────────────────────────────────────────
 // 目次（index.ts）は init() のメモリキャッシュを使わず、呼ぶたびに localStorage を読み直す（冒頭の「目次の表示用の読み出し」）。
-
-// 本編／あとがきのオートセーブを union で表す。「続きから読む」は savedAt が新しい方を採用する。
-export type LatestAutoSave =
-    | { kind: 'sec'; ep: number; sec: number; ratio: number; savedAt: number }
-    | { kind: 'afterword'; vol: number; ratio: number; savedAt: number };
 
 // 到達キー集合（本文 sec "EP-SEC" とあとがき "vol[XX]-af" が混在）＋旧 sceneRead の完了マーカー。
 // loadReachedKeys(): Set<string>
@@ -478,30 +386,6 @@ export function loadReadKeys(): Set<string> {
     const result: Set<string> = _loadStringSet(KEY_READ);
     for (const k of _loadLegacyDoneSections()) result.add(k);
     return result;
-}
-
-// 本編／あとがきのうち savedAt が新しい方を返す（同時刻なら本編）。どちらも無ければ null。
-// 目次の「続きから読む」ボタン・FAB・スロット0が使う。
-// getLatestAutoSave(): LatestAutoSave | null
-export function getLatestAutoSave(): LatestAutoSave | null {
-    const sec = getAutoSave();
-    const aft = getAutoSaveAfterword();
-    if (!sec && !aft) return null;
-    if (!aft) return { kind: 'sec', ep: sec!.ep, sec: sec!.sec, ratio: sec!.ratio, savedAt: sec!.savedAt };
-    if (!sec) return { kind: 'afterword', vol: aft.vol, ratio: aft.ratio, savedAt: aft.savedAt };
-    return sec.savedAt >= aft.savedAt
-        ? { kind: 'sec', ep: sec.ep, sec: sec.sec, ratio: sec.ratio, savedAt: sec.savedAt }
-        : { kind: 'afterword', vol: aft.vol, ratio: aft.ratio, savedAt: aft.savedAt };
-}
-
-// オートセーブを消す（目次のスロット0の「削除」）。本編とあとがきは別キーなので別関数。
-// clearAutoSave(): void / clearAutoSaveAfterword(): void
-export function clearAutoSave(): void {
-    localStorage.removeItem(KEY_AUTOSAVE);
-}
-
-export function clearAutoSaveAfterword(): void {
-    localStorage.removeItem(KEY_AUTOSAVE_AFTERWORD);
 }
 
 // 栞を全件返す。slot 未割当（0）のものには savedAt 昇順で空きスロットを割り当てて返す（表示だけ。保存はしない）。

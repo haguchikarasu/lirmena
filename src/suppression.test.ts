@@ -1,113 +1,107 @@
 /*
  * suppression.test.ts
- * 対象: suppression.ts の 2 純関数（到達・読了／オートセーブの抑止判定）
- * 方針: 期待値は要件 06-5-bookmark.html「外部サイト/直接アクセスで開いた本文ページは記録しない」note と
- *   計画ファイルの判定表から導出する（実装をなぞらない）。両関数は副作用ゼロ・入力プリミティブのみ。
- *   到達・読了 → 抑止：外部流入 かつ 前 sec 未読 かつ 当 sec 痕跡（reached/read/autosave 一致）なし
- *   オートセーブ → 抑止：外部流入 かつ 前 sec 未読 かつ autosave 不一致
+ * 対象: suppression.ts の isFrontier（最前線か）。
+ * 期待は要件 06-5「外部サイト/直接アクセスで開いた本文ページは記録しない（最前線を除く）」から書く：
+ *   最前線＝「続きから読む」の地点、または最大読破の次の公開 sec。
+ *   読破がなければ「最大読破の次」はなく、読破もオートセーブもない読者の最前線は最初の公開 sec。
+ *   読破がなくオートセーブがある読者の最前線は地点だけ。
  * 環境: jsdom 不要（純関数）。
  */
 import { describe, expect, it } from 'vitest';
-import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
+import { isFrontier } from './suppression';
+import { resolveResumePoint } from './volumes';
+import type { StoryData } from './types';
 
-describe('shouldSuppressReachedRead（到達・読了の抑止判定）', () => {
-    it('lirmena 内移動なら常に false（記録する）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: false, prevSecRead: false,
-            reachedHere: false, readHere: false, autoSaveHere: false,
-        })).toBe(false);
+// 第 1 巻 01-01・01-02・02-01・02-02・02-03（巻末）／第 2 巻 05-01・05-02。05-03 は未公開。
+const STORY: StoryData = [
+    {
+        volume: 1,
+        epRange: [1, 2],
+        afterword: { published: true },
+        episodes: [
+            { id: 1, title: 'a', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+            { id: 2, title: 'b', sections: [{ id: 1, published: true }, { id: 2, published: true }, { id: 3, published: true }] },
+        ],
+    },
+    {
+        volume: 2,
+        epRange: [5, 5],
+        afterword: { published: false },
+        episodes: [
+            { id: 5, title: 'c', sections: [{ id: 1, published: true }, { id: 2, published: true }, { id: 3, published: false }] },
+        ],
+    },
+];
+const KEYS = ['01-01', '01-02', '02-01', '02-02', '02-03', '05-01', '05-02'];
+const parse = (k: string) => { const [ep, sec] = k.split('-').map(Number); return { ep, sec }; };
+const at = (k: string, ratio = 0.4) => ({ ...parse(k), ratio });
+const front = (key: string, read: string[], auto: ReturnType<typeof at> | null) => isFrontier(parse(key).ep, parse(key).sec, read, auto, STORY);
+// どのページが最前線かを列挙する（判定表を読みやすくする）
+const frontier = (read: string[], auto: ReturnType<typeof at> | null) => KEYS.filter((k) => front(k, read, auto));
+
+describe('isFrontier（最前線か）', () => {
+    it('読破もオートセーブもない：最初の公開 sec だけ', () => {
+        expect(frontier([], null)).toEqual(['01-01']);
     });
 
-    it('外部流入 かつ 前 sec 未読 かつ 当 sec 痕跡なし → true（抑止）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: true, prevSecRead: false,
-            reachedHere: false, readHere: false, autoSaveHere: false,
-        })).toBe(true);
+    it('読破がありオートセーブが地点より前か無い：最大読破の節（地点）とその次', () => {
+        expect(frontier(['01-01'], null)).toEqual(['01-01', '01-02']);
+        expect(frontier(['02-01'], at('01-01'))).toEqual(['02-01', '02-02']);
     });
 
-    it('外部流入でも 前 sec 読了 なら false（順に読み進めての続き sec）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: true, prevSecRead: true,
-            reachedHere: false, readHere: false, autoSaveHere: false,
-        })).toBe(false);
+    it('読破があり先の節に読みかけ：読みかけ（地点）と最大読破の次', () => {
+        expect(frontier(['01-01'], at('02-02'))).toEqual(['01-02', '02-02']);
     });
 
-    it('外部流入でも 当 sec が reached にあれば false（過去に開いたことがある）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: true, prevSecRead: false,
-            reachedHere: true, readHere: false, autoSaveHere: false,
-        })).toBe(false);
+    it('読みかけが最大読破の次：その 1 つ', () => {
+        expect(frontier(['01-01'], at('01-02'))).toEqual(['01-02']);
     });
 
-    it('外部流入でも 当 sec が read にあれば false（過去に読了したことがある）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: true, prevSecRead: false,
-            reachedHere: false, readHere: true, autoSaveHere: false,
-        })).toBe(false);
+    it('読破がなくオートセーブがある：地点だけ（最大読破の次はない）', () => {
+        expect(frontier([], at('02-02'))).toEqual(['02-02']);
     });
 
-    it('外部流入でも autosave 一致なら false（読みかけ再開・現行維持）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: true, prevSecRead: false,
-            reachedHere: false, readHere: false, autoSaveHere: true,
-        })).toBe(false);
+    it('次巻の冒頭も「最大読破の次」になる（巻・話をまたぐ）', () => {
+        expect(front('05-01', ['02-03'], null)).toBe(true);
+        expect(front('02-01', ['01-02'], null)).toBe(true);
     });
 
-    it('内部移動で前 sec 未読・痕跡なしでも false（内部は常に記録）', () => {
-        expect(shouldSuppressReachedRead({
-            externalEntry: false, prevSecRead: false,
-            reachedHere: false, readHere: false, autoSaveHere: false,
-        })).toBe(false);
-    });
-});
-
-describe('shouldSuppressAutoSave（オートセーブの抑止判定）', () => {
-    it('lirmena 内移動なら常に false（記録する）', () => {
-        expect(shouldSuppressAutoSave({
-            externalEntry: false, prevSecRead: false, autoSaveHere: false,
-        })).toBe(false);
+    it('最新まで読了：最後の節だけ', () => {
+        expect(frontier(['05-02'], null)).toEqual(['05-02']);
     });
 
-    it('外部流入 かつ 前 sec 未読 かつ autosave 不一致 → true（抑止）', () => {
-        expect(shouldSuppressAutoSave({
-            externalEntry: true, prevSecRead: false, autoSaveHere: false,
-        })).toBe(true);
+    it('未公開の節は最前線にならず、読破の次は公開済みの節を数える', () => {
+        expect(isFrontier(5, 3, ['05-02'], null, STORY)).toBe(false);
+        expect(isFrontier(5, 3, [], at('05-03'), STORY)).toBe(false);
     });
 
-    it('外部流入でも 前 sec 読了 なら false（順に読み進めての続き sec）', () => {
-        expect(shouldSuppressAutoSave({
-            externalEntry: true, prevSecRead: true, autoSaveHere: false,
-        })).toBe(false);
+    it('未公開を指すオートセーブは無視する（読破もなければ最初の公開 sec）', () => {
+        expect(frontier([], at('05-03'))).toEqual(['01-01']);
     });
 
-    it('外部流入でも autosave 一致なら false（読みかけ再開）', () => {
-        expect(shouldSuppressAutoSave({
-            externalEntry: true, prevSecRead: false, autoSaveHere: true,
-        })).toBe(false);
-    });
-});
-
-describe('到達・読了 と オートセーブ の差分（過去 reached だけの sec に外部から再訪）', () => {
-    // 仕様：外部流入・前 sec 未読・当 sec に reached あり・autosave は別 sec を指す（不一致）
-    // → 到達・読了は記録される（reachedHere で有効化）／オートセーブは抑止される（過去 reached は autoSave 側の例外にしない）
-    // これにより現在の読みかけ位置（autosave）が過去 reached の sec に上書きされない。
-    it('reached あり／autosave 不一致：到達・読了は記録、オートセーブは抑止', () => {
-        const shared = { externalEntry: true, prevSecRead: false } as const;
-        expect(shouldSuppressReachedRead({
-            ...shared, reachedHere: true, readHere: false, autoSaveHere: false,
-        })).toBe(false);
-        expect(shouldSuppressAutoSave({
-            ...shared, autoSaveHere: false,
-        })).toBe(true);
+    it('あとがきのキーは最大読破に数えない', () => {
+        expect(frontier(['vol01-af'], null)).toEqual(['01-01']);
     });
 
-    it('read あり／autosave 不一致：同上（read の含意）', () => {
-        const shared = { externalEntry: true, prevSecRead: false } as const;
-        expect(shouldSuppressReachedRead({
-            ...shared, reachedHere: false, readHere: true, autoSaveHere: false,
-        })).toBe(false);
-        expect(shouldSuppressAutoSave({
-            ...shared, autoSaveHere: false,
-        })).toBe(true);
+    it('全組み合わせ：地点と最大読破の次は必ず最前線で、それ以外は最前線でない', () => {
+        const subsets = KEYS.reduce<string[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]]);
+        const autos = [null, ...KEYS.map((k) => at(k))];
+        for (const read of subsets) {
+            for (const auto of autos) {
+                const point = resolveResumePoint(read, auto, STORY)!;
+                const pointKey = KEYS.find((k) => parse(k).ep === point.ep && parse(k).sec === point.sec)!;
+                const max = Math.max(-1, ...read.map((k) => KEYS.indexOf(k)));
+                const expected = new Set([pointKey]);
+                if (max >= 0 && max + 1 < KEYS.length) expected.add(KEYS[max + 1]);
+                expect(new Set(frontier(read, auto))).toEqual(expected);
+            }
+        }
+    });
+
+    it('あとがきは無関係：全組み合わせであとがきのキーを足しても変わらない', () => {
+        const subsets = KEYS.reduce<string[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]]);
+        for (const read of subsets) {
+            expect(frontier([...read, 'vol01-af'], at('02-02'))).toEqual(frontier(read, at('02-02')));
+        }
     });
 });

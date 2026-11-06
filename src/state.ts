@@ -14,11 +14,10 @@
  *   getSection(ep, sec): EpisodeSection | undefined
  *   isPublished(ep, sec): boolean
  *   indexUrl(): string                                      目次ページへの相対 URL（'../'）
- *   getBodyUrl(ep, sec): string                            任意 ep/sec の本文ページ相対 URL（menu「続きから読む」用）
+ *   getBodyUrl(ep, sec): string                            任意 ep/sec の本文ページ相対 URL（あとがきの「もどる」用）
  *   getNextUrl(): string | null                             本文モード：次 sec 本文／ep 境界は次 ep タイトル／無ければ null
  *   getPrevUrl(): string | null                             本文モード：前 sec 本文／先頭 sec は当 ep タイトル
  *   getPrevAddress(): SecAddress | null                     本文モード：戻る遷移先が前 sec のときの ep/sec（本文末着地フラグ書込用）
- *   getPrevPublishedSec(): SecAddress | null                本文モード：物語順で一つ前の公開 sec（ep 境界を跨ぐ）
  *   getTitleEnterUrl(): string | null                       タイトル「本文を読む」用。当 ep 先頭公開 sec の本文ページ
  *   getTitlePrevUrl(): string | null                        タイトル「戻る」用。前 ep の最終公開 sec の本文ページ（無ければ null）
  *   getTitlePrevAddress(): SecAddress | null                タイトル「戻る」遷移先の ep/sec（終端スクロールフラグ書込用）
@@ -119,7 +118,7 @@ export function indexUrl(): string {
     return withQuery('../');
 }
 
-/** 任意 ep/sec の本文ページ相対 URL（menu「続きから読む」用） */
+/** 任意 ep/sec の本文ページ相対 URL（あとがきの「もどる」用） */
 export function getBodyUrl(ep: number, sec: number): string {
     return _bodyPath(ep, sec);
 }
@@ -145,16 +144,6 @@ export function getPrevUrl(): string | null {
 export function getPrevAddress(): SecAddress | null {
     const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
     return prevSec === null ? null : { ep: _current.ep, sec: prevSec };
-}
-
-/** 物語順で一つ前の公開 sec（ep 境界を跨ぐ）。外部流入抑止判定の材料 */
-export function getPrevPublishedSec(): SecAddress | null {
-    const prevSec = _prevPublishedSecInEp(_current.ep, _current.sec);
-    if (prevSec !== null) return { ep: _current.ep, sec: prevSec };
-    const prevEp = _prevEpWithPublished(_current.ep);
-    if (prevEp === null) return null;
-    const last = _lastPublishedSec(prevEp);
-    return last === null ? null : { ep: prevEp, sec: last };
 }
 
 /** タイトル「本文を読む」の遷移先。当 ep の先頭公開 sec の本文ページ。公開 sec が無ければ null */

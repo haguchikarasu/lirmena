@@ -128,6 +128,9 @@
        本文フローの外に置く fixed 要素なので、読書エリアの余白計算（svh/dvh）にもレイアウトにも干渉しない。
        文字（dev／localhost）は data-dev のトークンから CSS が出す＝中身は空 -->
   <span id="badge-dev"></span>
+  <!-- 記録を止めているときの札（要件 06-6。main.ts が保留中で最前線でない本文ページでだけ hidden を外す。あとがきでは出さない）。
+       読者にも見える。押すと下の #hold-popup を開く（ui/hold-badge.ts） -->
+  <button id="badge-hold" type="button" aria-haspopup="dialog" hidden>既読抑止中</button>
   <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
   <p id="loading" role="status">読み込み中</p>
 
@@ -206,6 +209,20 @@
       <button class="bookmark-slot" type="button" data-slot="2"></button>
       <button class="bookmark-slot" type="button" data-slot="3"></button>
     </nav>
+  </dialog>
+
+  <!-- 札の説明。札のすぐ下に小さく出す（_misc.css。掴む所と見出しの帯を持たないので、シートの掴む操作は効かない）。
+       目次へは誘導しない（初見の人が目次を開き、リンク先へ飛び直して記録してしまうのを避ける。要件 06-6） -->
+  <dialog id="hold-popup" class="sheet" data-kind="hold" data-detent="fit" aria-label="一時停止している機能">
+    <section class="hold-body" tabindex="-1" autofocus>
+      <button class="sheet-close" type="button" data-sheet-close aria-label="閉じる"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <p>ページを直接開いたため、以下の機能を一時停止しています。</p>
+      <ul>
+        <li>オートセーブ</li>
+        <li>続きから読む</li>
+        <li>到達/読破</li>
+      </ul>
+    </section>
   </dialog>
 
   <!-- 初回の読み方選択：プリセット（ウェブ小説風／書籍風）のカードを firstrun.ts が生成する。

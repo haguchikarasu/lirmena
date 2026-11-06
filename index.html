@@ -39,6 +39,25 @@
   <!-- head-contract:fouc:start -->
   <style>html,body{margin:0;background:#080808;color:#e8e0d0;}</style>
   <!-- head-contract:fouc:end -->
+  <!-- 次巻の公開直後（要件 06-7）：読者の記録が変わらなくても、作者が次巻を公開すると stage が上がるので、端末に残した stage が
+       1 段古いことがある。story.json を待たずに正しい巻を出すため、ビルド時に埋め込んだ「読破キー → 到達する stage」の表
+       （volumes.buildStageTable。vite.config.ts が印を置き換える）で、下の早期スクリプトより先にキャッシュを引き上げる。
+       **引き上げるだけで下げない**（表が古いときに誤って下げないため。下げるのは index.ts の story.json の計算だけ）。
+       印は未変換のままでも空の表として動く。head-contract の外に置く（目次だけのもの）。 -->
+  <script>
+    (function () {
+      var table = {/*stage-table*/};
+      try {
+        var read = JSON.parse(localStorage.getItem('read') || '[]');
+        var cached = Number(localStorage.getItem('lirmena.storyStage')) || 1;
+        var top = cached;
+        for (var i = 0; i < read.length; i++) {
+          if (table[read[i]] > top) top = table[read[i]];
+        }
+        if (top > cached) localStorage.setItem('lirmena.storyStage', String(top));
+      } catch (e) { /* 使えない環境では何もしない（既存の早期スクリプトが代用品へ差し替える） */ }
+    })();
+  </script>
   <!-- 書字方向・端末カテゴリ・物語進行段階（stage）の早期反映（FOUC 回避）：CSS 適用前に <html> 属性を先付け。
        - data-writing-mode: axis.ts/settings.ts と同じ lirmena.writingMode キー。保存値が無ければ既定＝横書き
        - data-device:      matchMedia('(pointer: coarse)') の代理指標で PC/SP を先付け。device.ts が同じロジックで購読・更新

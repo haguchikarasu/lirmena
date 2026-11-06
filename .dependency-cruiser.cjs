@@ -14,7 +14,7 @@
 // 既存の部品は場所を変えていない。parser・renderer・bg-stub・story-integrity は src/ の外からパスで読まれるので動かさない。
 // 下の forbidden が層の向きを止め、allowed が個々の辺を許す（allowed に無い辺も allowedSeverity: 'error' で止まる）。
 
-const LEAF = '(transition|progress|parser|loader|state|immersive|ruby|axis|device|bookmark|volumes|suppression|analytics|map|glossary)';
+const LEAF = '(transition|progress|parser|loader|state|immersive|ruby|axis|device|bookmark|volumes|analytics|map|glossary)';
 // core 層：types と volumes（stage の算出＝純関数）と src/core/ の全部。
 const CORE = '(^|/)src/((types|volumes)\\.ts|core/[^/]+\\.ts)$';
 // ui 層：src/ui/ の全部と、どのページにも置ける既存の部品。
@@ -88,9 +88,9 @@ module.exports = {
   ],
   allowed: [
     { from: {}, to: { path: '(^|/)src/types\\.ts$' } },
-    // 目次は core（storage・settings-model・query・preview・changelog・theme・schedule）と ui（settings-panel・share・
+    // 目次は core（storage・record-hold・settings-model・query・preview・changelog・theme・schedule）と ui（settings-panel・share・
     // confirm・ruby）を読む。資料（人物・地図・用語）は目次からはページへ移るだけなので、資料シートも描画の部品も読まない。
-    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|settings-model|query|preview|changelog|theme|schedule)\\.ts|ui/(settings-panel|share|confirm)\\.ts)$' } },
+    { from: { path: '(^|/)src/index\\.ts$' },    to: { path: '(^|/)src/((volumes|ruby)\\.ts|core/(storage|record-hold|settings-model|query|preview|changelog|theme|schedule)\\.ts|ui/(settings-panel|share|confirm)\\.ts)$' } },
     // core の中の辺は無い（各モジュールが types だけを読む）。ui の部品は core の値の規則を読む。
     // シートを使う ui（設定・共有・資料）は器の ui/sheet を読む。設定は消す・戻す前の確認（ui/confirm）も読む。
     { from: { path: '(^|/)src/ui/settings-panel\\.ts$' }, to: { path: '(^|/)src/(core/settings-model|ui/sheet|ui/confirm)\\.ts$' } },
@@ -106,8 +106,12 @@ module.exports = {
     // characters → volumes は StoryStage の型だけ（tsPreCompilationDeps で型 import も辺に数える）。
     // characters → core/chara は人物の画像の置き場所と顔の画像名の規約（ビルド時の実在検査と共有）。
     { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/((ruby|volumes)\\.ts|core/chara\\.ts)$' } },
-    { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/changelog\\.ts)$' } },
-    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics)\\.ts$' } },
+    { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/(changelog|record-hold)\\.ts)$' } },
+    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics|core/record-hold|ui/hold-badge)\\.ts$' } },
+    // 最前線の判定は stage と同じ順序を使う（「続きから読む」の地点と最大読破の次）。
+    { from: { path: '(^|/)src/suppression\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
+    // 札の説明はシートで開く。
+    { from: { path: '(^|/)src/ui/hold-badge\\.ts$' }, to: { path: '(^|/)src/ui/sheet\\.ts$' } },
     { from: { path: '(^|/)src/nav\\.ts$' },      to: { path: '(^|/)src/(axis|state|bookmark|transition)\\.ts$' } },
     // menu は資料シート（ui/world-sheet）・共有（ui/share）・栞シートの器（ui/sheet）を読む。人物・地図・用語の部品は world-sheet 経由。
     { from: { path: '(^|/)src/menu\\.ts$' },     to: { path: '(^|/)src/((axis|state|bookmark|settings|transition|tutorial|volumes)\\.ts|ui/(share|sheet|world-sheet)\\.ts)$' } },

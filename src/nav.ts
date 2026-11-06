@@ -3,7 +3,7 @@
  * 責務: 本文ページ／巻末あとがきページの末尾ボタン（進行 #btn-next、巻末あとがき導線 #btn-afterword）の
  *       イベント登録と表示更新、戻る遷移 goPrev()（開幕アフォーダンスの「もどる」から呼ばれる）、
  *       sec 末尾（またはあとがき末尾）到達の検知と読了記録。
- * export: init(opts?: NavOptions), initAfterword(vol), update(), updateAfterword(), goPrev(), arm()
+ * export: init(opts?: NavOptions), initAfterword(vol), update(), updateAfterword(), goPrev(), arm(), resetReadDetection()
  *         type NavOptions = { onReadRecorded?: () => void }
  * 依存: axis.ts / state.ts / bookmark.ts / transition.ts
  *
@@ -199,6 +199,13 @@ export function updateAfterword(): void {
 // arm(): void
 export function arm(): void {
     _readDetectionArmed = true;
+}
+
+// 読了検知をやり直せるようにする。main.ts が bfcache からの復帰で呼ぶ。保留中に末尾へ達したページは
+// 「記録済み」になっているが実際には記録されていないので、記録が始まった後のスクロールで読破を付けるため（recordRead は冪等）。
+// resetReadDetection(): void
+export function resetReadDetection(): void {
+    _readRecorded = false;
 }
 
 // 戻る遷移を実行する（開幕アフォーダンス「もどる」＝ opening.ts から呼ばれる）。

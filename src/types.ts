@@ -131,20 +131,6 @@ export type AfterwordAddress = { kind: 'afterword'; vol: number };
 export type PageAddress = ({ kind: 'sec' } & SecAddress) | AfterwordAddress;
 
 /**
- * AutoSaveAfterwordEntry: あとがきページのオートセーブ。本文 sec 用 AutoSaveEntry と独立キーで並立する。
- * ratio はスクロール範囲比（0〜1・書字方向非依存）。localStorage キー "autosaveAfterword"。
- * 「続きから読む」は AutoSaveEntry / AutoSaveAfterwordEntry のうち savedAt が新しい方を採用する。
- */
-export type AutoSaveAfterwordEntry = { vol: number; ratio: number; savedAt: number };
-
-/**
- * PendingJumpAfterword: あとがきページへのジャンプ受け渡し（栞・「続きから読む」用）。
- * ratio はスクロール範囲比（0〜1・書字方向非依存）。localStorage キー "pendingJumpAfterword"。
- * 本文 sec 用 PendingJump と独立キーで並立する。
- */
-export type PendingJumpAfterword = { vol: number; ratio: number };
-
-/**
  * AutoSaveEntry: オートセーブ（現在 sec の最新読書位置）。常に最新1件を上書き保存する。
  * ratio はスクロール範囲比（forward 進行 px ÷ 進行軸の可動域＝0〜1・書字方向非依存）。座標スケールの差を割合で吸収するため
  * 縦書き⇔横書きで同一スロットを共有でき、復元時は ratio × 現在の可動域で forward 進行 px へ逆算する。

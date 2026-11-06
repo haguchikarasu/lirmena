@@ -69,11 +69,11 @@ export function init(host: SettingsPanelHost): void {
     }
 
     _onAction(popup, 'clear-bookmarks', () =>
-        _confirmAndRun('保存した栞とオートセーブをすべて削除しますか？', '削除する', () => _host?.clearBookmarks()));
+        _confirmAndRun('保存した栞をすべて削除しますか？', '削除する', () => _host?.clearBookmarks()));
     _onAction(popup, 'clear-reached', () =>
         _confirmAndRun('既読の記録をすべて削除しますか？', '削除する', () => _host?.clearReached()));
     _onAction(popup, 'clear-read', () =>
-        _confirmAndRun('読破の記録をすべて削除しますか？', '削除する', () => _host?.clearRead()));
+        _confirmAndRun('読破の記録をすべて削除しますか？', '削除する', () => _host?.clearRead(), 'オートセーブも一緒に削除されます。'));
     _onAction(popup, 'reset', () =>
         _confirmAndRun('表示の設定を初期値に戻しますか？', '戻す', () => {
             _host?.reset();

@@ -5,7 +5,7 @@
  *       足もとの版・設定と共有のシートを組む。markup の骨組みは index.html が持ち、ここはデータと状態で変わる所だけ。
  * export: なし（script type="module" としてロードされるエントリポイント）
  * 依存（目次は core と ui だけを読み、reader 層＝本文の読書の仕組みを読まない。.dependency-cruiser.cjs の層の規則）:
- *   core: core/storage（栞・既読・読破・オートセーブの読み書きと移行 init()。read セットは storage.loadReadKeys() で毎回
+ *   core: core/record-hold（目次を開いたら記録の保留を解除する。要件 06-5）、core/storage（栞・既読・読破・オートセーブの読み書きと移行 init()。read セットは storage.loadReadKeys() で毎回
  *         localStorage を読み直す＝目次内で「読破を消す」した直後の再計算で古い値を返さない）、
  *         core/settings-model（表示設定の値の規則）、core/query（withQuery）、core/preview（hasEffectivePreview）、
  *         core/changelog（versionKind）、core/theme（巻の素材の規約と stage → 素材の組）、core/schedule（次回の更新）、volumes.ts（computeStoryStage＝素材・キーカラー・巻カードの初期 open に共用）
@@ -15,17 +15,18 @@
  *
  * 機能:
  *   - **巻の素材（ヒーローの絵・ロゴ・ページの背景）**：stage から core/theme の規約で URL を組む（story.json には書かない）。
- *     初期表示は index.html の早期スクリプトが端末の stage（lirmena.storyStage）から先に入れ、ここは story.json で
+ *     初期表示は index.html の早期スクリプトが端末の stage（lirmena.storyStage。公開直後は埋め込みの表で引き上げる）から先に入れ、ここは story.json で
  *     stage を算出し直して違っていれば差し替える（applyStoryStage）。キーカラーは <html data-story-stage>（toc.css）
  *   - **表紙ギャラリー**：今の stage から過去の巻の絵へ遡れる（右＝過去）。替えるのは絵だけで、ロゴ・キーカラー・
  *     favicon・次に開いたときの絵は今の stage のまま。閲覧位置は覚えない。PC はボタン（ホバーで出る）、スマホは払う
  *     （指に付いてくるカルーセル）、ドットでも移れる。隣の巻の絵は img.decode() まで先読みする（R17）
- *   - **読み始めるボタン**（ヒーロー）と上の帯の「▶ 第N話#M」：初めて＝第一話から、途中＝オートセーブの位置から、
- *     最新まで読了＝最新の節を読み返す（下に次回の更新）。読者の状態は <body data-reader="first|mid|caught">
+ *   - **読み始めるボタン**（ヒーロー）と上の帯の「▶ 第N話#M」：初めて＝第一話から、途中＝「続きから読む」の地点
+ *     （volumes.resolveResumePoint）へ、最新まで読了＝最新の節を読み返す（下に次回の更新）。
+ *     読者の状態は <body data-reader="first|mid|caught">
  *   - 巻カード（<details class="idx-vol-card">）→ 話の扉絵バナー（article.idx-ep）→ 節のチップ。巻の初期 open は
  *     stage の巻だけ（物語完結なら全部閉じる）。予告の巻・予告の話・部分公開の話のゴーストのチップ・巻末のあとがきの帯
- *   - 節のチップの状態（B 案）：読了＝右上の点、到達（か読了）＝明るい数字、オートセーブの位置＝細い枠（toc-page.css）
- *   - 右カラム：最新（最後に公開した節と次回の更新）・世界（資料ページ 3 枚への入口）・栞（行の × で確認つきで 1 件ずつ消す）・
+ *   - 節のチップの状態（B 案）：読了＝右上の点、到達（か読了）＝明るい数字、「続きから読む」の地点＝細い枠（toc-page.css）
+ *   - 右カラム：最新（最後に公開した節と次回の更新）・世界（資料ページ 3 枚への入口）・栞（スロット 0 は地点。手動栞は行の × で確認つきで 1 件ずつ消す）・
  *     変更履歴（版種別スイッチ・最初は 3 件・すべて表示で枠の中だけスクロール）・リンク
  *   - 設定（上の帯の ⚙）：本文と同じ設定シート。スマホは全画面、PC は開いている間ページ全体を本文の見本にする（#idx-preview）。
  *     記録の消去（栞・既読・読破）と初期値に戻すもここ（以前の FAB の項目）
@@ -42,18 +43,18 @@ import './styles/toc.css';
 import './styles/toc-page.css';
 import './styles/_sheet.css';
 import * as storage from './core/storage';
-import type { LatestAutoSave } from './core/storage';
 import { loadSettings, removeSettings, saveSetting, saveSettings, PRESETS } from './core/settings-model';
 import { withQuery } from './core/query';
 import { hasEffectivePreview } from './core/preview';
 import { versionKind, type VersionKind } from './core/changelog';
 import { themeKeyForStage, themePath, type ThemeFile } from './core/theme';
 import { nextScheduledAt, formatScheduledAt } from './core/schedule';
+import * as recordHold from './core/record-hold';
 import * as settingsPanel from './ui/settings-panel';
 import * as share from './ui/share';
 import { confirmDialog } from './ui/confirm';
 import { applyRuby } from './ruby';
-import { computeStoryStage, type StoryStage } from './volumes';
+import { computeStoryStage, resolveResumePoint, type ResumePoint, type StoryStage } from './volumes';
 
 // preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱い（core/preview）。
 type Preview = { text: string };
@@ -144,31 +145,33 @@ async function confirmAndRun(msg: string, run: () => void): Promise<void> {
     if (await confirmDialog(msg, '削除する')) run();
 }
 
-// pendingJump（本編）または pendingJumpAfterword（あとがき）を書く（union 対応）
-function writeResumeJump(latest: LatestAutoSave): void {
-    if (latest.kind === 'afterword') {
-        storage.writePendingJumpAfterword({ vol: latest.vol, ratio: latest.ratio });
-    } else {
-        storage.writePendingJump({ ep: latest.ep, sec: latest.sec, scene: 0, ratio: latest.ratio });
-    }
+// 「続きから読む」の地点（要件 06-5）。story.json がまだ無いときはオートセーブだけで決める（届いたら描き直す）。
+// _resumePoint(): ResumePoint | null
+function _resumePoint(): ResumePoint | null {
+    const auto = storage.getAutoSave();
+    if (_story.length === 0) return auto ? { kind: 'autosave', ep: auto.ep, sec: auto.sec, ratio: auto.ratio } : null;
+    return resolveResumePoint(Array.from(storage.loadReadKeys()), auto, _story as unknown as Parameters<typeof resolveResumePoint>[2]);
 }
 
-function autoSaveHref(latest: LatestAutoSave): string {
-    return latest.kind === 'afterword' ? afterwordHref(latest.vol) : withQuery(`contents/${pad(latest.ep)}-${pad(latest.sec)}.html`);
+// 地点へ着地させる受け渡しを書く。オートセーブの位置なら pendingJump、読破した節の末尾なら pendingScrollEnd（着地の手段が違う。_scrollToEnd）。
+function _writeResumeLanding(p: ResumePoint): void {
+    if (p.kind === 'autosave') storage.writePendingJump({ ep: p.ep, sec: p.sec, scene: 0, ratio: p.ratio });
+    else if (p.kind === 'read-end') storage.writePendingScrollEnd(p.ep, p.sec);
 }
 
-function autoSaveLabel(latest: LatestAutoSave): string {
-    return latest.kind === 'afterword' ? `第${latest.vol}巻あとがき` : posLabel(latest.ep, latest.sec);
+// 地点の本文ページ。secHref と違って sec 1 でも扉（EE-00）を通さない（位置つきで本文へ直接着地するため）
+function _resumeHref(p: ResumePoint): string {
+    return withQuery(`contents/${pad(p.ep)}-${pad(p.sec)}.html`);
 }
 
 // ----- 読み始めるボタン（ヒーロー）と上の帯の「▶ 第N話#M」 -----
 
-// 押されたときにすること（オートセーブの位置へ行くときだけ pendingJump を書く）。結線は 1 度だけで、中身をここで替える
+// 押されたときにすること（地点へ行くときに着地の受け渡しを書く）。結線は 1 度だけで、中身をここで替える
 let _ctaGo: (() => void) | null = null;
 
 // 読者の状態から、ボタンの文字・行き先・下の行を決める（story.json がまだ無いときはオートセーブだけで決める）。
 //   caught（最新の公開済みの節を読了）→「第N話#M を読み返す」・下に次回の更新（予定が無ければ空）
-//   mid（オートセーブがある）       →「続きから読む」・下にその位置
+//   mid（読破かオートセーブがある） →「続きから読む」・下に地点
 //   first（どちらでもない）         →「第一話から読む」・下は空
 // renderCta(): void
 function renderCta(): void {
@@ -180,7 +183,7 @@ function renderCta(): void {
 
     const secs = publishedSecs(_story);
     const latest = secs[secs.length - 1] as SecPos | undefined;
-    const auto = storage.getLatestAutoSave();
+    const point = _resumePoint();
     const caught = latest !== undefined && storage.loadReadKeys().has(secKey(latest.ep.id, latest.sec));
     let state: 'first' | 'mid' | 'caught';
     let href: string;
@@ -194,13 +197,13 @@ function renderCta(): void {
         btn.textContent = `${label} を読み返す`;
         const next = nextScheduledAt(_story, Date.now());
         if (next) sub.append(_clockIcon(), _timeEl(next));
-    } else if (auto) {
+    } else if (point && point.kind !== 'first') {
         state = 'mid';
-        href = autoSaveHref(auto);
-        label = autoSaveLabel(auto);
+        href = _resumeHref(point);
+        label = posLabel(point.ep, point.sec);
         btn.textContent = '続きから読む';
         sub.textContent = label;
-        _ctaGo = () => writeResumeJump(auto);
+        _ctaGo = () => _writeResumeLanding(point);
     } else {
         state = 'first';
         const first = secs[0];
@@ -548,7 +551,7 @@ function renderStory(reached: Set<string>, read: Set<string>): void {
     if (!area) return;
     area.innerHTML = '';
     const storyStage = computeStoryStage(Array.from(read), _story as unknown as Parameters<typeof computeStoryStage>[1]);
-    const auto = storage.getLatestAutoSave();
+    const point = _resumePoint();
 
     for (const vol of _story) {
         // 表示できる話：公開済みの節が 1 つ以上 OR **非空**の ep.preview（空 text は事前配置のテンプレ＝出さない）
@@ -575,9 +578,9 @@ function renderStory(reached: Set<string>, read: Set<string>): void {
         const body = document.createElement('section');
         body.className = 'idx-vol-body';
         for (const { ep, published, hasPreview } of visibleEps) {
-            body.appendChild(_buildEpBlock(vol.volume, ep, published, hasPreview, reached, read, auto));
+            body.appendChild(_buildEpBlock(vol.volume, ep, published, hasPreview, reached, read, point));
         }
-        if (hasAfterword) body.appendChild(_buildAfterwordBlock(vol, reached, read, auto));
+        if (hasAfterword) body.appendChild(_buildAfterwordBlock(vol, reached, read));
         card.appendChild(body);
         area.appendChild(card);
     }
@@ -635,7 +638,7 @@ function _buildEpBlock(
     hasPreview: boolean,
     reached: Set<string>,
     read: Set<string>,
-    auto: LatestAutoSave | null,
+    point: ResumePoint | null,
 ): HTMLElement {
     const epEl = document.createElement('article');
     epEl.className = 'idx-ep';
@@ -675,7 +678,7 @@ function _buildEpBlock(
         for (const sec of published) {
             const isReached = reached.has(secKey(ep.id, sec.id));
             const isRead = read.has(secKey(ep.id, sec.id));
-            const isHere = auto?.kind === 'sec' && auto.ep === ep.id && auto.sec === sec.id;
+            const isHere = point !== null && point.kind !== 'first' && point.ep === ep.id && point.sec === sec.id;
             const link = document.createElement('a');
             link.className = 'idx-chip'
                 + (isReached ? ' idx-chip--reached' : '')
@@ -685,7 +688,7 @@ function _buildEpBlock(
             const labelEl = document.createElement('span');
             labelEl.textContent = pad(sec.id);
             link.appendChild(labelEl);
-            // 文字を減らしても読み上げの名前は残す：読破（読了）＞既読（到達）、オートセーブの位置なら「続きから」
+            // 文字を減らしても読み上げの名前は残す：読破（読了）＞既読（到達）、「続きから読む」の地点なら「続きから」
             const marks = [isRead ? '読破' : isReached ? '既読' : '', isHere ? '続きから' : ''].filter(Boolean);
             if (marks.length > 0) link.setAttribute('aria-label', `${pad(sec.id)} ${marks.join(' ')}`);
             chipsEl.appendChild(link);
@@ -709,8 +712,8 @@ function _buildEpBlock(
 // 中途半端に見えた）、チップは「01」1 つ（話の節のチップと同じ数字。
 // 以前は「**」、次に「読む」だったが、チップの列の中で 1 つだけ動詞になって日本語として浮いた）。
 // チップの文字は飾り（aria-hidden）で、名前は link の aria-label「第N巻 あとがき（ 既読／読破）」が持つ
-// （完結した巻が複数あっても読み上げで区別できる）。記録のキーは "vol[XX]-af"（本文の節と同じ Set に入る）
-function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>, auto: LatestAutoSave | null): HTMLElement {
+// （完結した巻が複数あっても読み上げで区別できる）。記録のキーは "vol[XX]-af"（本文の節と同じ Set に入る）。「続きから」の枠は付かない（あとがきは地点にならない。要件 06-5）
+function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<string>): HTMLElement {
     const el = document.createElement('article');
     el.className = 'idx-ep idx-ep--afterword';
 
@@ -724,14 +727,12 @@ function _buildAfterwordBlock(vol: StoryVolume, reached: Set<string>, read: Set<
     const key = storage.afterwordKey(vol.volume);
     const isReached = reached.has(key);
     const isRead = read.has(key);
-    const isHere = auto?.kind === 'afterword' && auto.vol === vol.volume;
     const link = document.createElement('a');
     link.className = 'idx-chip'
         + (isReached ? ' idx-chip--reached' : '')
-        + (isRead ? ' idx-chip--read' : '')
-        + (isHere ? ' idx-chip--here' : '');
+        + (isRead ? ' idx-chip--read' : '');
     link.href = afterwordHref(vol.volume);
-    const marks = [isRead ? '読破' : isReached ? '既読' : '', isHere ? '続きから' : ''].filter(Boolean);
+    const marks = [isRead ? '読破' : isReached ? '既読' : ''].filter(Boolean);
     link.setAttribute('aria-label', [`第${vol.volume}巻 あとがき`, ...marks].join(' '));
     const labelEl = document.createElement('span');
     labelEl.textContent = '01';
@@ -751,8 +752,9 @@ function locLabel(ep: number, sec: number): string {
 
 const percent = (ratio: number) => `${Math.round(ratio * 100)}%`;
 
-// 1 行（index.html の #idx-bm-row-tpl）。go は押したときにすること（pendingJump を書く）、del は確認のあとに消すこと
-function _bmRow(o: { auto: boolean; name: string; loc: string; detail: string; href: string; ratio: number; go: () => void; del: () => void }): HTMLElement {
+// 1 行（index.html の #idx-bm-row-tpl）。go は押したときにすること（着地の受け渡しを書く）、del は確認のあとに消すこと。
+// del が無い行（スロット 0）は × を出さない
+function _bmRow(o: { auto: boolean; name: string; loc: string; detail: string; href: string; ratio: number; go: () => void; del?: () => void }): HTMLElement {
     const tpl = document.getElementById('idx-bm-row-tpl') as HTMLTemplateElement;
     const row = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
     const link = row.querySelector<HTMLAnchorElement>('.idx-bm-go')!;
@@ -768,12 +770,17 @@ function _bmRow(o: { auto: boolean; name: string; loc: string; detail: string; h
     row.querySelector('.idx-bm-loc')!.textContent = o.loc;
     (row.querySelector('.idx-bm-ratio') as HTMLMeterElement).value = o.ratio;
     const del = row.querySelector<HTMLButtonElement>('.idx-bm-del')!;
+    const remove = o.del;
+    if (!remove) {
+        del.remove();
+        return row;
+    }
     del.setAttribute('aria-label', `${o.name}を消す`);
     del.addEventListener('click', () => {
         void confirmAndRun(`${o.name}（${o.loc}）を削除しますか？`, () => {
             // 欄は描き直す＝押した × は消える。フォーカスがページの外（body）へ落ちないよう、同じ位置かその上の × へ移す
             const at = [...document.querySelectorAll('#bookmark-slots .idx-bm-slot')].indexOf(row);
-            o.del();
+            remove();
             _focusBookmarkNear(at);
         });
     });
@@ -790,25 +797,21 @@ function _focusBookmarkNear(at: number): void {
     requestAnimationFrame(() => target?.focus());
 }
 
-// 栞の欄。スロット0＝オートセーブ（本編／あとがきのうち savedAt が新しい方。無ければ出さない）、スロット1〜3＝手動栞（常に出す）
+// 栞の欄。スロット0＝オートセーブ（「続きから読む」の地点。読破した節の末尾なら帯を満たす。読破もオートセーブも無ければ出さない。
+// 消す手段は「読破を消す」だけなので × は無い）、スロット1〜3＝手動栞（常に出す）
 function renderBookmarks(): void {
     const container = document.getElementById('bookmark-slots');
     if (!container) return;
     container.innerHTML = '';
 
-    const latest = storage.getLatestAutoSave();
-    if (latest) {
-        const detail = latest.kind === 'afterword'
-            ? `第${latest.vol}巻あとがき（${percent(latest.ratio)}）`
-            : `${locLabel(latest.ep, latest.sec)}（${percent(latest.ratio)}）`;
+    const point = _resumePoint();
+    if (point && point.kind !== 'first') {
+        const ratio = point.kind === 'autosave' ? point.ratio : 1;
         container.appendChild(_bmRow({
-            auto: true, name: 'オートセーブ', loc: autoSaveLabel(latest), detail,
-            href: autoSaveHref(latest), ratio: latest.ratio,
-            go: () => writeResumeJump(latest),
-            del: () => {
-                if (latest.kind === 'afterword') storage.clearAutoSaveAfterword(); else storage.clearAutoSave();
-                refreshRecords();
-            },
+            auto: true, name: 'オートセーブ', loc: posLabel(point.ep, point.sec),
+            detail: `${locLabel(point.ep, point.sec)}（${percent(ratio)}）`,
+            href: _resumeHref(point), ratio,
+            go: () => _writeResumeLanding(point),
         }));
     }
 
@@ -867,7 +870,7 @@ function initSettings(): void {
             renderPreview();
         },
         reset: () => { removeSettings(); renderPreview(); },
-        clearBookmarks: () => { storage.clearAllBookmarks(); refreshRecords(); },   // 手動の栞とオートセーブ
+        clearBookmarks: () => { storage.clearAllBookmarks(); refreshRecords(); },   // 手動の栞だけ
         clearReached: () => { storage.clearReached(); refreshRecords(); },
         clearRead: () => {
             storage.clearRead();
@@ -1032,6 +1035,9 @@ async function loadChangelog(type: 'content' | 'site'): Promise<void> {
 async function main(): Promise<void> {
     // 栞・オートセーブのスキーマ移行を確実に走らせる（移行の持ち主は core/storage だけ）
     storage.init();
+    // 目次を開いたら記録の保留を解除する（要件 06-5）。bfcache から戻ったときは下の起動処理が走らないので pageshow でも
+    recordHold.clearHeld();
+    window.addEventListener('pageshow', (e) => { if (e.persisted) recordHold.clearHeld(); });
     // 廃止した表紙の URL のキャッシュ（P4 まで index.ts と main.ts が書いていた）を掃除する
     try { localStorage.removeItem('lirmena.heroCard'); } catch { /* noop */ }
     // story.json の取得を待たずに結線する（待つ間に押されても素の href で動く）
@@ -1047,7 +1053,9 @@ async function main(): Promise<void> {
     void loadChangelog('site');
 
     try {
-        const res = await fetch('story.json');
+        // 毎回確認して取得する（変更がなければ 304）。HTML だけ新しく story.json が 10 分キャッシュのままだと、
+        // 埋め込みの表で第 2 巻を出した後に第 1 巻へ戻ってしまうため（要件 06-7「次巻の公開直後」）
+        const res = await fetch('story.json', { cache: 'no-cache' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         _story = (await res.json()) as StoryVolume[];
     } catch {

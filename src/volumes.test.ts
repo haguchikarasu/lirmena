@@ -19,7 +19,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { computeStoryStage, MAX_STORY_STAGE } from './volumes';
+import { buildStageTable, canWriteAutoSave, computeStoryStage, embedStageTable, MAX_STORY_STAGE, resolveResumePoint } from './volumes';
 import type { StoryData } from './types';
 
 // 本番相当の 4vol 構成（全 sec published=true にして最大読破位置の計算をシンプルにする）
@@ -283,5 +283,211 @@ describe('computeStoryStage — 純関数の非破壊性', () => {
         const snapshot = JSON.parse(JSON.stringify(STORY));
         computeStoryStage([VOL1_LAST, VOL2_LAST, VOL3_LAST, VOL4_LAST], STORY);
         expect(STORY).toEqual(snapshot);
+    });
+});
+
+// ── オートセーブと「続きから読む」の地点（要件 06-5「オートセーブ」）──────────────────
+// fixture：第 1 巻 01-01・01-02・02-01・02-02・02-03（巻末）／第 2 巻 05-01・05-02。05-03 は未公開。
+const RESUME_STORY: StoryData = [
+    {
+        volume: 1,
+        epRange: [1, 2],
+        afterword: { published: true },
+        episodes: [
+            { id: 1, title: 'a', sections: [{ id: 1, published: true }, { id: 2, published: true }] },
+            { id: 2, title: 'b', sections: [{ id: 1, published: true }, { id: 2, published: true }, { id: 3, published: true }] },
+        ],
+    },
+    {
+        volume: 2,
+        epRange: [5, 5],
+        afterword: { published: false },
+        episodes: [
+            { id: 5, title: 'c', sections: [{ id: 1, published: true }, { id: 2, published: true }, { id: 3, published: false }] },
+        ],
+    },
+];
+const PUBLISHED_KEYS = ['01-01', '01-02', '02-01', '02-02', '02-03', '05-01', '05-02'];
+const parseKey = (k: string) => { const [ep, sec] = k.split('-').map(Number); return { ep, sec }; };
+const at = (key: string, ratio = 0.4) => ({ ...parseKey(key), ratio });
+
+describe('resolveResumePoint（「続きから読む」の地点）', () => {
+    it('読破もオートセーブもない → 最初の公開 sec の先頭', () => {
+        expect(resolveResumePoint([], null, RESUME_STORY)).toEqual({ kind: 'first', ep: 1, sec: 1 });
+    });
+
+    it('オートセーブが最大読破位置より先の公開 sec を指す → その位置', () => {
+        expect(resolveResumePoint(['01-01'], at('01-02', 0.4), RESUME_STORY)).toEqual({ kind: 'autosave', ep: 1, sec: 2, ratio: 0.4 });
+    });
+
+    it('読破がなくオートセーブがある → オートセーブの位置（ratio 0 でも）', () => {
+        expect(resolveResumePoint([], at('02-02', 0), RESUME_STORY)).toEqual({ kind: 'autosave', ep: 2, sec: 2, ratio: 0 });
+    });
+
+    it('読破があってオートセーブがない → 最大読破の節の末尾', () => {
+        expect(resolveResumePoint(['01-01', '02-01'], null, RESUME_STORY)).toEqual({ kind: 'read-end', ep: 2, sec: 1 });
+    });
+
+    it('オートセーブが最大読破位置と同じ節 → 最大読破の節の末尾（読み終えた節の位置は使わない）', () => {
+        expect(resolveResumePoint(['01-01'], at('01-01', 0.3), RESUME_STORY)).toEqual({ kind: 'read-end', ep: 1, sec: 1 });
+    });
+
+    it('オートセーブが最大読破位置より前 → 無視して最大読破の節の末尾（旧版の読み返しの値）', () => {
+        expect(resolveResumePoint(['02-01'], at('01-01'), RESUME_STORY)).toEqual({ kind: 'read-end', ep: 2, sec: 1 });
+    });
+
+    it('未公開 sec を指すオートセーブは無視する', () => {
+        expect(resolveResumePoint(['01-01'], at('05-03'), RESUME_STORY)).toEqual({ kind: 'read-end', ep: 1, sec: 1 });
+        expect(resolveResumePoint([], at('05-03'), RESUME_STORY)).toEqual({ kind: 'first', ep: 1, sec: 1 });
+    });
+
+    it('未公開 sec の読破は無視する（残る最大読破の節の末尾／残らなければ最初の節）', () => {
+        expect(resolveResumePoint(['01-02', '05-03'], null, RESUME_STORY)).toEqual({ kind: 'read-end', ep: 1, sec: 2 });
+        expect(resolveResumePoint(['05-03'], null, RESUME_STORY)).toEqual({ kind: 'first', ep: 1, sec: 1 });
+    });
+
+    it('存在しない節を指す値も無視する', () => {
+        expect(resolveResumePoint(['99-01'], at('99-02'), RESUME_STORY)).toEqual({ kind: 'first', ep: 1, sec: 1 });
+    });
+
+    it('読破を飛ばして読んでも最大読破位置で決まる（順読は要求しない）', () => {
+        expect(resolveResumePoint(['02-02'], null, RESUME_STORY)).toEqual({ kind: 'read-end', ep: 2, sec: 2 });
+    });
+
+    it('最新まで読了 → 最後の節の末尾', () => {
+        expect(resolveResumePoint(['05-02'], at('05-02', 0.9), RESUME_STORY)).toEqual({ kind: 'read-end', ep: 5, sec: 2 });
+    });
+
+    it('公開済みの節がない → null', () => {
+        const none: StoryData = [{ volume: 1, epRange: [1, 1], afterword: { published: false }, episodes: [{ id: 1, title: 'a', sections: [{ id: 1, published: false }] }] }];
+        expect(resolveResumePoint([], null, none)).toBeNull();
+        expect(resolveResumePoint(['01-01'], at('01-01'), none)).toBeNull();
+    });
+
+    it('引数を破壊しない', () => {
+        const read = ['01-02', '01-01'];
+        const snapshot = JSON.stringify(RESUME_STORY);
+        resolveResumePoint(read, at('02-01'), RESUME_STORY);
+        expect(read).toEqual(['01-02', '01-01']);
+        expect(JSON.stringify(RESUME_STORY)).toBe(snapshot);
+    });
+});
+
+describe('canWriteAutoSave（オートセーブを書いてよいページか）', () => {
+    it('読破がなければどの公開 sec でも書く', () => {
+        for (const k of PUBLISHED_KEYS) expect(canWriteAutoSave(parseKey(k).ep, parseKey(k).sec, [], RESUME_STORY)).toBe(true);
+    });
+
+    it('最大読破位置より先だけ書く（飛ばした節を後から埋める・読み返しでは書かない）', () => {
+        const read = ['01-01', '02-01'];
+        expect(canWriteAutoSave(1, 1, read, RESUME_STORY)).toBe(false);
+        expect(canWriteAutoSave(1, 2, read, RESUME_STORY)).toBe(false);
+        expect(canWriteAutoSave(2, 1, read, RESUME_STORY)).toBe(false);
+        expect(canWriteAutoSave(2, 2, read, RESUME_STORY)).toBe(true);
+        expect(canWriteAutoSave(5, 2, read, RESUME_STORY)).toBe(true);
+    });
+
+    it('未公開・存在しない節には書かない', () => {
+        expect(canWriteAutoSave(5, 3, [], RESUME_STORY)).toBe(false);
+        expect(canWriteAutoSave(99, 1, [], RESUME_STORY)).toBe(false);
+    });
+
+    it('あとがきのキーは最大読破位置に数えない', () => {
+        expect(canWriteAutoSave(1, 1, ['vol01-af'], RESUME_STORY)).toBe(true);
+    });
+});
+
+// 小さい fixture の全組み合わせ（読破の部分集合 × オートセーブの位置 × 開くページ）で不変条件を確かめる。
+describe('記録の不変条件（全組み合わせ）', () => {
+    const subsets = (xs: string[]): string[][] => xs.reduce<string[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]]);
+    const READS = subsets(PUBLISHED_KEYS);
+    const AUTOS = [null, ...[...PUBLISHED_KEYS, '05-03', '99-01'].map((k) => at(k, 0.5))];
+    const each = (fn: (read: string[], auto: ReturnType<typeof at> | null) => void) => {
+        for (const read of READS) for (const auto of AUTOS) fn(read, auto);
+    };
+    const maxRead = (read: string[]) => Math.max(-1, ...read.map((k) => PUBLISHED_KEYS.indexOf(k)));
+    const keyOf = (p: { ep: number; sec: number }) => `${String(p.ep).padStart(2, '0')}-${String(p.sec).padStart(2, '0')}`;
+
+    it('地点はどの記録でも公開済みの節', () => {
+        each((read, auto) => {
+            const p = resolveResumePoint(read, auto, RESUME_STORY);
+            expect(p).not.toBeNull();
+            expect(PUBLISHED_KEYS).toContain(keyOf(p!));
+        });
+    });
+
+    it('読み返しで動かない：最大読破以前のページは「書いてよい」にならない', () => {
+        for (const read of READS) {
+            PUBLISHED_KEYS.forEach((k, i) => {
+                expect(canWriteAutoSave(parseKey(k).ep, parseKey(k).sec, read, RESUME_STORY)).toBe(i > maxRead(read));
+            });
+        }
+    });
+
+    it('書けば地点になる：書いてよいページに書いた直後、地点はそのページ', () => {
+        for (const read of READS) {
+            for (const k of PUBLISHED_KEYS) {
+                if (!canWriteAutoSave(parseKey(k).ep, parseKey(k).sec, read, RESUME_STORY)) continue;
+                expect(resolveResumePoint(read, at(k, 0.2), RESUME_STORY)).toEqual({ kind: 'autosave', ...at(k, 0.2) });
+            }
+        }
+    });
+
+    it('読破で後退しない：読破を足しても地点は前へ戻らない', () => {
+        each((read, auto) => {
+            const before = PUBLISHED_KEYS.indexOf(keyOf(resolveResumePoint(read, auto, RESUME_STORY)!));
+            for (const k of PUBLISHED_KEYS) {
+                if (read.includes(k)) continue;
+                const after = PUBLISHED_KEYS.indexOf(keyOf(resolveResumePoint([...read, k], auto, RESUME_STORY)!));
+                expect(after).toBeGreaterThanOrEqual(before);
+            }
+        });
+    });
+
+    it('あとがきは無関係：あとがきのキーを足しても地点は変わらない', () => {
+        each((read, auto) => {
+            expect(resolveResumePoint([...read, 'vol01-af'], auto, RESUME_STORY)).toEqual(resolveResumePoint(read, auto, RESUME_STORY));
+        });
+    });
+});
+
+// ── 読破キー → 到達する stage の表（要件 06-7「次巻の公開直後」）──────────────────
+describe('buildStageTable / embedStageTable', () => {
+    it('stage 2 以上に届くキーだけを持つ', () => {
+        expect(buildStageTable(RESUME_STORY)).toEqual({ '02-03': 2, '05-01': 2, '05-02': 3 });
+    });
+
+    it('次巻の冒頭が未公開なら空（読者の stage は上がらない）', () => {
+        const story: StoryData = [
+            RESUME_STORY[0],
+            { ...RESUME_STORY[1], episodes: [{ id: 5, title: 'c', sections: [{ id: 1, published: false }] }] },
+        ];
+        expect(buildStageTable(story)).toEqual({});
+    });
+
+    it('表と計算の一致：全組み合わせで、読破キーの表引きの最大値が computeStoryStage と同じ', () => {
+        const table = buildStageTable(RESUME_STORY);
+        const subsets = PUBLISHED_KEYS.reduce<string[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]]);
+        for (const read of subsets) {
+            const lifted = Math.max(1, ...read.map((k) => table[k] ?? 1));
+            expect(lifted).toBe(computeStoryStage(read, RESUME_STORY));
+        }
+    });
+
+    it('未公開の節・あとがきのキーは表に載らない', () => {
+        const table = buildStageTable(RESUME_STORY);
+        expect(table['05-03']).toBeUndefined();
+        expect(table['vol01-af']).toBeUndefined();
+    });
+
+    it('印を表に置き換える。印が無い HTML は変えない', () => {
+        const html = '<script>var table = {/*stage-table*/};</script>';
+        expect(embedStageTable(html, RESUME_STORY)).toBe('<script>var table = {"02-03":2,"05-01":2,"05-02":3};</script>');
+        expect(embedStageTable('<p>x</p>', RESUME_STORY)).toBe('<p>x</p>');
+    });
+
+    it('印は未変換のままでも空の表として正しい JavaScript（変換を通らない配信でも動く）', () => {
+        const table = new Function('return {/*stage-table*/};')();
+        expect(table).toEqual({});
     });
 });

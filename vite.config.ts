@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'fs'
 import { validateStoryFiles } from './src/story-integrity'
+import { embedStageTable } from './src/volumes'
 import { bgStub } from './src/bg-stub'
 import type { StoryData } from './src/types'
 
@@ -192,10 +193,12 @@ function pages(root: string): Plugin {
     },
     // 目次・資料ページ（root 直下の静的ページ）の差し込みを展開する。'pre' で Vite が HTML を解析する前に行う
     // （断片の中の要素も通常の HTML として扱わせる）。生成ページは generatePages で展開済みなので素通りする。
+    // 目次の「読破キー → stage」の表もここで埋める（印を持つのは index.html だけ。要件 06-7「次巻の公開直後」）。
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
-        return expandIncludes(html, root)
+        const story = JSON.parse(readFileSync(resolve(root, 'public/story.json'), 'utf-8')) as StoryData
+        return embedStageTable(expandIncludes(html, root), story)
       },
     },
   }

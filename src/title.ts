@@ -4,7 +4,8 @@
  *       <body> の data-ep から自 ep を確定し、ep タイトル・背景画像・変更履歴を描画、
  *       3ボタン（本文を読む／戻る／目次に戻る）の遷移を結線する。
  * export: なし（エントリーポイント）
- * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）/ transition.ts（離脱・到着フェード）/ ruby.ts（ep タイトルのルビ展開）
+ * 依存: state.ts / loader.ts / bookmark.ts（「戻る」の終端スクロールフラグ受け渡しのみ）/ transition.ts（離脱・到着フェード）/ ruby.ts（ep タイトルのルビ展開）/
+ *       core/record-hold（外部から開いたら保留を付ける。何も記録しないが「本文を読む」で素通りさせないため。要件 06-5）
  * 被依存: なし
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
@@ -35,6 +36,7 @@ import * as bookmark from './bookmark';
 import * as transition from './transition';
 import { applyRuby } from './ruby';
 import { versionKind, type VersionKind } from './core/changelog';
+import * as recordHold from './core/record-hold';
 import type { ChangelogEntry, StoryData } from './types';
 
 const GITHUB_COMMIT_BASE = 'https://github.com/haguchikarasu/lirmena/commit/';
@@ -44,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => { void _init(); });
 async function _init(): Promise<void> {
     // 到着フェードイン（シェルは class="fading" で読み込まれる）。await より前に外して黒から明ける。
     transition.init();
+
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    if (recordHold.startsHold(document.referrer, location.origin, nav?.type ?? 'navigate')) recordHold.setHeld();
 
     const ep = _readEp();
     if (ep === null) {

@@ -18,9 +18,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
     init, getReached, getRead, getBookmarks,
     setAutoRecordSuppressed, recordReached, recordRead, saveAutoSave, getAutoSave, addBookmark,
-    hasReached, hasRead, isAutoSaveAt,
+    hasRead,
     nextHistoryState, readHistoryRatio,
-    clearReached, clearRead, clearSlots,
+    clearReached, clearRead, clearAllBookmarks,
 } from './bookmark';
 import type { SceneAddress } from './types';
 
@@ -201,43 +201,21 @@ describe('自動記録の抑止（2 系統独立：到達・読了 と オート
     });
 });
 
-describe('外部流入抑止判定の状態問い合わせ API（hasReached / hasRead / isAutoSaveAt）', () => {
-    // 仕様: main.ts が外部流入抑止判定で「当 sec 痕跡」の有無を問い合わせるための小さな述語 API。
-    //   キーは "EP-SEC"（2桁ゼロ埋め）。isAutoSaveAt は autosave スロットが当 ep/sec を指すか。
-    it('hasReached：reached セットに ep/sec があれば true', () => {
+describe('hasRead（「もどる」の着地が見る）', () => {
+    it('read セットに ep/sec があれば true（到達だけでは false）', () => {
         init();
-        expect(hasReached(1, 1)).toBe(false);
-        recordReached(1, 1);
-        expect(hasReached(1, 1)).toBe(true);
-        expect(hasReached(1, 2)).toBe(false);
-    });
-
-    it('hasRead：read セットに ep/sec があれば true（recordRead で reached にも入るが hasRead は read セットのみを見る）', () => {
-        init();
+        expect(hasRead(2, 3)).toBe(false);
+        recordReached(2, 3);
         expect(hasRead(2, 3)).toBe(false);
         recordRead(2, 3);
         expect(hasRead(2, 3)).toBe(true);
-        expect(hasReached(2, 3)).toBe(true); // 読了は到達を含意
         expect(hasRead(2, 4)).toBe(false);
     });
 
-    it('isAutoSaveAt：autosave が当 ep/sec を指せば true。指さなければ false。autosave 未設定は false', () => {
+    it('2桁ゼロ埋めキーの直接シード（"01-01"）で見つかる', () => {
+        seed('read', ['01-01']);
         init();
-        expect(isAutoSaveAt(1, 1)).toBe(false);
-        saveAutoSave(1, 1, 0.3);
-        expect(isAutoSaveAt(1, 1)).toBe(true);
-        expect(isAutoSaveAt(1, 2)).toBe(false);
-        expect(isAutoSaveAt(2, 1)).toBe(false);
-        // 別 sec のオートセーブを上書きしたら追随する（単一スロット）
-        saveAutoSave(2, 5, 0.7);
-        expect(isAutoSaveAt(1, 1)).toBe(false);
-        expect(isAutoSaveAt(2, 5)).toBe(true);
-    });
-
-    it('2桁ゼロ埋めキー整合：hasReached(1,1) と 1-1 の直接シード（"01-01"）で見つかる', () => {
-        seed('reached', ['01-01']);
-        init();
-        expect(hasReached(1, 1)).toBe(true);
+        expect(hasRead(1, 1)).toBe(true);
     });
 });
 
@@ -467,11 +445,13 @@ describe('clearReached / clearRead の独立クリア', () => {
         expect(localStorage.getItem('read')).not.toBeNull();
     });
 
-    it('clearRead() は read と sceneRead を消し、reached は残す', () => {
+    it('clearRead() は read と sceneRead とオートセーブを消し、reached と手動の栞は残す（要件 06-4）', () => {
         localStorage.setItem('schemaVersion', '5');
         seed('reached', ['01-01', '02-02']);
         seed('read', ['01-01', '02-02']);
         seed('sceneRead', ['01-01-00']);
+        seed('autosave', { ep: 2, sec: 3, ratio: 0.3, savedAt: 200 });
+        seed('bookmarks', [{ slot: 1, ep: 1, sec: 1, scene: 0, ratio: 0.5, savedAt: 100 }]);
         init();
 
         clearRead();
@@ -480,12 +460,15 @@ describe('clearReached / clearRead の独立クリア', () => {
         expect(localStorage.getItem('read')).toBeNull();
         // sceneRead も削除（loadReadSections が完了マーカーから読破を復活させないため）
         expect(localStorage.getItem('sceneRead')).toBeNull();
+        // 「続きから読む」の地点は読破から決まるので、オートセーブも一緒に消す
+        expect(localStorage.getItem('autosave')).toBeNull();
+        expect(localStorage.getItem('bookmarks')).not.toBeNull();
         // reached は温存
         expect(getReached().sort()).toEqual(['01-01', '02-02']);
         expect(localStorage.getItem('reached')).not.toBeNull();
     });
 
-    it('clearSlots() は bookmarks のみ消し、reached / read / sceneRead / autosave は残す（栞は既読・読破と独立）', () => {
+    it('clearAllBookmarks() は bookmarks のみ消し、reached / read / sceneRead / autosave は残す（要件 06-4）', () => {
         localStorage.setItem('schemaVersion', '5');
         seed('reached', ['01-01']);
         seed('read', ['01-01']);
@@ -494,7 +477,7 @@ describe('clearReached / clearRead の独立クリア', () => {
         seed('autosave', { ep: 1, sec: 1, ratio: 0.3, savedAt: 200 });
         init();
 
-        clearSlots();
+        clearAllBookmarks();
 
         expect(getBookmarks()).toEqual([]);
         expect(localStorage.getItem('bookmarks')).toBeNull();

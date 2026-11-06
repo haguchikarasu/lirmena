@@ -21,6 +21,10 @@
 
 import { test, expect } from './_fixtures';
 import type { Page, Route } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { buildStageTable } from '../src/volumes';
+import type { StoryData } from '../src/types';
 
 // stage 2 になる最小 fixture。vol1 は ep2-sec1 が未公開＝全 sec 公開ではないので afterword:false と整合する
 // （story-integrity (e')）。通し番号は 01-01=0 / 01-02=1 / 03-01=2。read=['01-02'] で vol1 の最終公開 sec に到達し、
@@ -362,5 +366,119 @@ test.describe('目次のヒーロー：表紙ギャラリー', () => {
         // 届いたら外れる
         await expect.poll(loading, { timeout: 5000 }).toBe(false);
         await expect(page.locator('#idx-hero-loading')).toBeHidden();
+    });
+});
+
+// ── 次巻の公開直後（要件 06-7「次巻の公開直後」。受け入れ条件 E）──────────────────
+// 本番の story.json では表が空なので、ビルド済みの目次の HTML の表だけを route で差し替える（埋め込みの結線は E7・Vitest で見る）。
+test.describe('次巻の公開直後：story.json を待たずに正しい巻を出す', () => {
+    // 読破キー → 到達する stage の表（FIXTURE_STORY なら 01-02 → 2 / 03-01 → 3）
+    const TABLE = '{"01-02":2,"03-01":3}';
+
+    async function withTable(page: Page, table: string): Promise<void> {
+        await page.route(/\/lirmena\/(\?.*)?$/, async (route: Route) => {
+            const res = await route.fetch();
+            const html = await res.text();
+            const body = html.replace(/var table = \{[^}]*\};/, `var table = ${table};`);
+            expect(body).toContain(`var table = ${table};`);
+            await route.fulfill({ response: res, body });
+        });
+    }
+
+    // story.json を届けない（読者の回線が遅い状態の極端な形）
+    async function holdStory(page: Page): Promise<void> {
+        await page.route('**/story.json', () => { /* 応答しない */ });
+    }
+
+    async function seedStorage(page: Page, read: string[], cached: string | null): Promise<void> {
+        await page.addInitScript(({ read, cached }) => {
+            try {
+                localStorage.setItem('read', JSON.stringify(read));
+                localStorage.setItem('schemaVersion', '5');
+                if (cached !== null) localStorage.setItem('lirmena.storyStage', cached);
+            } catch { /* noop */ }
+        }, { read, cached });
+    }
+
+    const heroSrc = (page: Page, id: string) => page.locator(id).evaluate((el) => (el as HTMLImageElement).getAttribute('src') ?? '');
+
+    test('E1 読破済み・キャッシュ 1・story.json が届かない：第 2 巻の絵・ロゴ・背景が出て、第 1 巻の素材を取得しない', async ({ page }) => {
+        const vol1: string[] = [];
+        page.on('request', (r) => { if (/vol01\/theme\//.test(r.url())) vol1.push(r.url()); });
+        await mockThemeFiles(page);
+        await holdStory(page);
+        await withTable(page, TABLE);
+        await seedStorage(page, ['01-02'], '1');
+        await page.goto('/lirmena/');
+        await expect(page.locator('html')).toHaveAttribute('data-story-stage', '2');
+        expect(await heroSrc(page, '#idx-hero-img')).toMatch(/vol02\/theme\//);
+        expect(await heroSrc(page, '#idx-hero-logo')).toMatch(/vol02\/theme\//);
+        expect(await heroSrc(page, '#idx-page-bg')).toMatch(/vol02\/theme\//);
+        await expect(page.locator('#idx-hero-img')).toBeVisible();
+        expect(await page.evaluate(() => localStorage.getItem('lirmena.storyStage'))).toBe('2');
+        expect(vol1).toEqual([]);
+    });
+
+    test('E2 キャッシュのほうが高いときは下げない（下げるのは story.json の計算だけ）', async ({ page }) => {
+        await mockThemeFiles(page);
+        await holdStory(page);
+        await withTable(page, TABLE);
+        await seedStorage(page, ['01-02'], '3');
+        await page.goto('/lirmena/');
+        await expect(page.locator('html')).toHaveAttribute('data-story-stage', '3');
+        expect(await page.evaluate(() => localStorage.getItem('lirmena.storyStage'))).toBe('3');
+    });
+
+    test('E3 読破なしは第 1 巻のまま', async ({ page }) => {
+        await mockThemeFiles(page);
+        await holdStory(page);
+        await withTable(page, TABLE);
+        await page.goto('/lirmena/');
+        await expect(page.locator('html')).toHaveAttribute('data-story-stage', '1');
+        expect(await heroSrc(page, '#idx-hero-img')).toMatch(/vol01\/theme\//);
+    });
+
+    test('E4 localStorage が使えない環境でも目次が壊れない', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (e) => errors.push(e.message));
+        await page.addInitScript(() => {
+            Object.defineProperty(window, 'localStorage', {
+                configurable: true,
+                enumerable: true,
+                get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+            });
+        });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        await withTable(page, TABLE);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area .idx-chip').first()).toBeVisible();
+        expect(errors).toEqual([]);
+    });
+
+    test('E5 目次の story.json は毎回確認して取得する（cache: no-cache）', async ({ page }) => {
+        await page.addInitScript(() => {
+            const original = window.fetch;
+            window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+                if (String(input).endsWith('story.json')) (window as unknown as { __storyInit?: RequestInit }).__storyInit = init;
+                return original(input, init);
+            };
+        });
+        await mockStoryJson(page, FIXTURE_STORY);
+        await mockThemeFiles(page);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#episodes-area .idx-chip').first()).toBeVisible();
+        expect(await page.evaluate(() => (window as unknown as { __storyInit?: RequestInit }).__storyInit?.cache)).toBe('no-cache');
+    });
+
+    test('E7 ビルドされた目次の HTML に埋め込みの印が残っていない（表は空でも結線を通っている）', async ({ page }) => {
+        const res = await page.request.get('/lirmena/');
+        const html = await res.text();
+        expect(html).not.toContain('stage-table');
+        // 配信された表は、公開中の story.json から計算した表と同じ（本番は第 2 巻の公開まで空。公開後は中身まで見る）
+        const embedded = /var table = (\{[^}]*\});/.exec(html);
+        expect(embedded).not.toBeNull();
+        const story = JSON.parse(readFileSync(resolve(process.cwd(), 'public/story.json'), 'utf-8')) as StoryData;
+        expect(JSON.parse(embedded![1])).toEqual(buildStageTable(story));
     });
 });

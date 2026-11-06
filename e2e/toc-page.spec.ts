@@ -157,16 +157,19 @@ test.describe('右カラム・足もと', () => {
     test('栞の行を × で消したあと、フォーカスは残った行の × に移る（ページの外へ落ちない）', async ({ page }) => {
         await setup(page, {
             autosave: JSON.stringify({ ep: 1, sec: 2, ratio: 0.4, savedAt: 100 }),
-            bookmarks: JSON.stringify([{ slot: 1, ep: 1, sec: 1, scene: 1, ratio: 0.3, savedAt: 100 }]),
+            bookmarks: JSON.stringify([
+                { slot: 1, ep: 1, sec: 1, scene: 1, ratio: 0.3, savedAt: 100 },
+                { slot: 2, ep: 1, sec: 2, scene: 1, ratio: 0.3, savedAt: 100 },
+            ]),
         });
         await page.goto('/lirmena/');
-        await page.getByRole('button', { name: 'オートセーブを消す' }).click();
-        await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
-        await expect(page.getByRole('button', { name: '栞 1を消す' })).toBeFocused();
-
         await page.getByRole('button', { name: '栞 1を消す' }).click();
         await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
-        // 消せる行が残っていなければ栞の見出しへ
+        await expect(page.getByRole('button', { name: '栞 2を消す' })).toBeFocused();
+
+        await page.getByRole('button', { name: '栞 2を消す' }).click();
+        await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
+        // 消せる行が残っていなければ（スロット 0 に × は無い）栞の見出しへ
         await expect(page.locator('#idx-bm-label')).toBeFocused();
         await expect(page.locator('#bookmark-slots .idx-bm-slot--empty').first()).toContainText('空き');
     });

@@ -13,12 +13,12 @@
  *   parser   : parse(text: string): Scene[]
  *   state    : init(story: StoryData, address: SecAddress): void
  *              initAfterword(story: StoryData, vol: number): void
- *              isPublished / getPrevPublishedSec など（責務は state.ts 冒頭コメント参照）
+ *              isPublished など（責務は state.ts 冒頭コメント参照）
  *   renderer : renderScenes(scenes: Scene[]): void
  *   bg       : init(layers: BgLayerSpec[], source: BgSource): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
  *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
- *   nav      : init() / initAfterword(vol) / update() / updateAfterword() / arm()
+ *   nav      : init() / initAfterword(vol) / update() / updateAfterword() / arm() / resetReadDetection()
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData): void
  *   feedback : init(): void（本文末の Ｘ共有／マシュマロ両ボタンに URL を載せ hidden 解除）
@@ -29,15 +29,16 @@
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void
  *   immersive: init(): void
- *   bookmark : init() / setAutoRecordSuppressed / recordReached / recordReachedAfterword / etc.
- *   suppression: shouldSuppressReachedRead / shouldSuppressAutoSave（本文モード用の純関数）
+ *   bookmark : init() / setAutoRecordSuppressed / recordReached / recordReachedAfterword / hasRead / etc.
+ *   suppression: isFrontier（このページは最前線か。純関数）
+ *   core/record-hold: isHeld / setHeld / clearHeld / startsHold / isExternalReferrer（タブの保留。要件 06-5）
+ *   ui/hold-badge: init / setVisible（記録を止めているときの札）
  *   volumes  : computeStoryStage(read, story): StoryStage（本文 sec キーのみで判定・あとがきキー vol[XX]-af は除外）
+ *              canWriteAutoSave(ep, sec, read, story): boolean
  *   analytics: send(settings, storyStage, read, reached, episodes): void
  * 【被依存】なし
- * 【注意】あとがきモードは外部流入抑止の対象外で、到達・オートセーブとも常に記録する
- *         （理由は要件 06-5-bookmark.md「あとがき（vol[XX]-af）のキー」）。オートセーブは reader.ts が state.getMode で本文／あとがき
- *         の saveAutoSave / saveAutoSaveAfterword を呼び分ける。「続きから読む」の復元は本文モードなら
- *         autosave、あとがきモードなら autosaveAfterword を参照する（保存キーは独立）。
+ * 【注意】あとがきは物語の線形の外にある。到達・読了の印は常に記録するが、札を出さず、位置も保存しない
+ *         （理由は要件 06-5-bookmark.md「あとがき（vol[XX]-af）のキー」）。
  */
 
 import './styles/index.css';
@@ -62,8 +63,10 @@ import * as loader from './loader';
 import * as parser from './parser';
 import * as feedback from './feedback';
 import * as analytics from './analytics';
-import { computeStoryStage, type StoryStage } from './volumes';
-import { shouldSuppressReachedRead, shouldSuppressAutoSave } from './suppression';
+import { canWriteAutoSave, computeStoryStage, type StoryStage } from './volumes';
+import { isFrontier } from './suppression';
+import * as recordHold from './core/record-hold';
+import * as holdBadge from './ui/hold-badge';
 import type { Scene, BgLayerSpec, EpisodesData, CharactersData, StoryData, SecAddress } from './types';
 
 const WHEEL_SCROLL_MULTIPLIER = 1;
@@ -118,7 +121,7 @@ async function _bootstrap(): Promise<void> {
  *   1. 平坦化 Episode[] から自 sec の存在／公開検証
  *   2. state.init(story, { ep, sec }) で現在位置を確定
  *   3. characters.json と本文 txt を取得・パース（vol 情報は story から派生）
- *   4-11. wheel/pan/immersive → settings/device/bookmark → stage 算出＋analytics → 外部流入抑止 →
+ *   4-11. wheel/pan/immersive → settings/device/bookmark → stage 算出＋analytics → 記録の判定（保留）→
  *         nav/menu/feedback → renderScenes/bg.init → 初期スクロール復元 → tutorial/opening/nav.update →
  *         reader.init/bg.subscribe → arm → loading 非表示
  */
@@ -156,9 +159,9 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
     const mainContainer = _initMainContainer();
 
     settings.init({
-        onClearBookmarks: () => bookmark.clearAllBookmarks(),   // 手動の栞とオートセーブ（core/storage）
+        onClearBookmarks: () => bookmark.clearAllBookmarks(),   // 手動の栞だけ（core/storage）
         onClearReached: () => bookmark.clearReached(),
-        onClearRead: () => bookmark.clearRead(),
+        onClearRead: () => bookmark.clearRead(),                // 読破とオートセーブ（core/storage）
         onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });
     device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
@@ -181,16 +184,16 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
     });
     analytics.send(settings.getSettings(), storyStage, read, reached, data);
 
-    const externalEntry = _isExternalEntry();
-    const prev = state.getPrevPublishedSec();
-    const prevSecRead = prev !== null && bookmark.hasRead(prev.ep, prev.sec);
-    const reachedHere = bookmark.hasReached(ep, sec);
-    const readHere = bookmark.hasRead(ep, sec);
-    const autoSaveHere = bookmark.isAutoSaveAt(ep, sec);
-    const reachedReadSuppressed = shouldSuppressReachedRead({ externalEntry, prevSecRead, reachedHere, readHere, autoSaveHere });
-    const autoSaveSuppressed = shouldSuppressAutoSave({ externalEntry, prevSecRead, autoSaveHere });
-    bookmark.setAutoRecordSuppressed({ reachedRead: reachedReadSuppressed, autoSave: autoSaveSuppressed });
-    if (!reachedReadSuppressed) bookmark.recordReached(ep, sec);
+    holdBadge.init();
+    _applySecRecording(story, ep, sec, { mayStartHold: true });
+    // bfcache から復帰すると DOM もメモリも古いまま（目次を開いて保留が解除されていても札が残り、到達も付かない）。
+    // 記録を読み直して判定し直す。referrer は元のままなので新たに保留は付けない（要件 06-5）。
+    window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        bookmark.init();
+        _applySecRecording(story, ep, sec, { mayStartHold: false });
+        nav.resetReadDetection();
+    });
 
     // 読了を記録した瞬間に stage を計算し直して目次向けキャッシュを更新する。**stage が上がるのは
     // ここだけ**で、pagehide 頼みだと「モバイルで OS に終了された」「目次を別タブで開いた」ときに
@@ -242,9 +245,9 @@ function _initFirstRun(): void {
 /**
  * あとがきモードの初期化シーケンス。本文シェル（reader.html）を流用しつつ、本文の代わりに
  * あとがき本文（public/vol[XX]/txt/vol[XX]-afterword.txt）をパースして描画する。
- * オートセーブ／pendingJump は独立キー（autosaveAfterword / pendingJumpAfterword）を使い、
- * 「戻る」は自 vol の巻末公開 sec 本文末へ、「次へ」は次巻タイトルページへ遷移する（nav 側でモード分岐）。
- * 外部流入抑止判定は行わず常に到達を記録する（対象外である理由は要件 06-5-bookmark.md）。
+ * あとがきは物語の線形の外にあり、位置を保存しない。「戻る」は自 vol の巻末公開 sec へ、
+ * 「次へ」は次巻タイトルページへ遷移する（nav 側でモード分岐）。
+ * 到達・読了の印は常に記録する（印は目次の表示にしか使わない。理由は要件 06-5-bookmark.md）。
  */
 async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void> {
     const target = story.find(v => v.volume === vol);
@@ -278,9 +281,9 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     const mainContainer = _initMainContainer();
 
     settings.init({
-        onClearBookmarks: () => bookmark.clearAllBookmarks(),   // 手動の栞とオートセーブ（core/storage）
+        onClearBookmarks: () => bookmark.clearAllBookmarks(),   // 手動の栞だけ（core/storage）
         onClearReached: () => bookmark.clearReached(),
-        onClearRead: () => bookmark.clearRead(),
+        onClearRead: () => bookmark.clearRead(),                // 読破とオートセーブ（core/storage）
         onWritingModeChange: () => _onWritingModeChange(mainContainer),
     });
     device.init({ onDeviceChange: () => _onDeviceChange(mainContainer) });
@@ -297,8 +300,9 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     // read_ratio 分母に影響しない・furthest_position は本文 sec のみで算出される既存動作を維持）。
     analytics.send(settings.getSettings(), storyStage, read, reached, story.flatMap(v => v.episodes));
 
-    // あとがきは外部流入抑止判定を省略し、常に到達を記録する。
-    bookmark.setAutoRecordSuppressed({ reachedRead: false, autoSave: false });
+    // 印は保留の有無に関わらず記録する（札も出さず、解除もしない）。外部から開けば保留は付ける＝前後へ移った先の本文を抑止する。
+    if (recordHold.startsHold(document.referrer, location.origin, _navigationType())) recordHold.setHeld();
+    bookmark.setAutoRecordSuppressed({ reachedRead: false, autoSave: true });
     bookmark.recordReachedAfterword(vol);
 
     nav.initAfterword(vol);
@@ -310,14 +314,14 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     // （ep/img/ フォルダを切らず vol 直下に置く。要件 06-3 / 03）。
     bg.init(_toBgLayerSpecs(scenes), { kind: 'afterword', vol });
 
-    _restoreInitialScrollAfterword(mainContainer, vol);
+    _restoreInitialScrollAfterword(mainContainer);
 
     tutorial.init();
     opening.init();
     nav.updateAfterword();
 
     // reader.init は本文用 SecAddress を受けるが、あとがきモードでは reader 内部の handleScroll が
-    // state.getMode() を見て saveAutoSaveAfterword を呼ぶため、ep/sec=0 のダミーを渡してよい。
+    // state.getMode() を見てオートセーブを書かないため、ep/sec=0 のダミーを渡してよい。
     reader.init({ ep: 0, sec: 0 });
     bg.subscribe(reader.handleScroll);
 
@@ -330,6 +334,28 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     // ここに置かないと、あとがきに直リンクで入った読者だけ「書字方向が未確定のままチュートリアルの図解が
     // 出る」状態が残る。フラグは本文モードと共有なので二重には出ない。
     _initFirstRun();
+}
+
+/**
+ * このページで記録するかを決めて設定する（要件 06-5。本文モード）。全部記録するか、全部しないか。
+ *   最前線 → 保留を解除して記録する
+ *   最前線でない → 外部から開いたなら保留を付ける。保留中なら記録せず札を出す
+ * オートセーブだけはさらに、最大読破位置以前のページでは書かない（読み返し）。
+ * _applySecRecording(story: StoryData, ep: number, sec: number, opts: { mayStartHold: boolean }): void
+ */
+function _applySecRecording(story: StoryData, ep: number, sec: number, opts: { mayStartHold: boolean }): void {
+    const read = bookmark.getRead();
+    let held = recordHold.isHeld();
+    if (isFrontier(ep, sec, read, bookmark.getAutoSave(), story)) {
+        recordHold.clearHeld();
+        held = false;
+    } else if (opts.mayStartHold && recordHold.startsHold(document.referrer, location.origin, _navigationType())) {
+        recordHold.setHeld();
+        held = true;
+    }
+    bookmark.setAutoRecordSuppressed({ reachedRead: held, autoSave: held || !canWriteAutoSave(ep, sec, read, story) });
+    if (!held) bookmark.recordReached(ep, sec);
+    holdBadge.setVisible(held);
 }
 
 /**
@@ -365,7 +391,7 @@ function _initMainContainer(): HTMLElement {
 
 /**
  * 起動時の初期スクロール位置を優先度順で決定し #main-container に適用する（本文モード用）。
- * 1. pendingJump / 2. pendingScrollEnd / 3. history.state ratio → autosave / 4. sec 先頭
+ * 1. pendingJump / 2. pendingScrollEnd（読破済みなら末尾、未読なら先頭）/ 3. history.state ratio → autosave / 4. sec 先頭
  */
 function _restoreInitialScroll(container: HTMLElement, address: SecAddress): void {
     const { ep, sec } = address;
@@ -379,10 +405,13 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
         return;
     }
 
+    // 「もどる」系の着地（要件 06-6）。読破済みなら末尾、未読なら先頭。末尾の着地は読了ラインより先なので、
+    // 未読の節へ運ぶと読まずに読破が付く（巻末なら stage まで上がる）。
     const end = bookmark.readPendingScrollEnd();
     if (end && end.ep === ep && end.sec === sec) {
         bookmark.clearPendingScrollEnd();
-        _scrollToEnd(container);
+        if (bookmark.hasRead(ep, sec)) _scrollToEnd(container);
+        else _scrollToHead(container);
         return;
     }
 
@@ -403,28 +432,14 @@ function _restoreInitialScroll(container: HTMLElement, address: SecAddress): voi
 }
 
 /**
- * あとがきモード用の初期スクロール位置決定。
- * 1. pendingJumpAfterword（vol 一致） → 2. history.state ratio（明示前進ナビでない時） →
- * 3. autosaveAfterword（vol 一致） → 4. 先頭
- * 「戻る」でここへ来るケースは無い（あとがき「戻る」は本文ページに遷移するため）＝pendingScrollEnd は対象外。
+ * あとがきモード用の初期スクロール位置決定（要件 06-6）。あとがきは位置を保存しないので、
+ * history.state ratio（リロード・戻る/進む・外部から）→ 先頭 の 2 段だけ。
  */
-function _restoreInitialScrollAfterword(container: HTMLElement, vol: number): void {
-    const jump = bookmark.readPendingJumpAfterword();
-    if (jump && jump.vol === vol) {
-        bookmark.clearPendingJumpAfterword();
-        _scrollToRatio(container, jump.ratio);
-        return;
-    }
-
+function _restoreInitialScrollAfterword(container: HTMLElement): void {
     if (!_isInAppNavigation()) {
         const histRatio = bookmark.readScrollFromHistory();
         if (histRatio !== null) {
             _scrollToRatio(container, histRatio);
-            return;
-        }
-        const auto = bookmark.getAutoSaveAfterword();
-        if (auto && auto.vol === vol) {
-            _scrollToRatio(container, auto.ratio);
             return;
         }
     }
@@ -469,13 +484,7 @@ function _scrollToScene(scene: number): void {
 }
 
 function _isExternalEntry(): boolean {
-    const ref = document.referrer;
-    if (!ref) return true;
-    try {
-        return new URL(ref).origin !== location.origin;
-    } catch {
-        return true;
-    }
+    return recordHold.isExternalReferrer(document.referrer, location.origin);
 }
 
 function _navigationType(): string {

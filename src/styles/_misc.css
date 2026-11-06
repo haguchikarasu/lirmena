@@ -50,6 +50,46 @@
    - z-index は 30 未満。鑑賞モード（_bg.css の #bg-stack）が 30 で全画面を覆うため、それ以上だと絵の上に文字が残る */
 #badge-dev { display: none; }
 
+/* 記録を止めているときの札（要件 06-6。読者にも見える）。#badge-dev と違って押せるので pointer-events は切らない
+   （札の範囲だけスクロールの死角になる。抑止中だけなので許容）。top 基準と z-index 30 未満の理由は上の注記と同じ。
+   左上は右上の dev 札と干渉しない。横向きスマホのノッチに隠れないよう safe-area を足す。目立たせ方は ?dev 程度を上限にする */
+#badge-hold {
+  position: fixed;
+  top: 4px;
+  left: calc(4px + env(safe-area-inset-left, 0px));
+  z-index: 29;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  font: 500 11px/1.3 sans-serif;
+  letter-spacing: 0.04em;
+  writing-mode: horizontal-tb;
+  cursor: pointer;
+}
+#badge-hold[hidden] { display: none; }
+#badge-hold:hover { color: #fff; border-color: rgba(255, 255, 255, 0.6); }
+#badge-hold:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+/* 札の説明。札のすぐ下に出す（押した場所から離れた所に出すと、何の説明か分かりにくい）。
+   シートの器の開閉（Esc・背景・閉じるボタン）は使い、置き場所だけ上書きする。id を付けるのは _sheet.css の PC 向けの fit の指定より強くするため。
+   top は札の top＋高さ（約 20px）＋隙間。項目は「・」のリスト */
+dialog#hold-popup {
+  inset: 28px auto auto calc(4px + env(safe-area-inset-left, 0px));
+  width: min(320px, calc(100vw - 8px - env(safe-area-inset-left, 0px)));
+  height: auto;
+  max-height: calc(100dvh - 32px);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+dialog#hold-popup::backdrop { background: transparent; }
+.hold-body { position: relative; padding: 12px 40px 12px 14px; font-size: 13px; line-height: 1.6; outline: none; overflow-y: auto; }
+.hold-body .sheet-close { position: absolute; top: 4px; right: 4px; }
+.hold-body p { margin: 0 0 0.6em; }
+.hold-body ul { margin: 0; padding: 0; list-style: none; }
+.hold-body li::before { content: '・'; }
+
 /* 文字は <html data-dev> のトークンから出す：query（?dev 付き）→「?dev」、host（本番ホストではない）→「non-prod」。
    両方付けば並ぶ（中身の空の span 1 つ）。見た目は作者が見落とさないための目立つ札で、
    fixed＝流れの外に置くので、出ても出なくても他の部分のレイアウトは動かない。pointer-events: none で操作も奪わない。
