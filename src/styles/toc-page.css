@@ -478,7 +478,8 @@ a.idx-chip:focus-visible { outline: 2px solid var(--idx-accent); outline-offset:
   background: hsl(var(--stage-hue) 85% 60%);
 }
 .idx-chip--here { border-color: hsl(var(--stage-hue) 91% 57% / 0.85); }
-.idx-chip--ghost { border-style: dashed; color: #555; background: transparent; cursor: default; }
+/* 絵の明るい所でも見えるよう公開のチップと同じく暗い地を敷く。数字は未到達（#8f8a80）より一段暗くして、読めるチップより目立たせない */
+.idx-chip--ghost { border-style: dashed; border-color: rgba(255, 255, 255, 0.36); color: #7f7a70; background: rgba(8, 8, 8, 0.55); cursor: default; }
 
 /* ===== 右カラム ===== */
 .idx-side-box {
@@ -748,4 +749,11 @@ a.cl-ep-link:hover { text-decoration: underline; }
   .idx-ep--preview, .idx-ep--nocover { min-height: 0; }
   .idx-ep-title { font-size: 18px; }
   .idx-chip { min-width: 40px; }
+  /* 節のチップは 8 列の格子で 1 段に収める（2 段になると見出しが上がって扉絵の顔にかかる）。
+     列の上限が 40px なので、幅に余裕があれば今までの大きさのまま。9 節目からは 2 段目へ折り返す。
+     予告の話（チップの代わりに文を置く）とあとがき（見出しと横並びのチップ 1 つ）は格子にしない */
+  .idx-ep:where(:not(.idx-ep--preview, .idx-ep--afterword)) .idx-chips { display: grid; grid-template-columns: repeat(8, minmax(0, 40px)); gap: 12px 4px; }
+  .idx-ep:where(:not(.idx-ep--preview, .idx-ep--afterword)) .idx-chip { min-width: 0; padding-inline: 0; }
+  /* 指で操作する端末の押せる範囲を、狭めた列の間隔（4px）の中に収めて隣のチップと重ねない */
+  .idx-ep:where(:not(.idx-ep--preview, .idx-ep--afterword)) a.idx-chip::before { inset-inline: -2px; }
 }
