@@ -1,6 +1,6 @@
 name: Deploy to GitHub Pages
 
-# サプライチェーン対策（plans/2026-11-09-security-watch.md の 0-3・0-4）：
+# サプライチェーン対策（plans/archive/2026-11-09-security-watch.md の 0-3・0-4）：
 # - 公開の権限（pages・id-token）は deploy ジョブだけに持たせる。build ジョブは npm ci で
 #   依存のコードを動かすので、そこに公開の権限があると、依存に悪性のコードが混ざったとき
 #   build ジョブの中から改ざんしたページを公開できてしまう

@@ -1,6 +1,6 @@
 name: PR check
 
-# PR（主に Dependabot の差し替え PR）を、マージする前に機械の検査に通す（plans/2026-11-09-security-watch.md の 0-6）。
+# PR（主に Dependabot の差し替え PR）を、マージする前に機械の検査に通す（plans/archive/2026-11-09-security-watch.md の 0-6）。
 # deploy.yml は main への push でしか走らないので、これが無いと PR はマージするまで検査されない。
 # - デプロイはしない。権限は読み取りだけ
 # - pull_request は書き込み権限なし・シークレットなしで走るので、外部の人が出した PR でも安全。
