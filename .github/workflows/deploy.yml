@@ -1,13 +1,18 @@
 name: Deploy to GitHub Pages
 
+# サプライチェーン対策（plans/2026-11-09-security-watch.md の 0-3・0-4）：
+# - 公開の権限（pages・id-token）は deploy ジョブだけに持たせる。build ジョブは npm ci で
+#   依存のコードを動かすので、そこに公開の権限があると、依存に悪性のコードが混ざったとき
+#   build ジョブの中から改ざんしたページを公開できてしまう
+# - actions はタグではなくコミット SHA で固定する（タグは付け替えられる）。行末の版は人間向けの目印。
+#   更新は Dependabot の PR か、手で SHA を差し替える
+
 on:
   push:
     branches: [main]
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -16,11 +21,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0  # ops/repo-size.md の size-pack 計測に history 全体が必要
-      - uses: actions/setup-node@v4
+          persist-credentials: false  # 以降のステップに GitHub のトークンを残さない（push しないので不要）
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -42,16 +50,19 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "size-pack 閾値：500 MiB を超えたら対処検討（GitHub 推奨 1 GB の半分＝早期警戒ライン）" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write     # Pages へのデプロイ
+      id-token: write  # deploy-pages が OIDC で本人確認するため
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
