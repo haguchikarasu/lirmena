@@ -50,7 +50,10 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "size-pack 閾値：500 MiB を超えたら対処検討（GitHub 推奨 1 GB の半分＝早期警戒ライン）" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      # v4 以上にしてある理由：v3.0.1 は中で actions/upload-artifact をタグ（@v4）で呼んでいて、
+      # リポジトリ設定の「actions の SHA 固定を必須にする」と両立しない。v4.0.0 は中も SHA で固定している。
+      # v4 は隠しファイル（. で始まるもの）を既定で含めない。dist の隠しファイルは空フォルダ用の .gitkeep だけなので困らない
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: dist
 
