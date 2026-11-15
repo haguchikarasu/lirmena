@@ -116,9 +116,6 @@ body[data-world="map"] #wp-panel .mv {
   border: 1px solid var(--sheet-line);
   border-radius: 12px;
 }
-/* 地図の枠の地（_map.css の #0d0d0d）を透かして、冒頭の背景を見せる。.mv は資料シート（本文・目次のポップアップ）と
-   共用なので、部品側ではなくこのページでだけ上書きする */
-body[data-world="map"] #wp-panel .mv { background: transparent; }
 
 /* ===== スマホ：3 枚とも 1 画面に固定（冒頭の「高さ」） ===== */
 @media (max-width: 900px) {

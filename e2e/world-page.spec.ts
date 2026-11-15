@@ -86,7 +86,7 @@ test.describe('資料ページ', () => {
 
     test('地図：絵と＋／−が出る', async ({ page }) => {
         await page.goto('/lirmena/map.html');
-        await expect(page.locator('#wp-panel #map-popup img')).toBeVisible();
+        await expect(page.locator('#wp-panel #map-popup svg#eshka-map')).toBeVisible();
         await expect(page.locator('#wp-panel .mv-zoom-btn')).toHaveCount(2);
     });
 });

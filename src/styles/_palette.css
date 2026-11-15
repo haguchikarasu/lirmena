@@ -16,10 +16,16 @@
   --line:           rgba(255, 255, 255, 0.12); /* 線：区切り・枠 */
 }
 
-/* ライトの紙面（紙 #eeedea・墨 #16171a）の上書き口。値は地図の実装時に入れる。
-   有効化の手段（属性名・付与する場所）もその時に決める。
-:root[data-paper="light"] {
-  --ground: …; --surface: …; --surface-raised: …;
-  --ink: …; --ink-dim: …; --line: …;
+/* ライトの紙面（要件 06-14「紙面」）。この属性を付けた要素の中だけが明るい紙になる。
+   いまの使い手は地図の枠だけ（map.ts が figure#map-popup に付ける）。読破でサイト全体をライトにする構想があり、
+   そのときは :root に付ける想定（色は未定）。
+   紙・墨は地図の SVG（執筆/地図/source/render_map.py の WEB_CSS の --m-paper・--m-ink）と同じ値＝
+   一致は src/map-svg.test.ts が見る。弱い文字は紙の上で 6.2 : 1 */
+[data-paper="light"] {
+  --ground:         #eeedea;                  /* 紙 */
+  --surface:        #eeedea;
+  --surface-raised: #f6f5f2;
+  --ink:            #16171a;                  /* 墨 */
+  --ink-dim:        #55575d;
+  --line:           rgba(22, 23, 26, 0.2);
 }
-*/

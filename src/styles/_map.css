@@ -2,7 +2,9 @@
    枠（.mv）はスクロールしない。スクロールは中の .mv-scroll だけ。＋／−（.mv-zoom）は枠に absolute で置くので、
    拡大して絵をどの向きに動かしてもボタンは流れない（スクロールする箱の中に sticky で置くと、横に払ったとき絵と一緒に流れた）。
    枠の高さは器いっぱい。資料シートの地図のタブ（.sheet-body）は _sheet.css が dvh で、資料ページ map.html は
-   world-page.css が svh で器の高さを決める */
+   world-page.css が svh で器の高さを決める。
+   色：地図はライトの紙面（map.ts が枠に data-paper="light" を付ける。中立色の値は _palette.css）。地図の中の色は
+   SVG が自分で持つ（stage で替わる。要件 06-14「紙面」）ので、ここが持つのは枠・ボタン・リンク・文言の色だけ */
 
 .sheet-body--map { overflow: hidden; }
 
@@ -12,12 +14,24 @@
   min-height: 240px;
   margin: 0;
   overflow: hidden;
-  background: #0d0d0d;
+  background: var(--surface);
+}
+/* シートの --sheet-* はシート（_sheet.css の dialog.sheet・.wp-root）の上で値が決まっていて、ここで --ink などを
+   上書きしても届かない。ライトの紙面の枠の中では定義し直す */
+.mv[data-paper="light"] {
+  --sheet-text: var(--ink);
+  --sheet-dim: var(--ink-dim);
+  --sheet-line: var(--line);
+  --sheet-accent: var(--ink);
+  --mv-chip: color-mix(in srgb, var(--surface) 88%, transparent);   /* 地図の上に浮かせるボタン・リンクの地 */
 }
 .mv-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
-.mv img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
-.mv[data-zoom="2"] img { width: 200%; max-width: none; }
-.mv[data-zoom="3"] img { width: 320%; max-width: none; }
+/* 受け皿 .mv-art：SVG が届く前から地図の比率（1775×1920）の箱を取る。拡大の段の幅もここに当てる。
+   地図のルートは svg#eshka-map だけを指す（.mv svg にすると＋／−の中のアイコン svg.ic まで広がる） */
+.mv-art { display: block; width: 100%; aspect-ratio: 1775 / 1920; }
+.mv-art > svg#eshka-map { display: block; width: 100%; height: auto; }
+.mv[data-zoom="2"] .mv-art { width: 200%; }
+.mv[data-zoom="3"] .mv-art { width: 400%; }
 /* 拡大中のマウス：手のひら。つかんでいる間は閉じた手（指の端末ではカーソルを変えない） */
 @media (hover: hover) and (pointer: fine) {
   .mv:not([data-zoom="1"]) .mv-scroll { cursor: grab; }
@@ -33,12 +47,12 @@
   padding: 0;
   border: 1px solid var(--sheet-line);
   border-radius: 50%;
-  background: rgba(10, 10, 10, 0.75);
+  background: var(--mv-chip);
   color: var(--sheet-text);
   cursor: pointer;
 }
 .mv-zoom-btn:disabled { opacity: 0.35; cursor: default; }
-.mv-zoom-btn:focus-visible { outline: 2px solid var(--sheet-accent, #2df590); }
+.mv-zoom-btn:focus-visible { outline: 2px solid var(--sheet-accent); }
 
 /* 拡大より細かく見たい読者のための別タブの導線（↗ は ::after）。枠の左下に置く */
 .mv-open {
@@ -49,14 +63,14 @@
   padding: 0.3rem 0.8rem;
   border: 1px solid var(--sheet-line);
   border-radius: 999px;
-  background: rgba(10, 10, 10, 0.75);
-  color: #ccc;
+  background: var(--mv-chip);
+  color: var(--sheet-dim);
   font-size: 12px;
   text-decoration: none;
 }
 .mv-open::after { content: '↗'; font-size: 10px; margin-inline-start: 0.3em; }
 .mv-open:hover,
-.mv-open:focus-visible { color: #fff; }
+.mv-open:focus-visible { color: var(--sheet-text); }
 
-/* 画像の読み込みに失敗したとき map.ts が差し替える文言 */
-#map-popup-error { margin: 0; padding: 1.5rem 0; color: #aaa; font-size: 0.9rem; text-align: center; }
+/* 地図の取得に失敗したとき map.ts が差し替える文言 */
+#map-popup-error { margin: 0; padding: 1.5rem 0; color: var(--sheet-dim); font-size: 0.9rem; text-align: center; }
