@@ -19,7 +19,7 @@ test('目次 → タイトル(01-00) → reader(01-01)', async ({ page }) => {
     await page.waitForURL(/contents\/01-00\.html/);
     await expect(page.locator('#title-screen')).toBeVisible();
     await expect(page.locator('#title-screen-ep-title')).toContainText('太陽の行く先');
-    // 「前のエピソードへ」は ep1 では disabled
+    // 「前の話へ」は ep1 では disabled
     await expect(page.locator('#btn-title-prev')).toBeDisabled();
 
     // 「本文を読む」で reader へ

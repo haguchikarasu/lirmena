@@ -159,7 +159,7 @@ test.describe('栞の欄の × × 確認（1 件ずつ消す）', () => {
         await page.goto('/lirmena/');
         const del = page.getByRole('button', { name: '栞 1を消す' });
         await del.click();
-        await expect(page.locator('#confirm-msg')).toHaveText('栞 1（第1話#1）を削除しますか？');
+        await expect(page.locator('#confirm-msg')).toHaveText('栞 1（第1話 #1）を削除しますか？');
         await answerConfirm(page, '削除する');
 
         const s = await readStorage(page);

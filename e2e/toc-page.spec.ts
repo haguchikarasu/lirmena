@@ -36,11 +36,11 @@ const cta = (page: Page) => page.locator('#idx-cta-btn');
 const sub = (page: Page) => page.locator('#idx-cta-sub');
 
 test.describe('読み始めるボタン（ヒーロー）', () => {
-    test('初めて：「第一話から読む」で最初の節の扉へ。下の行は空', async ({ page }) => {
+    test('初めて：「第1話から読む」で最初の節の扉へ。下の行は空', async ({ page }) => {
         await setup(page);
         await page.goto('/lirmena/');
         await expect(page.locator('#episodes-area .idx-ep').first()).toBeVisible();
-        await expect(cta(page)).toHaveText('第一話から読む');
+        await expect(cta(page)).toHaveText('第1話から読む');
         await expect(cta(page)).toHaveAttribute('href', 'contents/01-00.html');
         await expect(sub(page)).toHaveText('');
         await expect(page.locator('body')).toHaveAttribute('data-reader', 'first');
@@ -51,14 +51,14 @@ test.describe('読み始めるボタン（ヒーロー）', () => {
         await page.goto('/lirmena/');
         await expect(page.locator('#episodes-area .idx-ep').first()).toBeVisible();
         await expect(cta(page)).toHaveText('続きから読む');
-        await expect(sub(page)).toHaveText('第1話#2');
+        await expect(sub(page)).toHaveText('第1話 #2');
         await expect(page.locator('body')).toHaveAttribute('data-reader', 'mid');
 
         await cta(page).click();
         await expect(page).toHaveURL(/\/lirmena\/contents\/01-02\.html$/);
     });
 
-    test('最新まで読了：「第N話#M を読み返す」・下に次回の更新（日本時間）', async ({ page }) => {
+    test('最新まで読了：「第N話 #M を読み返す」・下に次回の更新（日本時間）', async ({ page }) => {
         await setup(page, {
             read: JSON.stringify(['01-01', '01-02', '02-01']),
             autosave: JSON.stringify({ ep: 2, sec: 1, ratio: 1, savedAt: 100 }),
@@ -66,7 +66,7 @@ test.describe('読み始めるボタン（ヒーロー）', () => {
         await page.goto('/lirmena/');
         // 1 巻だけの fixture で最新まで読了＝物語完結の stage なので、巻カードは閉じている
         await expect(page.locator('#episodes-area .idx-vol-card').first()).toBeVisible();
-        await expect(cta(page)).toHaveText('第2話#1 を読み返す');
+        await expect(cta(page)).toHaveText('第2話 #1 を読み返す');
         await expect(cta(page)).toHaveAttribute('href', 'contents/02-00.html');
         await expect(sub(page).locator('time')).toHaveText('1/1（木）20:00');
         await expect(page.locator('body')).toHaveAttribute('data-reader', 'caught');
@@ -81,14 +81,14 @@ test.describe('読み始めるボタン（ヒーロー）', () => {
 });
 
 test.describe('上の帯（FAB の代わり）', () => {
-    test('FAB は無い。ヒーローを過ぎると帯になり、「▶ 第N話#M」が読み始めるボタンと同じ行き先で出る', async ({ page }) => {
+    test('FAB は無い。ヒーローを過ぎると帯になり、「▶ 第N話 #M」が読み始めるボタンと同じ行き先で出る', async ({ page }) => {
         await setup(page, { autosave: JSON.stringify({ ep: 1, sec: 2, ratio: 0.4, savedAt: 100 }) });
         await page.goto('/lirmena/');
         await expect(page.locator('#episodes-area .idx-ep').first()).toBeVisible();
         await expect(page.locator('#fab-toggle')).toHaveCount(0);
 
         const resume = page.locator('#idx-topbar-resume');
-        await expect(resume).toHaveText('第1話#2');
+        await expect(resume).toHaveText('第1話 #2');
         await expect(resume).toHaveAttribute('href', 'contents/01-02.html');
         await expect(page.locator('body')).not.toHaveAttribute('data-past-hero', 'true');
         await page.locator('#idx-links').scrollIntoViewIfNeeded();
@@ -124,7 +124,7 @@ test.describe('右カラム・足もと', () => {
         await page.goto('/lirmena/');
         const news = page.locator('#idx-news');
         await expect(news).toBeVisible();
-        await expect(page.locator('#idx-news-pos')).toHaveText('第2話#1');
+        await expect(page.locator('#idx-news-pos')).toHaveText('第2話 #1');
         await expect(page.locator('#idx-news-title')).toHaveText('第二の話');
         await expect(page.locator('#idx-news-next time')).toHaveText('1/1（木）20:00');
         await expect(news).toHaveAttribute('href', 'contents/02-00.html');
@@ -135,7 +135,7 @@ test.describe('右カラム・足もと', () => {
         delete (story[0].episodes[1].sections[1] as { scheduledAt?: string }).scheduledAt;
         await setup(page, {}, story);
         await page.goto('/lirmena/');
-        await expect(page.locator('#idx-news-pos')).toHaveText('第2話#1');
+        await expect(page.locator('#idx-news-pos')).toHaveText('第2話 #1');
         await expect(page.locator('#idx-news-next')).toBeHidden();
     });
 

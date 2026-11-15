@@ -35,7 +35,7 @@ test.describe('目次の「世界」', () => {
 
     // 目次 → ページ、本文 → シート（要件 06-7）
     for (const [id, name] of [['idx-world-chara', 'characters'], ['idx-world-map', 'map'], ['idx-world-glossary', 'glossary']] as const) {
-        test(`#${id} は ${name}.html へ同じタブで移り、?dev を引き継ぎ、‹ で目次へ戻る`, async ({ page }) => {
+        test(`#${id} は ${name}.html へ同じタブで移り、?dev を引き継ぎ、‹ で目次へもどる`, async ({ page }) => {
             await page.goto('/lirmena/?dev');
             const link = page.locator(`#${id}`);
             await expect(link).toHaveAttribute('href', `${name}.html?dev`);
@@ -62,7 +62,7 @@ test('本文ページ：右下メニューのキャラクター紹介が開き�
     const panel = page.locator('#characters-overlay');
     const open = async (): Promise<void> => {
         await page.locator('#menu-toggle').click();
-        await page.getByRole('button', { name: 'キャラクター紹介' }).click();
+        await page.getByRole('button', { name: '人物', exact: true }).click();
         await expect(panel).toBeVisible();
     };
 
@@ -95,7 +95,7 @@ test('本文ページ：資料シートのタブで人物・地図・用語を�
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();
     await page.locator('#menu-toggle').click();
-    await page.getByRole('button', { name: 'キャラクター紹介' }).click();
+    await page.getByRole('button', { name: '人物', exact: true }).click();
 
     await page.getByRole('tab', { name: '地図' }).click();
     await expect(page.locator('#map-overlay')).toBeVisible();

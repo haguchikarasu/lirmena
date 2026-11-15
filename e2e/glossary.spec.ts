@@ -77,7 +77,7 @@ async function expectLandedBelowStickyBar(page: import('@playwright/test').Page,
 test.describe('本文 → 用語集ポップアップ', () => {
     const openPopup = async (page: import('@playwright/test').Page): Promise<void> => {
         await page.locator('#menu-toggle').click();
-        await page.getByRole('button', { name: '用語集' }).click();
+        await page.getByRole('button', { name: '用語', exact: true }).click();
         await expect(page.locator('#glossary-overlay')).toBeVisible();
     };
 

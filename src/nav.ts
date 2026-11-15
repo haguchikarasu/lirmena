@@ -10,7 +10,7 @@
  * ── 本文モード（init / update / goPrev） ──────────────────────────
  *   進行 #btn-next（読み終わり端）:
  *     - state.getNextUrl() があれば「次へ」ラベルで transition.leave 遷移
- *     - null（次 ep が無い・未公開）なら「目次へ戻る」ラベル、押下で目次へ即遷移（フェードなし・要件 06-1）
+ *     - null（次 ep が無い・未公開）なら「目次へもどる」ラベル、押下で目次へ即遷移（フェードなし・要件 06-1）
  *   巻末あとがきボタン #btn-afterword（次へボタンの直後・巻末公開 sec でのみ表示）:
  *     - state.getAfterwordUrlIfEndOfVolume() が非 null なら hidden を外し、「第◯巻あとがき」ラベルで
  *       transition.leave で当 vol のあとがきページへ遷移。次へボタンを優先（読み進め動作を最優先＝要件）。
@@ -25,7 +25,7 @@
  * ── あとがきモード（initAfterword / updateAfterword / goPrev） ────────
  *   進行 #btn-next:
  *     - state.getAfterwordNextUrl() があれば「次へ」ラベルで transition.leave 遷移（次巻タイトルページ）
- *     - null（最終 vol あとがき or 次巻未公開）なら「目次へ戻る」ラベル、押下で目次へ即遷移
+ *     - null（最終 vol あとがき or 次巻未公開）なら「目次へもどる」ラベル、押下で目次へ即遷移
  *   あとがきボタン #btn-afterword: あとがきページからさらにあとがきに行く導線は無い＝常に hidden
  *   戻る goPrev():
  *     - state.getAfterwordPrevAddress()（自 vol の巻末公開 sec）へ pendingScrollEnd を書いて transition.leave
@@ -49,7 +49,7 @@ let _afterwordVol = 0;
 
 // 末尾ボタンのラベル（縦横とも日本語）。
 const BTN_NEXT_NEXT_TEXT = '次へ';
-const BTN_NEXT_INDEX_TEXT = '目次へ戻る';
+const BTN_NEXT_INDEX_TEXT = '目次へもどる';
 
 // あとがきボタンのラベル。vol 番号は全角（縦書きモードでは #btn-afterword に writing-mode:vertical-rl が
 // 効くため、半角数字だと1文字ずつ横に倒れる。全角なら1マス1字で縦に立つ）。

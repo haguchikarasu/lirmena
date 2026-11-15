@@ -99,7 +99,7 @@ test.describe('C. あとがき（サイト内から）', () => {
         await gotoToc(page);
         await openVolumes(page);
         await expect(chip(page)).toHaveAttribute('aria-label', '第1巻 あとがき 既読');
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', here: '01-02' });
 
         await openAfterwordFromToc(page);
         await readToEnd(page);
@@ -109,7 +109,7 @@ test.describe('C. あとがき（サイト内から）', () => {
         await gotoToc(page);
         await openVolumes(page);
         await expect(chip(page)).toHaveAttribute('aria-label', '第1巻 あとがき 読破');
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', here: '01-02' });
     });
 
     test('C3/C4/C5 巻末を読了 → あとがき → 目次：地点は巻末の末尾。「あとがき」ボタンが見え、次へで次巻へ', async ({ page }) => {
@@ -125,7 +125,7 @@ test.describe('C. あとがき（サイト内から）', () => {
 
         await gotoToc(page);
         await openVolumes(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#3', slot0: { loc: '第2話#3', ratio: 1 }, here: '02-03' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #3', slot0: { loc: '第2話 #3', ratio: 1 }, here: '02-03' });
         await expect(chip(page)).not.toHaveClass(/idx-chip--here/);
 
         await page.locator('#idx-cta-btn').click();

@@ -2,7 +2,7 @@
  * ui/world-nav.ts
  * 責務: 資料ページ（characters.html・map.html・glossary.html）の上の帯 #wp-top の結線。markup は差し込みの断片
  *       templates/parts/world-nav.html。
- *         - 目次へ戻るリンクと 3 つのタブの href に、いまのクエリ（?dev など）を引き継ぐ（core/query の withQuery）
+ *         - 目次へもどるリンクと 3 つのタブの href に、いまのクエリ（?dev など）を引き継ぐ（core/query の withQuery）
  *         - ‹ はブラウザの「戻る」と同じ：来た元（本文・目次）へ戻る。来た元がこのサイトに無い（直に開いた・外から来た）
  *           ときだけ目次へ移る（href の './'）
  *         - タブは location.replace で移る＝資料ページ間の行き来を履歴に積まない。‹ やブラウザの「戻る」の行き先は、
@@ -17,7 +17,7 @@
  * 来た元を覚える場所は sessionStorage（タブごと）：資料ページに入った最初のページで決め、タブで移った先では
  * 来た元（document.referrer）が資料ページになるので、最初に決めた値を使い続ける。
  *
- * 目次へ戻る先を './' にするのは state.indexUrl() が '../' を使うのと同じ流儀＝目次の URL を /lirmena/ 1 つに保つ
+ * 目次へもどる先を './' にするのは state.indexUrl() が '../' を使うのと同じ流儀＝目次の URL を /lirmena/ 1 つに保つ
  * （index.html と書くと GA の page_path が /lirmena/ と /lirmena/index.html に割れる）。
  */
 

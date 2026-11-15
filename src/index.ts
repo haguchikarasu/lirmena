@@ -20,7 +20,7 @@
  *   - **表紙ギャラリー**：今の stage から過去の巻の絵へ遡れる（右＝過去）。替えるのは絵だけで、ロゴ・キーカラー・
  *     favicon・次に開いたときの絵は今の stage のまま。閲覧位置は覚えない。PC はボタン（ホバーで出る）、スマホは払う
  *     （指に付いてくるカルーセル）、ドットでも移れる。隣の巻の絵は img.decode() まで先読みする（R17）
- *   - **読み始めるボタン**（ヒーロー）と上の帯の「▶ 第N話#M」：初めて＝第一話から、途中＝「続きから読む」の地点
+ *   - **読み始めるボタン**（ヒーロー）と上の帯の「▶ 第N話 #M」：初めて＝第1話から、途中＝「続きから読む」の地点
  *     （volumes.resolveResumePoint）へ、最新まで読了＝最新の節を読み返す（下に次回の更新）。
  *     読者の状態は <body data-reader="first|mid|caught">
  *   - 巻カード（<details class="idx-vol-card">）→ 話の扉絵バナー（article.idx-ep）→ 節のチップ。巻の初期 open は
@@ -94,8 +94,8 @@ let _story: StoryVolume[] = [];
 let _episodes: Episode[] = [];
 
 const pad = (n: number) => String(n).padStart(2, '0');
-// 「第4話#3」（sec 番号はゼロ埋めしない）
-const posLabel = (ep: number, sec: number) => `第${ep}話#${sec}`;
+// 「第4話 #3」（sec 番号はゼロ埋めしない）
+const posLabel = (ep: number, sec: number) => `第${ep}話 #${sec}`;
 // |漢字《かな》 の書式を外した読み（aria-label・確認文に使う）
 const plainTitle = (t: string) => t.replace(/\|([^《|]+)《[^》]+》/g, '$1');
 
@@ -164,15 +164,15 @@ function _resumeHref(p: ResumePoint): string {
     return withQuery(`contents/${pad(p.ep)}-${pad(p.sec)}.html`);
 }
 
-// ----- 読み始めるボタン（ヒーロー）と上の帯の「▶ 第N話#M」 -----
+// ----- 読み始めるボタン（ヒーロー）と上の帯の「▶ 第N話 #M」 -----
 
 // 押されたときにすること（地点へ行くときに着地の受け渡しを書く）。結線は 1 度だけで、中身をここで替える
 let _ctaGo: (() => void) | null = null;
 
 // 読者の状態から、ボタンの文字・行き先・下の行を決める（story.json がまだ無いときはオートセーブだけで決める）。
-//   caught（最新の公開済みの節を読了）→「第N話#M を読み返す」・下に次回の更新（予定が無ければ空）
+//   caught（最新の公開済みの節を読了）→「第N話 #M を読み返す」・下に次回の更新（予定が無ければ空）
 //   mid（読破かオートセーブがある） →「続きから読む」・下に地点
-//   first（どちらでもない）         →「第一話から読む」・下は空
+//   first（どちらでもない）         →「第1話から読む」・下は空
 // renderCta(): void
 function renderCta(): void {
     const btn = document.getElementById('idx-cta-btn') as HTMLAnchorElement | null;
@@ -209,7 +209,7 @@ function renderCta(): void {
         const first = secs[0];
         href = first ? secHref(first.ep.id, first.sec) : withQuery('contents/01-00.html');
         label = first ? `第${first.ep.id}話` : '第1話';
-        btn.textContent = '第一話から読む';
+        btn.textContent = '第1話から読む';
     }
     document.body.dataset.reader = state;
     btn.href = href;
@@ -588,7 +588,7 @@ function renderStory(reached: Set<string>, read: Set<string>): void {
     if (area.children.length === 0) {
         const msg = document.createElement('p');
         msg.className = 'loading-text';
-        msg.textContent = '公開中のエピソードはまだありません。';
+        msg.textContent = '公開中の話はまだありません。';
         area.appendChild(msg);
     }
 }
@@ -1064,7 +1064,7 @@ async function main(): Promise<void> {
             area.innerHTML = '';
             const msg = document.createElement('p');
             msg.className = 'loading-text';
-            msg.textContent = 'エピソードの読み込みに失敗しました。';
+            msg.textContent = '話の読み込みに失敗しました。';
             area.appendChild(msg);
         }
     }

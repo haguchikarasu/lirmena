@@ -220,7 +220,7 @@ test.describe('D. 保留と札', () => {
         const popup = page.locator('#hold-popup');
         await expect(popup).toBeVisible();
         await expect(popup).toContainText('ページを直接開いたため、以下の機能を一時停止しています。');
-        await expect(popup.locator('li')).toHaveText(['オートセーブ', '続きから読む', '到達/読破']);
+        await expect(popup.locator('li')).toHaveText(['オートセーブ', '続きから読む', '既読/読破']);
         await expect(popup.locator('a')).toHaveCount(0);
         await popup.locator('[data-sheet-close]').first().click();
         await expect(popup).toBeHidden();
@@ -322,7 +322,7 @@ test.describe('D. 保留と札', () => {
         await openFromToc(page, 2, 2);
         await expect.poll(async () => (await records(page)).autosave).toMatchObject({ ep: 2, sec: 2 });
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#2', here: '02-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #2', here: '02-02' });
     });
 
     test('D22 読破なしで読みかけの併読者が外部リンクで最初の節を開く：札が出て、autosave は不変', async ({ page }) => {

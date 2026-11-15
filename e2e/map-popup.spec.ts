@@ -25,7 +25,7 @@ test('本文ページ：右下メニューのエシュカ地図が開き、＋�
     await expect(page.locator('#main-container')).toBeVisible();
 
     await page.locator('#menu-toggle').click();
-    await page.getByRole('button', { name: 'エシュカ地図' }).click();
+    await page.getByRole('button', { name: '地図', exact: true }).click();
     await expect(page.locator('#map-overlay')).toBeVisible();
     await expectMapReady(page);
 

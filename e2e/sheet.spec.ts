@@ -15,7 +15,7 @@ import { test, expect } from './_fixtures';
 
 const openMenuItem = async (page: import('@playwright/test').Page, name: string): Promise<void> => {
     await page.locator('#menu-toggle').click();
-    await page.getByRole('button', { name }).click();
+    await page.getByRole('button', { name, exact: true }).click();
 };
 
 // 本文の読書エリアの空いている所（ボタンや FAB の無い所）を軽くクリックする＝鑑賞モードのトグルの入力
@@ -73,7 +73,7 @@ test('共有シート：中身の高さで開き、3 つの共有の方法があ
     const sheet = page.locator('#share-popup');
     await expect(sheet).toBeVisible();
     await expect(sheet).toHaveAttribute('data-detent', 'fit');
-    for (const name of ['リンクをコピー', 'X でシェア', 'LINE でシェア']) {
+    for (const name of ['リンクをコピー', 'X でポスト', 'LINE でシェア']) {
         await expect(sheet.getByRole('button', { name })).toBeVisible();
     }
     await page.keyboard.press('Escape');
@@ -127,7 +127,7 @@ test.describe('スマホ幅', () => {
     test('人物の顔の帯はホイールで横へ送れる', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();
-        await openMenuItem(page, 'キャラクター紹介');
+        await openMenuItem(page, '人物');
         const faces = page.locator('#world-sheet .cv-faces');
         await expect(faces).toBeVisible();
         await faces.hover();
@@ -150,7 +150,7 @@ test.describe('スマホ幅', () => {
     test('資料シート：タブの上から上へ動かすと高くなり、タブは切り替わらない。押すだけなら切り替わる', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();
-        await openMenuItem(page, 'キャラクター紹介');
+        await openMenuItem(page, '人物');
         const sheet = page.locator('#world-sheet');
         await expect(sheet).toBeVisible();
         const h0 = (await sheet.boundingBox())!.height;
@@ -167,7 +167,7 @@ test.describe('スマホ幅', () => {
         { item: '設定', id: '#settings-popup' },
         { item: '共有', id: '#share-popup' },
         { item: '栞を追加', id: '#bookmark-popup' },
-        { item: 'キャラクター紹介', id: '#world-sheet' },
+        { item: '人物', id: '#world-sheet' },
     ]) {
         test(`${item}：閉じるボタンの上から下へ少し動かすと低くなり、閉じない`, async ({ page }) => {
             await page.goto('/lirmena/contents/01-01.html');
@@ -185,7 +185,7 @@ test.describe('スマホ幅', () => {
     test('資料シート：全画面まで上げて閉じても、次は最初の高さで開く', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();
-        await openMenuItem(page, 'キャラクター紹介');
+        await openMenuItem(page, '人物');
         const sheet = page.locator('#world-sheet');
         await expect(sheet).toBeVisible();
         const h0 = (await sheet.boundingBox())!.height;
@@ -195,7 +195,7 @@ test.describe('スマホ幅', () => {
         await page.keyboard.press('Escape');
         await expect(sheet).toBeHidden();
 
-        await openMenuItem(page, '用語集');
+        await openMenuItem(page, '用語');
         await expect(sheet).toHaveAttribute('data-detent', 'half');
         await expect.poll(async () => Math.round((await sheet.boundingBox())!.height)).toBe(Math.round(h0));
     });
@@ -203,7 +203,7 @@ test.describe('スマホ幅', () => {
     test('ボタンの上から掴んだあとも、キーボードでボタンを押せる', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();
-        await openMenuItem(page, 'キャラクター紹介');
+        await openMenuItem(page, '人物');
         const sheet = page.locator('#world-sheet');
         await expect(sheet).toBeVisible();
         await dragFrom(page, page.locator('#world-tab-map'), -100);

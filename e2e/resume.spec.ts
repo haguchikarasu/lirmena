@@ -94,9 +94,9 @@ test('B7 読破済みの前節に戻っても autosave は動かない', async (
 test.describe('A. オートセーブと「続きから読む」', () => {
     test.beforeEach(async ({ page }) => { await setupRoutes(page); });
 
-    test('A1 新規：第一話から読む。スロット 0 なし。枠なし', async ({ page }) => {
+    test('A1 新規：第1話から読む。スロット 0 なし。枠なし', async ({ page }) => {
         await seed(page);
-        await expectResume(page, { button: '第一話から読む', sub: '', slot0: null, here: null });
+        await expectResume(page, { button: '第1話から読む', sub: '', slot0: null, here: null });
         await expect(page.locator('body')).toHaveAttribute('data-reader', 'first');
     });
 
@@ -107,7 +107,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
             await openFromToc(page, 1, 1);
             await scrollAndSave(page, 0.4);
             await gotoToc(page);
-            await expectResume(page, { button: '続きから読む', sub: '第1話#1', slot0: { loc: '第1話#1', ratio: 0.4 }, here: '01-00' });
+            await expectResume(page, { button: '続きから読む', sub: '第1話 #1', slot0: { loc: '第1話 #1', ratio: 0.4 }, here: '01-00' });
             await page.locator('#idx-cta-btn').click();
             await page.waitForURL(/01-01\.html/);
             await waitReader(page);
@@ -122,7 +122,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
             await readToEnd(page);
             await expect.poll(async () => (await records(page)).read).toEqual(['01-01']);
             await gotoToc(page);
-            await expectResume(page, { button: '続きから読む', sub: '第1話#1', slot0: { loc: '第1話#1', ratio: 1 }, here: '01-00' });
+            await expectResume(page, { button: '続きから読む', sub: '第1話 #1', slot0: { loc: '第1話 #1', ratio: 1 }, here: '01-00' });
             await expect(page.locator('#idx-cta-btn')).toHaveAttribute('href', /contents\/01-01\.html/);
             await page.locator('#idx-cta-btn').click();
             await page.waitForURL(/01-01\.html/);
@@ -171,7 +171,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         expect(r.autosave).toMatchObject(autosave);
         expect(r.read).toEqual(['01-01', '01-02']);
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#1', slot0: { loc: '第2話#1', ratio: 0.4 }, here: '02-00' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #1', slot0: { loc: '第2話 #1', ratio: 0.4 }, here: '02-00' });
     });
 
     test('A7 誤タップ：飛ばした節へ「続きから」が移り、本来の節を開けば戻る', async ({ page }) => {
@@ -179,11 +179,11 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await openFromToc(page, 2, 3);
         await expect.poll(async () => (await records(page)).autosave).toMatchObject({ ep: 2, sec: 3 });
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#3', here: '02-03' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #3', here: '02-03' });
         await openFromToc(page, 1, 2);
         await expect.poll(async () => (await records(page)).autosave).toMatchObject({ ep: 1, sec: 2, ratio: 0 });
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', slot0: { loc: '第1話#2', ratio: 0 }, here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', slot0: { loc: '第1話 #2', ratio: 0 }, here: '01-02' });
     });
 
     test('A8/A9/A10 併読者：飛ばした先の読みかけ → 読了 → 飛ばした節を埋めても地点は動かない', async ({ page }) => {
@@ -191,13 +191,13 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await openFromToc(page, 2, 2);
         await scrollAndSave(page, 0.6);
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#2', slot0: { loc: '第2話#2', ratio: 0.6 }, here: '02-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #2', slot0: { loc: '第2話 #2', ratio: 0.6 }, here: '02-02' });
 
         await openFromToc(page, 2, 2);
         await readToEnd(page);
         await expect.poll(async () => (await records(page)).read).toEqual(['02-02']);
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#2', slot0: { loc: '第2話#2', ratio: 1 }, here: '02-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #2', slot0: { loc: '第2話 #2', ratio: 1 }, here: '02-02' });
         expect((await records(page)).stage).toBe('1');
 
         const before = (await records(page)).autosave;
@@ -207,12 +207,12 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await page.waitForTimeout(700);
         expect((await records(page)).autosave).toEqual(before);
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第2話#2', here: '02-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #2', here: '02-02' });
     });
 
     test('A11 最新まで読了：読み返すボタン。スロット 0 は帯を満たして末尾へ', async ({ page }) => {
         await seed(page, { read: ['05-02'] });
-        await expectResume(page, { button: '第5話#2 を読み返す', slot0: { loc: '第5話#2', ratio: 1 }, here: '05-02' });
+        await expectResume(page, { button: '第5話 #2 を読み返す', slot0: { loc: '第5話 #2', ratio: 1 }, here: '05-02' });
         await expect(page.locator('body')).toHaveAttribute('data-reader', 'caught');
         await page.locator('#bookmark-slots .idx-bm-slot--auto .idx-bm-go').click();
         await page.waitForURL(/05-02\.html/);
@@ -223,7 +223,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
     test('A12 新しい節が公開された：続きから → 末尾 → 次へで新しい節へ', async ({ page }) => {
         await setupRoutes(page, { publish: ['05-03'] });
         await seed(page, { read: ['05-02'] });
-        await expectResume(page, { button: '続きから読む', sub: '第5話#2', slot0: { loc: '第5話#2', ratio: 1 }, here: '05-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第5話 #2', slot0: { loc: '第5話 #2', ratio: 1 }, here: '05-02' });
         await page.locator('#idx-cta-btn').click();
         await page.waitForURL(/05-02\.html/);
         await waitReader(page);
@@ -235,13 +235,13 @@ test.describe('A. オートセーブと「続きから読む」', () => {
     test('A13 未公開へ戻された節を指す記録は無視する（残る最大読破の末尾）', async ({ page }) => {
         await setupRoutes(page, { unpublish: ['02-02', '02-03'] });
         await seed(page, { read: ['01-02', '02-03'], autosave: { ep: 2, sec: 2, ratio: 0.5 } });
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', slot0: { loc: '第1話#2', ratio: 1 }, here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', slot0: { loc: '第1話 #2', ratio: 1 }, here: '01-02' });
     });
 
     test('A13 未公開へ戻された節しか記録が無ければ最初の節', async ({ page }) => {
         await setupRoutes(page, { unpublish: ['05-02'] });
         await seed(page, { read: ['05-02'], autosave: { ep: 5, sec: 2, ratio: 0.5 } });
-        await expectResume(page, { button: '第一話から読む', sub: '', slot0: null, here: null });
+        await expectResume(page, { button: '第1話から読む', sub: '', slot0: null, here: null });
     });
 
     test('A14 読み返し中のリロード・ブラウザの戻るは history.state の位置へ戻る（autosave は不変）', async ({ page }) => {
@@ -275,7 +275,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await expect(page.getByRole('button', { name: '栞 1を消す' })).toHaveCount(1);
     });
 
-    test('A17 目次の「読破を消す」：read と autosave が消え、第一話からへ戻る。手動栞は残る', async ({ page }) => {
+    test('A17 目次の「読破を消す」：read と autosave が消え、第1話からへ戻る。手動栞は残る', async ({ page }) => {
         await seed(page, {
             read: ['01-01'], reached: ['01-01'], autosave: { ep: 1, sec: 2, ratio: 0.3 },
             extra: { bookmarks: JSON.stringify([{ slot: 1, ep: 1, sec: 1, scene: 1, ratio: 0.3, savedAt: 100 }]) },
@@ -284,7 +284,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await page.locator('.settings-action', { hasText: '読破を消す' }).click();
         await expect(page.locator('#confirm-note')).toHaveText('オートセーブも一緒に削除されます。');
         await page.locator('#confirm-dialog').getByRole('button', { name: '削除する' }).click();
-        await expect(page.locator('#idx-cta-btn')).toHaveText('第一話から読む');
+        await expect(page.locator('#idx-cta-btn')).toHaveText('第1話から読む');
         const r = await records(page);
         expect(r.read).toEqual([]);
         expect(r.autosave).toBeNull();
@@ -333,12 +333,12 @@ test.describe('F. 既存読者の公開時（旧版の localStorage をそのま
 
     test('F1 旧版の読み返し中（autosave が最大読破より前）：地点は最大読破の節の末尾', async ({ page }) => {
         await seed(page, { read: ['01-01', '01-02', '02-01'], autosave: { ep: 1, sec: 1, ratio: 0.5 } });
-        await expectResume(page, { button: '続きから読む', sub: '第2話#1', slot0: { loc: '第2話#1', ratio: 1 }, here: '02-00' });
+        await expectResume(page, { button: '続きから読む', sub: '第2話 #1', slot0: { loc: '第2話 #1', ratio: 1 }, here: '02-00' });
     });
 
     test('F2 旧版の読みかけ（autosave が先）：位置つきで戻れる', async ({ page }) => {
         await seed(page, { read: ['01-01'], autosave: { ep: 1, sec: 2, ratio: 0.5 } });
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', slot0: { loc: '第1話#2', ratio: 0.5 }, here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', slot0: { loc: '第1話 #2', ratio: 0.5 }, here: '01-02' });
         await page.locator('#idx-cta-btn').click();
         await page.waitForURL(/01-02\.html/);
         await waitReader(page);
@@ -353,7 +353,7 @@ test.describe('F. 既存読者の公開時（旧版の localStorage をそのま
                 pendingJumpAfterword: JSON.stringify({ vol: 1, ratio: 0.2 }),
             },
         });
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', here: '01-02' });
         expect(await page.evaluate(() => [localStorage.getItem('autosaveAfterword'), localStorage.getItem('pendingJumpAfterword')])).toEqual([null, null]);
     });
 
@@ -372,7 +372,7 @@ test.describe('F. 既存読者の公開時（旧版の localStorage をそのま
             localStorage.setItem('sceneRead', JSON.stringify(['01-02-00', '01-01-03']));
         });
         await gotoToc(page);
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', slot0: { loc: '第1話#2', ratio: 1 }, here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', slot0: { loc: '第1話 #2', ratio: 1 }, here: '01-02' });
         const r = await records(page);
         expect(r.read).toEqual(['01-02']);
         expect(new Set(r.reached)).toEqual(new Set(['01-02', '01-01']));
@@ -385,6 +385,6 @@ test.describe('F. 既存読者の公開時（旧版の localStorage をそのま
 
     test('F5 sceneRead だけが残っている読者：目次の読破と地点が読める', async ({ page }) => {
         await seed(page, { extra: { sceneRead: JSON.stringify(['01-02-00']) } });
-        await expectResume(page, { button: '続きから読む', sub: '第1話#2', slot0: { loc: '第1話#2', ratio: 1 }, here: '01-02' });
+        await expectResume(page, { button: '続きから読む', sub: '第1話 #2', slot0: { loc: '第1話 #2', ratio: 1 }, here: '01-02' });
     });
 });

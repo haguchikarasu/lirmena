@@ -1,7 +1,7 @@
 /*
  * glossary-page.ts
  * 責務: 用語集ページ（glossary.html。資料ページの 1 枚）のエントリ。public/glossary.md を取得して一覧を描き、
- *       直リンク（#g-見出し語）へ着地させる。上の帯（目次へ戻る・人物／地図／用語のタブ。?dev などのクエリの
+ *       直リンク（#g-見出し語）へ着地させる。上の帯（目次へもどる・人物／地図／用語のタブ。?dev などのクエリの
  *       引き継ぎを含む）は ui/world-nav が結線する。
  * export: なし（エントリ）
  * 依存: glossary.ts（取得・描画・検索・五十音・相互参照）、ui/world-nav（上の帯）。reader 層を import しない

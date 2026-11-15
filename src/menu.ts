@@ -8,7 +8,7 @@
  *       ui/world-sheet.ts（資料シート）
  *
  * メニュー項目と処理（順序は要件 06-2）：
- *   目次へ戻る        → transition.leave(state.indexUrl())（離脱フェード経由）
+ *   目次へもどる        → transition.leave(state.indexUrl())（離脱フェード経由）
  *   栞を追加          → _openBookmarkPopup()（スロット選択のシートを開き、選んだ slot へ保存）
  *   チュートリアル    → tutorial.open()（初回ガイドの再表示）
  *   キャラクター紹介  → worldSheet.open('characters', _toggle)（資料シートの人物のタブ。Stage はそのページの巻）
@@ -106,7 +106,7 @@ function _buildItems(): void {
     // 押すと "00-00" を指す壊れた栞ができてしまう（あとがきは巻末 sec 本文の栞で代用する運用）。
     const isAfterword = state.getMode() === 'afterword';
 
-    const btnIndex = makeBtn('目次へ戻る', 'toc', () => {
+    const btnIndex = makeBtn('目次へもどる', 'toc', () => {
         transition.leave(state.indexUrl());
     });
 
@@ -120,15 +120,15 @@ function _buildItems(): void {
 
     // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、
     // 押されたこのボタン自身はもう hidden のパネルの中にいる（戻しても見えない）
-    const btnCharacters = makeBtn('キャラクター紹介', 'people', () => {
+    const btnCharacters = makeBtn('人物', 'people', () => {
         worldSheet.open('characters', _toggle);
     }, 'menu-item--world');
 
-    const btnMap = makeBtn('エシュカ地図', 'map', () => {
+    const btnMap = makeBtn('地図', 'map', () => {
         worldSheet.open('map', _toggle);
     }, 'menu-item--world');
 
-    const btnGlossary = makeBtn('用語集', 'book', () => {
+    const btnGlossary = makeBtn('用語', 'book', () => {
         worldSheet.open('glossary', _toggle);
     }, 'menu-item--world');
 

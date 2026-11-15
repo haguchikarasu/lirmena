@@ -81,7 +81,7 @@ const STEPS: Step[] = [
     {
         badge: 'メニュー',
         title: '右下のメニュー',
-        body: '画面右下のボタンを開くと、<em>設定</em>や<em>栞</em>、<em>キャラクター紹介</em>などが見れます。設定では<em>文字の大きさ</em>、<em>縦書き / 横書き</em>の切り替え、段落間の<em>空行の有無</em>などが変更できます。',
+        body: '画面右下のボタンを開くと、<em>設定</em>や<em>栞</em>、<em>人物</em>などが見れます。設定では<em>文字の大きさ</em>、<em>縦書き / 横書き</em>の切り替え、段落間の<em>空行の有無</em>などが変更できます。',
         figure: 'menu',
     },
     {
@@ -285,7 +285,7 @@ function _buildShell(): void {
                 '</div>' +
                 '<footer class="tutorial-foot">' +
                     '<div class="tutorial-nav">' +
-                        '<button type="button" class="tutorial-prev">戻る</button>' +
+                        '<button type="button" class="tutorial-prev">もどる</button>' +
                         '<div class="tutorial-dots">' + dots + '</div>' +
                         '<button type="button" class="tutorial-next">次へ</button>' +
                     '</div>' +
@@ -338,8 +338,8 @@ function _figureHTML(kind: FigureKind): string {
             '</div>';
     }
     // kind === 'menu'：実在するメニュー項目を並べ、本文で触れる「栞を追加 / キャラクター紹介 / 設定」を強調する
-    const items = ['目次へ戻る', '栞を追加', 'チュートリアル', 'キャラクター紹介', '設定', '共有'];
-    const hi: Record<string, boolean> = { '栞を追加': true, 'キャラクター紹介': true, '設定': true };
+    const items = ['目次へもどる', '栞を追加', 'チュートリアル', '人物', '設定', '共有'];
+    const hi: Record<string, boolean> = { '栞を追加': true, '人物': true, '設定': true };
     const lis = items.map((t) => '<li class="' + (hi[t] ? 'is-hi' : '') + '">' + t + '</li>').join('');
     return '' +
         '<div class="fig fig-menu" aria-hidden="true">' +

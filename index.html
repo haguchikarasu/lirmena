@@ -167,10 +167,10 @@
         <!-- ロゴは読者の今の stage の色のまま（表紙ギャラリーで過去の巻の絵を見ても替えない） -->
         <h1><img id="idx-hero-logo" alt="輝くもの《リルメナ》" onerror="this.onerror=null;this.src='vol01/theme/logo.webp'" /></h1>
         <p id="idx-hero-rule" aria-hidden="true"><span>✦</span></p>
-        <!-- 読み始めるボタン：初めて＝「第一話から読む」、途中＝「続きから読む」＋下に位置、最新まで読了＝「第N話#M を読み返す」
+        <!-- 読み始めるボタン：初めて＝「第1話から読む」、途中＝「続きから読む」＋下に位置、最新まで読了＝「第N話 #M を読み返す」
              ＋下に次回の更新（index.ts）。素の href は JS が動かないとき用 -->
         <nav id="idx-cta" aria-label="読み始める">
-          <a id="idx-cta-btn" href="contents/01-00.html">第一話から読む</a>
+          <a id="idx-cta-btn" href="contents/01-00.html">第1話から読む</a>
           <small id="idx-cta-sub"></small>
         </nav>
       </section>
@@ -213,7 +213,7 @@
   </script>
 
   <!-- 上の帯：目次の FAB を廃止した代わりの置き場（要件 06-7「FAB の全項目の行き先」）。ヒーローの上では透明でボタンだけ、
-       ヒーローを過ぎると帯になり、タイトルと「▶ 第N話#M」（続きから読む）も出る（<body data-past-hero>。toc-page.css）。
+       ヒーローを過ぎると帯になり、タイトルと「▶ 第N話 #M」（続きから読む）も出る（<body data-past-hero>。toc-page.css）。
        ランドマークは nav（body 直下の header は banner になり、ヒーローと 2 つになる） -->
   <nav id="idx-topbar" aria-label="ページの操作">
     <a id="idx-topbar-mark" href="#idx-hero">輝くもの《リルメナ》</a>
@@ -227,7 +227,7 @@
 
   <main id="idx-main">
     <!-- 左：本文への導線（巻 → 話の扉絵バナー → 節のチップ。中身は index.ts が story.json から組む） -->
-    <nav id="idx-ep-nav" aria-label="エピソード一覧">
+    <nav id="idx-ep-nav" aria-label="話の一覧">
       <section id="episodes-area">
         <p class="loading-text">読み込み中…</p>
       </section>
@@ -317,7 +317,7 @@
 
   <!-- 設定の見本（PC だけ。要件 06-7）：設定シートを開いている間、シートの左側（ページ全体）を本文の見本にする。
        選んだ瞬間に見本が変わる（index.ts が data-* に設定を写す。組みは本番の本文と同じ値＝toc-page.css）。
-       文は第1話#1 の本文（public/vol01/ep01/txt/01-01.txt の「……知らないが、途中までなら」〜「ふとあることに気付いた。」）を
+       文は第1話 #1 の本文（public/vol01/ep01/txt/01-01.txt の「……知らないが、途中までなら」〜「ふとあることに気付いた。」）を
        そのまま写したもの（書き足さない。本文を直したらここも直す＝同期を見る検査は無い）。背景は同じ場面の絵。
        スマホでは出さない（シートの外の面が狭く見本にならない。そのため目次の設定シートはスマホでは全画面） -->
   <section id="idx-preview" hidden aria-hidden="true">

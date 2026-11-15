@@ -49,7 +49,7 @@ test.describe('資料ページ', () => {
         await page.goto('/lirmena/contents/01-01.html?dev');
         await expect(page.locator('#main-container')).toBeVisible();
         await page.locator('#menu-toggle').click();
-        await page.getByRole('button', { name: 'エシュカ地図' }).click();
+        await page.getByRole('button', { name: '地図', exact: true }).click();
         await page.locator('#world-sheet-page').click();
         await expect(page).toHaveURL(/\/lirmena\/map\.html\?dev$/);
         await page.locator('#wp-tab-characters').click();
@@ -62,7 +62,7 @@ test.describe('資料ページ', () => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();
         await page.locator('#menu-toggle').click();
-        await page.getByRole('button', { name: 'キャラクター紹介' }).click();
+        await page.getByRole('button', { name: '人物', exact: true }).click();
         await page.locator('#characters-overlay .cv-face').nth(2).click();
         await page.locator('#world-sheet-page').click();
         await expect(page).toHaveURL(/\/lirmena\/characters\.html#vol=1&who=/);

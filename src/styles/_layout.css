@@ -183,7 +183,7 @@ html.is-selecting #main-container {
   outline-offset: -2px;
 }
 
-/* 日本語テキストラベル（「次へ」「目次へ戻る」「Ｘでポスト」「マシュマロを送る」）：縦書きは縦組み・小さめフォント
+/* 日本語テキストラベル（「次へ」「目次へもどる」「X でポスト」「マシュマロを送る」）：縦書きは縦組み・小さめフォント
    inline-size（縦組みでは物理 height）は基底の指定に委ねる（値は上の #btn-next / #btn-share-* の定義が持つ＝ここに再掲しない） */
 #btn-next.is-text-label,
 #btn-afterword.is-text-label,
@@ -191,6 +191,11 @@ html.is-selecting #main-container {
 #btn-share-marshmallow.is-text-label {
   font-size: 0.85rem;
   writing-mode: vertical-rl;
+}
+
+/* 「X でポスト」の半角 X は縦組みだと横倒しになるので立てる（以前は全角Ｘで避けていた。呼び名を半角の「X」に揃えたため） */
+#btn-share-x.is-text-label {
+  text-orientation: upright;
 }
 
 /* タッチ端末の block-size 拡張は撤回：実機（スマホ縦書き）で 4rem が太く見えるため、PC と同じ 3rem に
@@ -372,7 +377,7 @@ html[data-writing-mode="horizontal"] .btn-container {
   flex-direction: column;
 }
 
-/* 「目次へ戻る」「Ｘでポスト」「マシュマロを送る」テキストラベルは横書きで普通に横へ組む
+/* 「目次へもどる」「X でポスト」「マシュマロを送る」テキストラベルは横書きで普通に横へ組む
    （縦書き用の vertical-rl を打ち消す）。block-size は基底で書字方向共通に指定済みなので
    分岐では書かない（縦書き幅＝横書き高さで揃える方針）。inline-size は基底の指定に委ねる。
    width: auto も書かない（書くと基底の inline-size 引き伸ばしが打ち消される） */

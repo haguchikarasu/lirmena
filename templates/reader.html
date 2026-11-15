@@ -130,7 +130,7 @@
   <span id="badge-dev"></span>
   <!-- 記録を止めているときの札（要件 06-6。main.ts が保留中で最前線でない本文ページでだけ hidden を外す。あとがきでは出さない）。
        読者にも見える。押すと下の #hold-popup を開く（ui/hold-badge.ts） -->
-  <button id="badge-hold" type="button" aria-haspopup="dialog" hidden>既読抑止中</button>
+  <button id="badge-hold" type="button" aria-haspopup="dialog" hidden>読書記録抑止中</button>
   <!-- ローディング（main.ts が hidden を付与して非表示にする） -->
   <p id="loading" role="status">読み込み中</p>
 
@@ -151,7 +151,7 @@
       <div id="btn-share-group" hidden>
         <p id="btn-share-heading">感想を届ける</p>
         <div id="btn-share-row">
-          <a id="btn-share-x" class="is-text-label" href="#" target="_blank" rel="noopener noreferrer">Ｘでポスト</a>
+          <a id="btn-share-x" class="is-text-label" href="#" target="_blank" rel="noopener noreferrer">X でポスト</a>
           <a id="btn-share-marshmallow" class="is-text-label" href="#" target="_blank" rel="noopener noreferrer">マシュマロを送る</a>
         </div>
       </div>
@@ -220,7 +220,7 @@
       <ul>
         <li>オートセーブ</li>
         <li>続きから読む</li>
-        <li>到達/読破</li>
+        <li>既読/読破</li>
       </ul>
     </section>
   </dialog>
