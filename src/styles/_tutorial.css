@@ -9,9 +9,9 @@
   /* チュートリアル用トークン（このファイルの関心事） */
   --tut-overlay: rgba(6, 8, 6, 0.72);
   --tut-card-bg: rgba(20, 22, 20, 0.98);
-  --tut-card-border: rgba(255, 255, 255, 0.10);
-  --tut-ink: #e8e0d0;
-  --tut-ink-sub: #a29c8e;
+  --tut-card-border: var(--line);
+  --tut-ink: var(--ink);
+  --tut-ink-sub: var(--ink-dim);
   /* アクセント色は _base.css の --stage-hue（stage 別で色相が切り替わる）経由で解決する。
      彩度・明度はチュートリアル側の裁量で --tut-s / --tut-l に分解して持つ（S 38% L 63% の中明度アクセント／L 10% の暗色文字）。
      未設定時は :root で --stage-hue: var(--stage-1-hue) = 146° にフォールバック（現行の緑系）。
@@ -21,7 +21,7 @@
   --tut-ink-s:  40%;
   --tut-ink-l:  10%;
   --tut-accent:     hsl(var(--stage-hue) var(--tut-s) var(--tut-l));         /* キーカラー：stage 別（stage1 = 緑・以下シアン/紫/赤/黄） */
-  --tut-arrow:      #e8e0d0;                                                  /* ドラッグの「動かす方向」矢印。アクセントと区別する中立色 */
+  --tut-arrow:      var(--ink);                                                  /* ドラッグの「動かす方向」矢印。アクセントと区別する中立色 */
   --tut-accent-ink: hsl(var(--stage-hue) var(--tut-ink-s) var(--tut-ink-l)); /* アクセントボタン上の文字色（stage 別・暗色） */
   --tut-radius: 16px;
 }

@@ -14,10 +14,10 @@
   --gl-accent: hsl(var(--stage-hue) 91% var(--gl-accent-l));
   --gl-accent-dim: hsl(var(--stage-hue) 40% 17%);
   --gl-flash: hsl(var(--stage-hue) 60% 40% / 0.16);
-  --gl-term: #e8e4dc;
+  --gl-term: var(--ink);
   --gl-body: #b8b8b8;
-  --gl-muted: #8a8a8a;
-  --gl-line: #1c1c1c;
+  --gl-muted: var(--ink-dim);
+  --gl-line: var(--line);
 }
 
 /* stage 3/4/5 は明度を持ち上げる（紫・赤は暗すぎる／黄は光を表現）。
@@ -46,7 +46,7 @@ body[data-kind="afterword"] .gl-root {
   background: none;
   border: 1px solid #2c2c2c;
   border-radius: 2px;
-  color: #9a9a9a;
+  color: var(--gl-muted);
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;

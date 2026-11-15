@@ -48,7 +48,7 @@
 }
 .cv-face-name { display: block; margin-top: 4px; font-size: 11px; white-space: nowrap; }
 .cv-face-name rt { font-size: 0.6em; }
-.cv-face[aria-pressed="true"] { color: var(--sheet-text, #e6e1d6); }
+.cv-face[aria-pressed="true"] { color: var(--sheet-text); }
 .cv-face[aria-pressed="true"] img,
 .cv-face[aria-pressed="true"] .cv-face-initial {
   border-color: var(--sheet-accent, #2df590);
@@ -99,8 +99,8 @@
   font-size: 12px;
   cursor: pointer;
 }
-.cv-vol:hover { color: var(--sheet-text, #e6e1d6); }
-.cv-vol[aria-pressed="true"] { color: var(--sheet-text, #e6e1d6); border-color: var(--sheet-line, rgba(255, 255, 255, 0.2)); }
+.cv-vol:hover { color: var(--sheet-text); }
+.cv-vol[aria-pressed="true"] { color: var(--sheet-text); border-color: var(--sheet-line); }
 .cv-vol:focus-visible { outline: 2px solid var(--sheet-accent, #2df590); outline-offset: 1px; }
 
 /* ----- スマホの資料ページ：画面を使い切る並び -----

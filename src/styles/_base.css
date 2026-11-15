@@ -122,23 +122,20 @@
   --fade-in-duration-main:  0.8s;   /* メインコンテナ 遷移後明け時間 */
   --immersive-fade:         0.6s;   /* 背景鑑賞モード 暗幕・クロムのフェード時間（immersive.ts） */
 
-  /* キャラクター紹介（開発者が調整する定数） */
-  --chara-img-width: 100%;   /* カード内での画像幅 */
-
   /* 読書点（基準点）。settings.ts が localStorage 値で上書きする単一の源。
      bg.ts はこれを読んでクロスフェード中点に使い、tutorial.ts はマーカー位置に使う。
      本文表示幅（#main-container 幅）基準の連続 %。中央(50%)よりやや読み終わり側 */
   --reading-anchor: 45%;
 
-  /* テーマカラー（meta theme-color と合わせること） */
-  --theme-color: #080808;
+  /* テーマカラー＝地（値は _palette.css の --ground。meta theme-color と合わせること） */
+  --theme-color: var(--ground);
 
   /* 物語進行段階（stage）別キーカラー。stage1=vol1到達（初期・未到達読者）／2=vol2到達／3=vol3到達／
      4=vol4到達／5=vol4読破（物語完結）。
 
      ● 唯一の真実源 = 色相変数 --stage-N-hue（下の 5 定数）。html[data-story-stage="N"] セレクタが
        解決変数 --stage-hue を該当 hue に差し替える（本ファイル末尾のセレクタ群）。
-       進捗バー塗り色・目次アクセント（--idx-accent／--idx-border-accent／toc.css）・チュートリアル
+       進捗バー塗り色・目次アクセント（--idx-accent／toc.css）・チュートリアル
        アクセント（--tut-accent／--tut-accent-ink／_tutorial.css）は全て var(--stage-hue) 経由で
        色相を取るため、この5定数を書き換えるだけでサイト全体のキーカラーが動く。
        彩度・明度は UI ごとに違う（進捗バー：低彩度・目次：高彩度）ので各 UI 側で持たせる。
@@ -274,8 +271,8 @@ html[data-writing-mode="vertical"] {
 
 html, body {
   height: 100%;
-  background: var(--theme-color);  /* #080808。meta theme-color・FOUC 先付け・manifest と同値（07-ogp.md） */
-  color: #e8e0d0;
+  background: var(--theme-color);  /* --ground（_palette.css）。meta theme-color・FOUC 先付け・manifest と同値（07-ogp.md） */
+  color: var(--ink);
   font-family: var(--font-family);
   font-size: 16px;
 }

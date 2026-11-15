@@ -36,7 +36,7 @@
   <link rel="manifest" href="../app.webmanifest" />
   <link rel="apple-touch-icon" href="../vol01/favicon1.png" />
   <!-- FOUC 回避（背景色の白フラッシュ対策）：本体 CSS が到着する前の一瞬に真っ白が見えるのを防ぐため、
-       body 背景と文字色だけをインラインで先付ける。値は _base.css の html/body ルール（--theme-color=#080808）と一致。
+       body 背景と文字色だけをインラインで先付ける。値は src/styles/_palette.css の --ground（#080808）・--ink（#e8e0d0）と一致させる。
        Vite が注入する本体 CSS の link 要素は pages() プラグインで script より前に移動するが、fetch 完了までの
        極短時間だけ UA デフォルト（白）が見えるのを、この保険で黒に倒す。 -->
   <!-- head-contract:fouc:start -->

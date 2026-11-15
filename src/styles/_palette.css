@@ -1,0 +1,25 @@
+/*
+ * _palette.css — 中立色（文字・弱い文字・線・面・地）の唯一の定義。
+ * 本文・タイトル（index.css）と目次・資料ページ（toc.css）の両方が先頭で @import する。
+ * 各部品の変数（--sheet-*・--idx-*・--gl-*・--tut-*）はここを var() で参照する読み替えに留め、値は持たない。
+ * キーカラー（stage の色相）はここでは扱わない（_base.css・toc.css）。
+ *
+ * CSS 変数を読めない場所には値の写しがある：templates/reader.html・title.html の先付けと meta theme-color、
+ * manifest（07-ogp.md）。--ground・--ink を変えたらそれらも直す。
+ */
+:root {
+  --ground:         #080808;                  /* 地：html・body の背景 */
+  --surface:        #121212;                  /* 面：シート・資料ページの紙面 */
+  --surface-raised: #161616;                  /* 一段浮いた面：確認のポップアップ */
+  --ink:            #e8e0d0;                  /* 文字 */
+  --ink-dim:        #9a968e;                  /* 弱い文字：補足・日付・ラベル */
+  --line:           rgba(255, 255, 255, 0.12); /* 線：区切り・枠 */
+}
+
+/* ライトの紙面（紙 #eeedea・墨 #16171a）の上書き口。値は地図の実装時に入れる。
+   有効化の手段（属性名・付与する場所）もその時に決める。
+:root[data-paper="light"] {
+  --ground: …; --surface: …; --surface-raised: …;
+  --ink: …; --ink-dim: …; --line: …;
+}
+*/

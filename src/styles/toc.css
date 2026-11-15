@@ -2,6 +2,7 @@
    リセット・body・パレット・stage 別キーカラー・dev 札（#badge-dev）・読み上げ専用・ルビ・読み込み中の文字。
    目次そのものの見た目は toc-page.css（index.ts だけが読む）、資料ページの枠組みは world-page.css。
    シート（設定・共有・資料）と確認は本文と同じ _sheet.css を各エントリが読む（<dialog> の最前面の層に出るので重なり順の調整は要らない）。 */
+@import './_palette.css';
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -15,21 +16,9 @@
 
 /* === 目次ページ カラーパレット === */
 :root {
-  --idx-bg:            #080808;
-  --idx-surface:       #0e0e0e;
-  --idx-border:        #1a1a1a;
-  --idx-border-strong: #202020;
-  /* アクセント色は --stage-hue（stage 別で色相が切り替わる）経由で解決する。
-     彩度は 91% 固定・明度は --idx-accent-l で stage 別に補正可能（暗色 stage の紫/赤は明るく、黄は光を表現）。
-     未設定時は下記の --stage-hue: var(--stage-1-hue) = 146° にフォールバック＝現行の緑系 #1a3a28 / #2df590 と同色。 */
-  --idx-border-accent: hsl(var(--stage-hue) 40% 17%);
-
-  --idx-text-primary:  #e8e8e8;
+  --idx-bg:            var(--ground);
   --idx-text-body:     #cccccc;
-  --idx-text-muted:    #b8b8b8;
   --idx-text-dim:      #505050;
-  --idx-text-faint:    #b8b8b8;
-  --idx-text-date:     #a0a0a0;
 
   /* 目次アクセント明度（既定 stage 1/2 の 57%）。stage 3/4/5 は下の切替セレクタで持ち上げる。 */
   --idx-accent-l: 57%;

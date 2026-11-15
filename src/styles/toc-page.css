@@ -13,10 +13,10 @@
   --idx-art-c2: hsl(var(--stage-hue) 50% 11%);
   --idx-art-c3: hsl(var(--stage-hue) 50% 5%);
   --idx-logo-at: 173.3;
-  --idx-text: #e8e0d0;
-  --idx-dim: #9a9a9a;
+  --idx-text: var(--ink);
+  --idx-dim: var(--ink-dim);
   --idx-panel: rgba(14, 14, 14, 0.72);
-  --idx-line: rgba(255, 255, 255, 0.1);
+  --idx-line: var(--line);
 }
 html[data-story-stage="1"] { --idx-art-c1: #0b4d5e; --idx-art-c2: #063241; --idx-art-c3: #03161d; }
 html[data-story-stage="2"] { --idx-art-c1: #1d3036; --idx-art-c2: #122025; --idx-art-c3: #070d10; }

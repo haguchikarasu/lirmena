@@ -31,10 +31,10 @@
   width: 40px;
   height: 40px;
   padding: 0;
-  border: 1px solid var(--sheet-line, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--sheet-line);
   border-radius: 50%;
   background: rgba(10, 10, 10, 0.75);
-  color: var(--sheet-text, #e6e1d6);
+  color: var(--sheet-text);
   cursor: pointer;
 }
 .mv-zoom-btn:disabled { opacity: 0.35; cursor: default; }
@@ -47,7 +47,7 @@
   bottom: 12px;
   z-index: 1;
   padding: 0.3rem 0.8rem;
-  border: 1px solid var(--sheet-line, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--sheet-line);
   border-radius: 999px;
   background: rgba(10, 10, 10, 0.75);
   color: #ccc;
