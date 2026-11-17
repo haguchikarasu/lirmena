@@ -39,6 +39,11 @@ html[data-writing-mode="horizontal"] #progress-fill {
    開幕アフォーダンス（opening.ts が <html>.at-opening で表示制御）
    本文先頭の黒い恒久余白（progress 0）でのみ表示し、本文に入るとフェードアウトする。
    黒地に浮く素の戻るボタン・読書点マーカーは開幕中は隠し、ここ（「読み進める」＋薄い「もどる」）へ一本化する。
+   「もどる」「読み進める」はアイコン＋小さい文字（.opening-caption）。アイコンは横書きの向き（下＝進む）で描いてあり、
+   縦書きでは html[data-writing-mode="vertical"] で 90° 回す（属性が無い・不正値なら横書き＝axis.ts と同じ倒し方）。
+   アイコンの線・塗りは _sheet.css の .ic を前提にする（.ic を変えたら開幕の表示も確かめる）。
+   文字色は _palette.css の --ink から取り、薄さは color-mix で透明と混ぜて付ける（中立色の値を直書きしない＝
+   design/architecture.md。src/opening-shell.test.ts が見る）。影（黒）は文字色ではないので直書きのまま。
 =================================================== */
 #opening-affordance {
   position: fixed;
@@ -53,7 +58,14 @@ html[data-writing-mode="horizontal"] #progress-fill {
   pointer-events: none;        /* 余白部分のスクロール／タップは透過。下のボタンだけ拾う */
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.45s ease, visibility 0.45s;
+  transition: opacity 0.45s ease, visibility 0.45s;   /* 変えない：opening.ts がこの時間を読んで「読み進める」のスクロール時間に使う */
+  /* 「読み進める」のアイコンを進行方向へ揺らす量（横書き＝下）。縦書きは下で左へ */
+  --opening-nudge-x: 0px;
+  --opening-nudge-y: 5px;
+}
+html[data-writing-mode="vertical"] #opening-affordance {
+  --opening-nudge-x: -5px;
+  --opening-nudge-y: 0px;
 }
 
 html.at-opening #opening-affordance {
@@ -67,35 +79,41 @@ html.at-opening #opening-affordance {
   margin: 0;
   font-size: 0.95rem;
   letter-spacing: 0.3em;
-  color: rgba(224, 220, 212, 0.55);
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
 }
 
+/* ボタン：アイコンの下に小さい文字。押せる範囲は 44px 以上（読み進めるは 64px） */
 #opening-start,
 #opening-back {
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 8px;
   border: none;
   background: none;
-  color: #e0dcd4;
+  color: var(--ink);           /* アイコン（currentColor）と小さい文字（継承）はここから色を取る */
   font-family: inherit;
-  letter-spacing: 0.18em;
   cursor: pointer;
 }
 
 #opening-start {
-  font-size: 1.35rem;
-  padding: 0.4rem 1rem;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
-  animation: opening-breathe 2.6s ease-in-out infinite;
+  min-width: 64px;
+  min-height: 64px;
+  animation: opening-breathe 2.6s ease-in-out infinite;   /* 明滅はボタン全体（アイコン＋文字） */
 }
 
 #opening-back {
-  font-size: 0.85rem;
-  color: rgba(224, 220, 212, 0.5);
+  color: color-mix(in srgb, var(--ink) 50%, transparent);   /* 副＝薄い */
   transition: color 0.2s;
 }
 #opening-back:hover {
-  color: rgba(224, 220, 212, 0.9);
+  color: color-mix(in srgb, var(--ink) 90%, transparent);
 }
 
 #opening-start:focus-visible,
@@ -104,17 +122,57 @@ html.at-opening #opening-affordance {
   outline-offset: 4px;
 }
 
+/* アイコン。線・塗りは _sheet.css の .ic（後から読まれる）。大きさと縁取りだけここで上書きする
+   （ID を含むセレクタなので読み込み順に関係なく勝つ。.ic だけで書くと 20px に負ける） */
+#opening-affordance .ic {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.9));   /* 黒地・背景画像の上で縁を立てる */
+}
+#opening-start .ic {
+  width: 40px;
+  height: 40px;
+  stroke-width: 1.2;           /* 大きく描くので、見た目の線が 2px 前後になるよう細くする */
+  animation: opening-nudge 2.6s ease-in-out infinite;   /* 明滅と同じ周期で進行方向へ揺れる */
+}
+#opening-back .ic {
+  width: 22px;
+  height: 22px;
+}
+/* 縦書き：横書きの向き（下＝進む）で描いたアイコンを 90° 回す（下→左、上→右）。
+   揺れは translate（親の座標で効く）で、rotate とは別のプロパティなので重ねても干渉しない */
+html[data-writing-mode="vertical"] #opening-affordance .ic {
+  rotate: 90deg;
+}
+
+/* 小さい文字。消す・隠すだけで文字なしになる（ボタンの名前は aria-label が持つ） */
+.opening-caption {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  padding-left: 0.18em;        /* 字間で右へ寄るのを打ち消す */
+  line-height: 1.4;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+
 /* 「読み進める」のゆっくりした明滅（誘目）。動きを抑えたい設定では止める。 */
 @keyframes opening-breathe {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 1; }
 }
+/* 「読み進める」のアイコンを進行方向へ小さく揺らす。量は #opening-affordance の変数（書字方向で切り替わる） */
+@keyframes opening-nudge {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: var(--opening-nudge-x) var(--opening-nudge-y); }
+}
 @media (prefers-reduced-motion: reduce) {
   #opening-start { animation: none; opacity: 0.92; }
+  #opening-start .ic { animation: none; }
 }
 
 /* 開幕アフォーダンスの並びは「現在地ラベル → もどる → 読み進める」（シェルの DOM 順で固定。縦横共通＝
-   進行＝下/戻る＝上の対応に合わせ読み進めるを末尾に置く）。CSS の order 分岐は持たない。 */
+   進行＝下/戻る＝上の対応に合わせ読み進めるを末尾に置く）。CSS の order 分岐は持たない。
+   縦横の違いはアイコンの向き（上の rotate）と揺れの向き（--opening-nudge-*）だけで表す。 */
 
 /* 開幕中は余白に浮く読書点マーカーを隠してアフォーダンスへ一本化する（端の戻るボタンは廃止済み）。 */
 html.at-opening #reading-anchor {

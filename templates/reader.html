@@ -163,11 +163,20 @@
     <div id="progress-fill"></div>
   </div>
 
-  <!-- 開幕アフォーダンス（opening.ts が操作。<html>.at-opening のときだけ CSS で表示） -->
+  <!-- 開幕アフォーダンス（opening.ts が操作。<html>.at-opening のときだけ CSS で表示）。
+       アイコンは横書き（進行＝下）の向きで描き、縦書きでは CSS が 90° 回す（_progress.css）。線は currentColor、飾りなので読み上げない。
+       ボタンの名前は aria-label が持つ＝下の小さい文字（.opening-caption）は消しても隠しても名前が残る（文字なしへの移行の備え）。
+       aria-label と小さい文字は同じ語に揃える（src/opening-shell.test.ts が見る） -->
   <aside id="opening-affordance">
     <p id="opening-label"></p>
-    <button id="opening-back" type="button">もどる</button>
-    <button id="opening-start" type="button">読み進める</button>
+    <button id="opening-back" type="button" aria-label="もどる">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v9a4 4 0 0 0 8 0V5"/><path d="M12.5 8.5L16 5l3.5 3.5"/></svg>
+      <span class="opening-caption" aria-hidden="true">もどる</span>
+    </button>
+    <button id="opening-start" type="button" aria-label="読み進める">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 9l6.5 6.5L18.5 9"/></svg>
+      <span class="opening-caption" aria-hidden="true">読み進める</span>
+    </button>
   </aside>
 
   <!-- 右下ナビゲーションメニュー（menu.ts が操作） -->
