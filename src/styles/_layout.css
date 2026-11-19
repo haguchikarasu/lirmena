@@ -193,9 +193,17 @@ html.is-selecting #main-container {
   writing-mode: vertical-rl;
 }
 
-/* 「X でポスト」の半角 X は縦組みだと横倒しになるので立てる（以前は全角Ｘで避けていた。呼び名を半角の「X」に揃えたため） */
+/* 「X でポスト」の半角 X は縦組みだと横倒しになるので立てる（以前は全角Ｘで避けていた。呼び名を半角の「X」に揃えたため）。
+   upright は半角スペースも立てて 1 文字分の空きにしてしまうので、縦書きでは空白（#btn-share-x-space）を消して
+   「Xでポスト」と詰めて組む。空白を出すのは横書きだけ（下の横書きの節）。読み上げの名前は aria-label が持つ。
+   ラベル全体を #btn-share-x-label で 1 つに包んでいるのは、<a> が display:flex のため：包まないと「X」「空白」
+   「でポスト」が別々のフレックス項目になり、空白だけの項目は幅 0 に潰れて横書きでも空白が消える */
 #btn-share-x.is-text-label {
   text-orientation: upright;
+}
+
+#btn-share-x-space {
+  display: none;
 }
 
 /* タッチ端末の block-size 拡張は撤回：実機（スマホ縦書き）で 4rem が太く見えるため、PC と同じ 3rem に
@@ -387,6 +395,11 @@ html[data-writing-mode="horizontal"] #btn-share-x.is-text-label,
 html[data-writing-mode="horizontal"] #btn-share-marshmallow.is-text-label {
   writing-mode: horizontal-tb;
   padding: 0.4rem 0.8rem;
+}
+
+/* 「X でポスト」の X と「でポスト」の間の空白は横書きでだけ出す（縦書きでは消している＝上の縦書きの節） */
+html[data-writing-mode="horizontal"] #btn-share-x-space {
+  display: inline;
 }
 
 /* 縦中横は横書きでは無効化（マークアップ .tcy は維持し CSS のみで切る） */
