@@ -146,7 +146,8 @@ module.exports = {
     tsConfig: { fileName: 'tsconfig.json' },
     doNotFollow: { path: 'node_modules' },
     includeOnly: '^src/',
-    exclude: { path: '(vite-env\\.d\\.ts$|\\.test\\.ts$|\\.css$)' },
+    // src/test-support/ はテスト専用の代用（*.test.ts からだけ読まれる＝テストを除くと孤立に見える）
+    exclude: { path: '(vite-env\\.d\\.ts$|\\.test\\.ts$|\\.css$|(^|/)src/test-support/)' },
     reporterOptions: {
       text: { highlightFocused: true },
     },
