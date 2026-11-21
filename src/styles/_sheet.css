@@ -353,7 +353,7 @@ dialog.confirm {
 dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.55); }
 .confirm-msg { margin: 0; font-size: 15px; line-height: 1.8; text-align: center; }
 .confirm-note { margin: 4px 0 0; font-size: 12px; line-height: 1.7; text-align: center; color: var(--sheet-dim); }
-.confirm-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.confirm-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 0; }
 .confirm-btns button {
   padding: 10px;
   border: 1px solid var(--sheet-line);

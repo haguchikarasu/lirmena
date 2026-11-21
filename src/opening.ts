@@ -21,6 +21,11 @@
  *   スクロール時間をアフォーダンスの CSS フェード時間に合わせるため、スクロール完了とフェード完了がほぼ同時になる。
  *   進行方向は axis が解決する：forward 量（0 起点・正値）で計算し axis.setProgress で書く（縦書き=scrollLeft 負方向／横書き=scrollTop 正方向）。
  *
+ * キーボードのフォーカス（要件 08）:
+ *   開幕のボタンは開幕でないときも Tab の停止先に残る（CSS は透明にして押せなくするだけ）。フォーカスが来たら本文を頭へ
+ *   戻して開幕を出す＝本文末から Shift+Tab で戻れる。開幕を抜けるときは、開幕のボタンに残ったフォーカスを外す
+ *   （透明なボタンにフォーカスを残さない）。判断の理由は design/modules/opening.md。
+ *
  * 「もどる」の挙動（要件 06-6）:
  *   戻る遷移は nav.goPrev() に委譲する（端の戻るボタンは廃止し戻る導線はここに一本化）。前 sec 本文へ戻るときは
  *   その sec の本文末（読み終わり側）へ着地し、当 ep 先頭 sec からは当 ep タイトルへ戻る（離脱フェード付き）。
@@ -39,6 +44,8 @@ const AT_OPENING_PX = 4;
 
 // 「読み進める」スクロール中は update() が .at-opening を再付与しないようにするガード。
 let _transitioning = false;
+// 「読み進める」スクロールの通し番号。進めると、動いている途中のスクロールが止まる（_returnToOpening が使う）。
+let _scrollRun = 0;
 
 // 現在地ラベル・「読み進める」「もどる」ボタンを初期化する。main.ts が起動時に1度だけ呼ぶ。
 // 本文モードは "EP-SEC" 形式（"01-02"）、あとがきモードは「第◯巻あとがき」形式でラベルを埋める。
@@ -65,6 +72,30 @@ export function init(): void {
     // 「もどる」：戻る遷移 nav.goPrev() に委譲する（本文モードは前 sec 本文末／あとがきモードは自 vol 巻末 sec 本文末）。
     // モード分岐は nav.goPrev 内で行うため opening 側では常に同じ呼び方でよい。
     back?.addEventListener('click', () => nav.goPrev());
+
+    // キーボードのフォーカスが開幕のボタンへ来たら、本文を頭へ戻して開幕を出す（本文末から Shift+Tab で戻ってきたとき）。
+    // 開幕のボタンは本文の頭にある部品なので、本文末の「次へ」に Tab が止まると本文が末尾へ動くのと同じ扱いにする。
+    document.getElementById('opening-affordance')?.addEventListener('focusin', _returnToOpening);
+}
+
+// 開幕でないときに開幕のボタンがフォーカスを受けたら、本文を頭へ戻して開幕を出す。開幕のときは何もしない。
+// _returnToOpening(): void
+function _returnToOpening(): void {
+    const html = document.documentElement;
+    if (html.classList.contains('at-opening')) return;
+    const container = document.getElementById('main-container');
+    if (!container) return;
+    _scrollRun++;              // 「読み進める」のスクロールが動いている途中なら止める
+    _transitioning = false;
+    axis.setProgress(container, 0);
+    html.classList.add('at-opening');   // スクロールの通知（update）を待たずに出す＝フォーカスの枠がすぐ見える
+}
+
+// 開幕のボタンにフォーカスが残っていたら外す（開幕を抜けるとボタンは透明になる＝見えない部品にフォーカスを残さない）。
+// _dropFocus(): void
+function _dropFocus(): void {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('#opening-affordance')) active.blur();
 }
 
 // 数値を2桁ゼロ埋めする（現在地ラベル "01-02" 用）。
@@ -79,7 +110,9 @@ function _pad(n: number): string {
 // update(forward: number): void
 export function update(forward: number): void {
     if (_transitioning) return;
-    document.documentElement.classList.toggle('at-opening', forward <= AT_OPENING_PX);
+    const atOpening = forward <= AT_OPENING_PX;
+    document.documentElement.classList.toggle('at-opening', atOpening);
+    if (!atOpening) _dropFocus();   // 手でスクロールして開幕を抜けたとき
 }
 
 // 「読み進める」：開幕を解除（アフォーダンスをフェードアウト・マーカー/戻るボタンをフェードイン）しつつ、
@@ -91,6 +124,7 @@ function _readOn(): void {
     // フェード開始：開幕を解除する。スクロール中は update() に再付与させない。
     _transitioning = true;
     document.documentElement.classList.remove('at-opening');
+    _dropFocus();   // キーボードで押したとき、透明になるボタンにフォーカスを残さない（次の Tab は本文末へ進む）
 
     // 文章先頭辺（先頭シーンの読み始め辺）がマーカー位置に重なる forward 進行量 = 比率 × 進行軸ビューポート長。
     // 先頭の黒い恒久余白（btn-container-start）は長さ＝進行軸ビューポート長なので、この距離だけ進めると先頭辺がマーカーに乗る。
@@ -133,9 +167,11 @@ function _animateScrollTo(container: HTMLElement, targetForward: number, duratio
         return;
     }
 
+    const run = ++_scrollRun;
     const t0 = performance.now();
     const easeOut = (t: number) => 1 - Math.pow(1 - t, 3); // ease-out cubic
     const step = (now: number) => {
+        if (run !== _scrollRun) return;   // 途中で開幕へ戻された（_returnToOpening）
         const t = Math.min(1, (now - t0) / duration);
         axis.setProgress(container, startForward + delta * easeOut(t));
         if (t < 1) requestAnimationFrame(step);

@@ -56,9 +56,10 @@ html[data-writing-mode="horizontal"] #progress-fill {
   gap: 1.4rem;
   writing-mode: horizontal-tb;
   pointer-events: none;        /* 余白部分のスクロール／タップは透過。下のボタンだけ拾う */
+  /* 開幕でないときは透明にするだけで、visibility: hidden にはしない：ボタンを Tab の停止先に残すため（本文末から Shift+Tab で
+     戻れる。フォーカスが来たら opening.ts が本文を頭へ戻して開幕を出す＝要件 08）。押せなくするのは下の pointer-events */
   opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.45s ease, visibility 0.45s;   /* 変えない：opening.ts がこの時間を読んで「読み進める」のスクロール時間に使う */
+  transition: opacity 0.45s ease;   /* 変えない：opening.ts がこの時間を読んで「読み進める」のスクロール時間に使う */
   /* 「読み進める」のアイコンを進行方向へ揺らす量（横書き＝下）。縦書きは下で左へ */
   --opening-nudge-x: 0px;
   --opening-nudge-y: 5px;
@@ -70,7 +71,11 @@ html[data-writing-mode="vertical"] #opening-affordance {
 
 html.at-opening #opening-affordance {
   opacity: 1;
-  visibility: visible;
+}
+/* 開幕でないとき：見えないボタンをマウス・タッチで押せないようにする（キーボードのフォーカスは止めない） */
+html:not(.at-opening) #opening-start,
+html:not(.at-opening) #opening-back {
+  pointer-events: none;
 }
 
 /* 現在地ラベル（"01-02"）。黒地に「読み進める」だけだと何の画面か分からないので位置を示す。

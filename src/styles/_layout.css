@@ -37,7 +37,9 @@
   padding-top: 1em;
   padding-bottom: 1em;
   /* 既定＝手のひらツール（pan.ts）：ドラッグ＝スクロールなのでテキスト選択は無効・カーソルは grab。
-     子のボタン（cursor:pointer）・読書点ノブ（cursor:grab）は要素側がより具体的なので勝つ。 */
+     子のボタン（cursor:pointer）・読書点ノブ（cursor:grab）は要素側がより具体的なので勝つ。
+     -webkit- つきは Safari 用（接頭辞なしの user-select を読まない）。この下の 2 か所も同じ値を並べる。 */
+  -webkit-user-select: none;
   user-select: none;
   cursor: grab;
 }
@@ -51,6 +53,7 @@
    縦書き用テキストカーソル（vertical-text＝Iビームを 90° 回した形）にする。本文は vertical-rl なので
    横書きの text（縦バー）は向きが合わず違和感が出る。 */
 html.is-selecting #main-container {
+  -webkit-user-select: text;
   user-select: text;
   cursor: vertical-text;
 }
@@ -59,6 +62,7 @@ html.is-selecting #main-container {
    本文はネイティブ挙動（スワイプ＝スクロール／長押し＝選択）に戻す。 */
 @media (hover: none) and (pointer: coarse) {
   #main-container {
+    -webkit-user-select: text;
     user-select: text;
   }
 }

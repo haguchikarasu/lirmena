@@ -11,7 +11,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './_fixtures';
-import { position, scrollForward, setupRoutes, setWritingMode, waitReader } from './_records';
+import { gotoToc, openFromToc, position, scrollForward, setupRoutes, setWritingMode, waitReader } from './_records';
 
 const MODES = ['horizontal', 'vertical'] as const;
 type Mode = (typeof MODES)[number];
@@ -134,11 +134,80 @@ for (const mode of MODES) {
             const target = await readOnTarget(page);
             await startBtn(page).click();
             await expect(page.locator('html')).not.toHaveClass(/\bat-opening\b/);
-            await expect(page.locator('#opening-start')).toBeHidden();
+            await expect(aff(page), '開幕の器が透明になる').toHaveCSS('opacity', '0');
             await expectLandedAt(page, target);
         });
 
         // E9：開幕でないときは見えず、押せず、キーボードでも入れない。先頭へ戻すと再び出る
+        // E12：Tab は HTML に書いた順に動き、止まった部品が画面に映る位置へ本文が動く（要件 08）。Shift+Tab は同じ停止先を
+        // 逆順にたどり、本文の位置も行きと同じになる（開幕のボタンへ戻れば本文は頭へ戻る）。
+        // 目次から入る（直接開くと「読書記録抑止中」の札が出て、札が先に止まる＝下の E13）
+        test(`E12 Tab は「もどる」→「読み進める」→ 本文末 → メニューの順に進み、Shift+Tab で同じ道を戻る（${mode}）`, async ({ page }) => {
+            await setupRoutes(page);
+            await setWritingMode(page, mode);
+            await gotoToc(page);
+            await openFromToc(page, 1, 2);
+            await expect(page.locator('html')).toHaveClass(/\bat-opening\b/);
+            await expect(page.locator('#badge-hold')).toBeHidden();
+
+            // 止まった部品の id と、そのときの状態（開幕かどうか・本文の位置が頭か末尾か）を読む。
+            // 位置は「頭」か「本文末（頭を離れている）」に丸める（フォーカスに合わせた移動量はブラウザが決めるので px では比べない）
+            const stop = async (): Promise<string> => {
+                await expect.poll(async () => page.evaluate(() => document.activeElement?.id ?? '')).not.toBe('');
+                const id = await page.evaluate(() => document.activeElement!.id);
+                const opening = id.startsWith('opening-');
+                // 開幕のボタンに止まったら本文は頭にあり、開幕が出ている（スクロールの通知を待つ）
+                if (opening) await expect(page.locator('html')).toHaveClass(/\bat-opening\b/);
+                const { progress, range } = await position(page);
+                expect(range, '本文が短すぎて位置を区別できない').toBeGreaterThan(50);
+                const where = progress <= 4 ? '頭' : '本文末';
+                await expect(page.locator(`#${id}`), `#${id} が画面に映っている`).toBeInViewport();
+                return `${id}@${where}`;
+            };
+
+            const forward: string[] = [];
+            for (let i = 0; i < 6; i++) {
+                await page.keyboard.press('Tab');
+                forward.push(await stop());
+            }
+            expect(forward).toEqual([
+                'opening-back@頭', 'opening-start@頭',
+                'btn-next@本文末', 'btn-share-x@本文末', 'btn-share-marshmallow@本文末', 'menu-toggle@本文末',
+            ]);
+
+            const backward: string[] = [forward[forward.length - 1]];
+            for (let i = 0; i < 5; i++) {
+                await page.keyboard.press('Shift+Tab');
+                backward.push(await stop());
+            }
+            expect(backward, 'Shift+Tab は行きと同じ停止先を逆順にたどる').toEqual([...forward].reverse());
+        });
+
+        // E13：直接開いたときは、画面の上端にある「読書記録抑止中」の札が先で、そのあとは E12 と同じ
+        test(`E13 直接開いたときの Tab は、札 →「もどる」→「読み進める」の順（${mode}）`, async ({ page }) => {
+            await openAtOpening(page, mode);
+            await page.keyboard.press('Tab');
+            await expect(page.locator('#badge-hold')).toBeFocused();
+            await page.keyboard.press('Tab');
+            await expect(backBtn(page)).toBeFocused();
+            await page.keyboard.press('Tab');
+            await expect(startBtn(page)).toBeFocused();
+            await expect(page.locator('html')).toHaveClass(/\bat-opening\b/);
+        });
+
+        // E14：「読み進める」で本文へ入ったあと、見えなくなったボタンにフォーカスが残らない。次の Tab は本文末へ進む
+        test(`E14 「読み進める」を Enter で押すとフォーカスが外れ、次の Tab は本文末の「次へ」に止まる（${mode}）`, async ({ page }) => {
+            await openAtOpening(page, mode);
+            const target = await readOnTarget(page);
+            await startBtn(page).focus();
+            await page.keyboard.press('Enter');
+            await expectLandedAt(page, target);
+            expect(await page.evaluate(() => document.activeElement === document.body), '見えないボタンにフォーカスが残らない').toBe(true);
+            await page.keyboard.press('Tab');
+            await expect(page.locator('#btn-next')).toBeFocused();
+        });
+
+        // 開幕でないときのボタンは透明で、マウス・タッチでは押せない。キーボードのフォーカスは止めない（E12 が見る）
         test(`E9 開幕でないときはボタンが見えず押せない（${mode}）`, async ({ page }) => {
             await openAtOpening(page, mode);
             const target = await readOnTarget(page);
@@ -146,17 +215,14 @@ for (const mode of MODES) {
             await expectLandedAt(page, target);   // スクロールのアニメーションが終わる（＝update が開幕を判定し直せる）まで待つ
 
             const expectUnreachable = async (): Promise<void> => {
+                await expect(aff(page), '開幕の器が透明になる').toHaveCSS('opacity', '0');
                 for (const sel of ['#opening-start', '#opening-back']) {
-                    await expect(page.locator(sel)).toBeHidden();
-                    const r = await page.evaluate((s) => {
-                        const el = document.querySelector<HTMLElement>(s)!;
-                        const b = el.getBoundingClientRect();
+                    const hitInside = await page.evaluate((s) => {
+                        const b = document.querySelector<HTMLElement>(s)!.getBoundingClientRect();
                         const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-                        el.focus();
-                        return { hitInside: !!hit?.closest('#opening-affordance'), focused: document.activeElement === el };
+                        return !!hit?.closest('#opening-affordance');
                     }, sel);
-                    expect(r.hitInside, `${sel} の位置を押しても開幕に当たらない`).toBe(false);
-                    expect(r.focused, `${sel} にフォーカスが入らない`).toBe(false);
+                    expect(hitInside, `${sel} の位置を押しても開幕に当たらない`).toBe(false);
                 }
             };
             await expectUnreachable();

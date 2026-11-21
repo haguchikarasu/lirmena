@@ -10,6 +10,12 @@
  *     （design/architecture.md「HTML の書き方」）
  *   - title 属性が無い（吹き出しはキーボードで出せない。名前は aria-label か見える文字で付ける）
  *   - role="tab" の要素に aria-controls が無い（読み上げソフトが使わない。タブと中身の対応は aria-labelledby で付ける）
+ *   - 正の tabindex が無い（Tab は DOM の順に動かす。要件 08）
+ *   - <nav> には名前がある（aria-label か aria-labelledby）。本文シェルと断片で <nav> にしてよいのは、ページを移る
+ *     導線を持つ所だけ（ボタンを並べただけの所を「ナビゲーション」と読み上げさせない）
+ *   - 本文シェル：開幕の「もどる」「読み進める」が <main> より前にある（開幕で最初の Tab が止まる先）、
+ *     「読み込み中」に role を付けない（一時的な表示を読み上げさせない）
+ *   - CSS：user-select の宣言の直前に、同じ値の -webkit-user-select がある（Safari は接頭辞つきしか読まない）
  * 見ないもの：lirmena-draft/ のミラー（git 管理外で CI から参照できない）、pages() が生成する contents/（雛形から作る）
  */
 
@@ -24,6 +30,11 @@ function htmlFiles(): string[] {
     const list = (dir: string): string[] =>
         readdirSync(resolve(ROOT, dir)).filter(f => f.endsWith('.html')).map(f => join(dir, f).replace(/\\/g, '/'));
     return [...list('.'), ...list('templates'), ...list('templates/parts')];
+}
+
+/** 検査する CSS：src/styles/ の全ファイル */
+function cssFiles(): string[] {
+    return readdirSync(resolve(ROOT, 'src/styles')).filter(f => f.endsWith('.css')).map(f => `src/styles/${f}`);
 }
 
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf-8').replace(/\r\n/g, '\n');
@@ -52,6 +63,23 @@ function tagsWhere(html: string, pred: (tag: string) => boolean): string[] {
         .map(tag => `${/^<([a-zA-Z][\w-]*)/.exec(tag)?.[1] ?? ''}#${/\sid="([^"]*)"/.exec(tag)?.[1] ?? ''}`);
 }
 
+/** 開始タグを順に返す（コメントと script・style の中身は除く） */
+const openTags = (html: string): string[] => stripNonMarkup(html).match(/<[a-zA-Z][^>]*>/g) ?? [];
+
+/** 開始タグの id（無ければ undefined） */
+const idOf = (tag: string): string | undefined => /\sid="([^"]*)"/.exec(tag)?.[1];
+
+/** role を上書きしていない <nav>（＝ナビゲーションとして読み上げられるもの）の開始タグ */
+const navTags = (html: string): string[] => openTags(html).filter(tag => /^<nav[\s>]/.test(tag) && !/\srole\s*=/.test(tag));
+
+/** user-select の宣言のうち、直前の宣言が同じ値の -webkit-user-select でないものを「値」で返す */
+function unprefixedUserSelect(css: string): string[] {
+    const decls = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|[;{\s])(-webkit-user-select|user-select)\s*:\s*([^;}]+)/g)]
+        .map(m => ({ prop: m[1], value: m[2].trim() }));
+    return decls.filter((d, i) => d.prop === 'user-select'
+        && !(decls[i - 1]?.prop === '-webkit-user-select' && decls[i - 1].value === d.value)).map(d => d.value);
+}
+
 describe('HTML の書き方の契約（全シェル・全断片）', () => {
     const files = htmlFiles();
 
@@ -77,5 +105,47 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
 
     it.each(files)('%s のタブ（role="tab"）に aria-controls が無い', (file) => {
         expect(tagsWhere(read(file), tag => /\srole="tab"/.test(tag) && /\saria-controls\s*=/.test(tag))).toEqual([]);
+    });
+
+    it.each(files)('%s に正の tabindex が無い', (file) => {
+        expect(tagsWhere(read(file), tag => /\stabindex="[1-9]\d*"/.test(tag))).toEqual([]);
+    });
+
+    // タイトルページの <nav> はセッション 8（目次・タイトル・資料ページの構造）で直すまで対象から外す
+    it.each(files.filter(f => f !== 'templates/title.html'))('%s の <nav> には名前がある', (file) => {
+        expect(navTags(read(file)).filter(tag => !/\saria-label(ledby)?="[^"]+"/.test(tag))).toEqual([]);
+    });
+
+    it('本文シェルで <nav> にするのは、本文末の進む導線とメニューだけ', () => {
+        expect(navTags(read('templates/reader.html')).map(tag => idOf(tag) ?? tag)).toEqual(['btn-container-end', 'menu-container']);
+    });
+
+    it.each(['settings', 'share', 'confirm', 'world'])('シートの断片 %s.html に <nav>（ナビゲーション）が無い', (name) => {
+        expect(navTags(read(`templates/parts/${name}.html`))).toEqual([]);
+    });
+
+    it('本文シェル：開幕の「もどる」「読み進める」が <main> より前にある', () => {
+        const ids = openTags(read('templates/reader.html')).map(idOf);
+        expect(ids.indexOf('opening-back')).toBeGreaterThan(-1);
+        expect(ids.indexOf('opening-back')).toBeLessThan(ids.indexOf('opening-start'));
+        expect(ids.indexOf('opening-start')).toBeLessThan(ids.indexOf('main-container'));
+    });
+
+    it('本文シェル：「読み込み中」に role を付けない', () => {
+        const tag = openTags(read('templates/reader.html')).find(t => idOf(t) === 'loading');
+        expect(tag).toBeDefined();
+        expect(tag).not.toMatch(/\srole\s*=/);
+    });
+});
+
+describe('CSS の書き方の契約（src/styles）', () => {
+    it('検出器が、接頭辞つきが無い・値が違う user-select を拾う', () => {
+        expect(unprefixedUserSelect('a{-webkit-user-select:none;user-select:none}')).toEqual([]);
+        expect(unprefixedUserSelect('a{user-select: none;} b{-webkit-user-select:none; user-select:text}')).toEqual(['none', 'text']);
+        expect(unprefixedUserSelect('/* user-select: none */ a{color:red}')).toEqual([]);
+    });
+
+    it.each(cssFiles())('%s の user-select には同じ値の -webkit-user-select が並んでいる', (file) => {
+        expect(unprefixedUserSelect(read(file))).toEqual([]);
     });
 });
