@@ -67,10 +67,11 @@ export function init(dlg: HTMLDialogElement, opts: { onEscape?: (e: KeyboardEven
 
 // open(dlg: HTMLDialogElement, opts?: { detent?: Detent; opener?: HTMLElement | null }): void
 // detent を省くと器の data-detent のまま（無ければ half）。開いているものを開き直すと段だけ変わる。
+// detent を渡すと、掴んで止めた高さ（style.height）を消してその段の高さにする。省いたときは止めた高さを残す。
 export function open(dlg: HTMLDialogElement, opts: { detent?: Detent; opener?: HTMLElement | null } = {}): void {
-    if (opts.detent && opts.detent !== dlg.dataset.detent) {
+    if (opts.detent) {
         dlg.dataset.detent = opts.detent;
-        dlg.style.height = '';   // 掴んで止めた高さより、明示された段を優先する
+        dlg.style.height = '';   // 掴んで止めた高さより、明示された段を優先する（今と同じ段を渡されたときも）
     }
     dlg.dataset.detent ??= 'half';
     if (dlg.open) return;
@@ -204,6 +205,8 @@ function _wireDrag(dlg: HTMLDialogElement): void {
     dlg.addEventListener('close', () => {
         dlg.style.height = '';
         fitH = null;
+        // HTML に段が無い器は属性ごと消す（次の open が half を入れる）
         if (baseDetent) dlg.dataset.detent = baseDetent;
+        else delete dlg.dataset.detent;
     });
 }

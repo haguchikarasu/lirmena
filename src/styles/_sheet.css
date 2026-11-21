@@ -83,6 +83,13 @@ dialog.sheet.is-dragging { transition: none; }
 dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.42); }
 /* 設定は裏の本文が見本になる（縦書きにした瞬間、裏の本文が縦になる）ので、幕をほとんど掛けない */
 dialog.sheet[data-kind="settings"]::backdrop { background: rgba(0, 0, 0, 0.08); }
+/* 裏のページのスクロール止め（すべての <dialog>：シート・確認・記録の保留）。showModal() は裏を操作できなくするが、
+   スクロールは止めない＝背景の上でホイールを回すと裏の文書が動く。::backdrop は既定ではスクロールの器ではなく
+   overscroll-behavior が効かないので、overflow: hidden で器にする（clip では器にならない）。
+   効くのは文書そのものがスクロールする目次。html / body に overflow: hidden を掛ける方法は採らない
+   （スクロールバーが消えて画面が横にずれる）。Safari は未対応で、裏が動く */
+dialog:modal { overscroll-behavior: contain; }
+dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
 
 .sheet-grab {
   display: grid;

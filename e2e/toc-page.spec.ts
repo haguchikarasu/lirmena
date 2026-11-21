@@ -106,6 +106,30 @@ test.describe('上の帯（FAB の代わり）', () => {
         await expect(page.locator('#idx-btn-share')).toBeFocused();
     });
 
+    // 目次は文書そのものがスクロールする。showModal() は裏を操作できなくするが、スクロールは止めない
+    // （背景 ::backdrop の上のホイールは裏の文書へ届く）。_sheet.css の ::backdrop の指定が止めている。
+    // 未対応のブラウザ（Safari）では裏が動く＝この検査は Chromium での挙動を固定する
+    for (const [name, btn, popup] of [['共有', '#idx-btn-share', '#share-popup'], ['設定', '#idx-btn-settings', '#settings-popup']]) {
+        test(`${name}のシートを開いている間、背景の上でホイールを回しても裏のページが動かない`, async ({ page }) => {
+            await setup(page);
+            await page.goto('/lirmena/');
+            await expect(page.locator('#episodes-area .idx-ep').first()).toBeVisible();
+            await page.locator(btn).click();
+            await expect(page.locator(popup)).toBeVisible();
+            // 画面の左上寄り＝PC では右のパネル・右下のカードの外（背景の上）
+            await page.mouse.move(200, 300);
+            await page.mouse.wheel(0, 600);
+            await page.waitForTimeout(400);
+            expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+            // 前提の確認：閉じたあとは同じ操作でページが動く（動かないページでは上の検査が何も見ていない）
+            await page.keyboard.press('Escape');
+            await expect(page.locator(popup)).toBeHidden();
+            await page.mouse.wheel(0, 600);
+            await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+        });
+    }
+
     test('ヒーローの上では、透明なタイトルと「▶」に Tab で止まらない（過ぎると止まる）', async ({ page }) => {
         await setup(page, { autosave: JSON.stringify({ ep: 1, sec: 2, ratio: 0.4, savedAt: 100 }) });
         await page.goto('/lirmena/');

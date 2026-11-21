@@ -128,6 +128,23 @@ describe('open', () => {
         expect(world().open).toBe(true);
         expect(world().dataset.detent).toBe('full');
     });
+
+    it('今と同じ段を渡しても、掴んで止めた style.height が消える（明示された段を優先する）', () => {
+        sheet.init(world());
+        sheet.open(world());
+        world().style.height = '300px';
+        sheet.open(world(), { detent: 'half' });
+        expect(world().dataset.detent).toBe('half');
+        expect(world().style.height).toBe('');
+    });
+
+    it('段を省いて開き直したときは、掴んで止めた style.height を残す', () => {
+        sheet.init(world());
+        sheet.open(world());
+        world().style.height = '300px';
+        sheet.open(world());
+        expect(world().style.height).toBe('300px');
+    });
 });
 
 // 仕様（init の IF コメント「背景・閉じるボタン」／sheet.ts 冒頭「[data-sheet-close] … 閉じるボタン」）
@@ -471,6 +488,17 @@ describe('掴む操作（スマホ幅）', () => {
             sheet.close(world());
             expect(world().style.height).toBe('');
             expect(world().dataset.detent).toBe('half');
+            sheet.open(world());
+            expect(world().dataset.detent).toBe('half');
+        });
+
+        it('HTML に段が無い器も、掴んで full にして閉じると、開き直したとき half（open の IF コメント「無ければ half」）', () => {
+            world().removeAttribute('data-detent');
+            sheet.init(world());
+            sheet.open(world());
+            slowDrag(grabOf(world()), -300);
+            expect(world().dataset.detent).toBe('full');
+            sheet.close(world());
             sheet.open(world());
             expect(world().dataset.detent).toBe('half');
         });
