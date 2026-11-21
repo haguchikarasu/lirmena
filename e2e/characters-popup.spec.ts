@@ -91,6 +91,36 @@ test('本文ページ：右下メニューのキャラクター紹介が開き�
     await expect(sheet).toBeHidden();
 });
 
+// 顔の帯のホイール送り（characters.ts の _wireWheel）。滑らかな送りの途中で次の回転が来たら行き先に足し、
+// 止まったら（scrollend）行き先を捨てて、次はいまの位置から送る。scrollend は jsdom に無いので実ブラウザで見る。
+test('本文ページ：顔の帯はホイールで横へ送れて、続けて回すと足され、止まったあとはいまの位置から送る', async ({ page }) => {
+    await page.goto('/lirmena/contents/01-01.html');
+    await expect(page.locator('#main-container')).toBeVisible();
+    await page.locator('#menu-toggle').click();
+    await page.getByRole('button', { name: '人物', exact: true }).click();
+    const faces = page.locator('#characters-overlay .cv-faces');
+    await expect(faces).toBeVisible();
+    // シートの幅では帯が横にはみ出す（はみ出さないなら送りは働かないので、前提として確かめる）
+    expect(await faces.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(300);
+    const left = () => faces.evaluate((el) => Math.round(el.scrollLeft));
+
+    await faces.hover();
+    // 続けて 2 回：滑っている途中の位置からではなく、行き先に足す
+    await page.mouse.wheel(0, 100);
+    await page.mouse.wheel(0, 100);
+    await expect.poll(left).toBe(200);
+    // 止まってからもう 1 回
+    await page.mouse.wheel(0, 100);
+    await expect.poll(left).toBe(300);
+    // 別の方法で動かしたあと（ここでは先頭へ戻す）は、古い行き先ではなく、いまの位置から送る
+    await faces.evaluate((el) => new Promise<void>((done) => {
+        el.addEventListener('scrollend', () => done(), { once: true });
+        el.scrollTo({ left: 0, behavior: 'instant' });
+    }));
+    await page.mouse.wheel(0, 100);
+    await expect.poll(left).toBe(100);
+});
+
 test('本文ページ：資料シートのタブで人物・地図・用語を行き来できる', async ({ page }) => {
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();

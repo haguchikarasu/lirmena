@@ -56,6 +56,12 @@ describe('isExternalReferrer', () => {
     it('空は外部', () => { expect(hold.isExternalReferrer('', origin)).toBe(true); });
     it('別オリジンは外部', () => { expect(hold.isExternalReferrer('https://t.co/abc', origin)).toBe(true); });
     it('解釈できない値は外部', () => { expect(hold.isExternalReferrer('not a url', origin)).toBe(true); });
+    // オリジンを持たない参照元（アプリからのリンクなど）は "null" に直列化される。こちらも "null"（file: で開いた等）のとき、
+    // 文字列が同じでも同じ場所ではない
+    it('参照元のオリジンが "null" なら、こちらのオリジンが "null" でも外部', () => {
+        expect(hold.isExternalReferrer('android-app://com.twitter.android/', 'null')).toBe(true);
+        expect(hold.isExternalReferrer('android-app://com.twitter.android/', origin)).toBe(true);
+    });
     it('同じオリジンは外部でない', () => { expect(hold.isExternalReferrer(`${origin}/lirmena/`, origin)).toBe(false); });
 });
 

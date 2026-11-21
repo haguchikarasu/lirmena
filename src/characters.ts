@@ -244,12 +244,16 @@ export function render(el: HTMLElement, data: CharactersData, stage: StoryStage,
 function _wireWheel(faces: HTMLElement): void {
     let target: number | null = null;
     // 止まったら行き先を捨てる（顔を押したときの送り・指での送りのあとに古い行き先を使わない）。
-    // scrollend は Safari の対応が新しいので、scroll が 150ms 来なくなったことで代える
-    let idle = 0;
-    faces.addEventListener('scroll', () => {
-        window.clearTimeout(idle);
-        idle = window.setTimeout(() => { target = null; }, 150);
-    }, { passive: true });
+    // 止まったことは scrollend で知る。未対応のブラウザ（Safari 26.2 より前）では、scroll が 150ms 来なくなったことで代える
+    if ('onscrollend' in window) {
+        faces.addEventListener('scrollend', () => { target = null; });
+    } else {
+        let idle = 0;
+        faces.addEventListener('scroll', () => {
+            window.clearTimeout(idle);
+            idle = window.setTimeout(() => { target = null; }, 150);
+        }, { passive: true });
+    }
     faces.addEventListener('wheel', (e) => {
         if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
         const max = faces.scrollWidth - faces.clientWidth;

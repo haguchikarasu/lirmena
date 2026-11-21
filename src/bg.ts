@@ -33,7 +33,7 @@
  *   - bgDim（@@BG の dim・未指定は DIM_DEFAULT）は各レイヤーの不透明度を重みに加重平均し（blendDim・重み和で正規化）、
  *     CSS 変数 --bg-dim として #bg-stack へ rAF ごとに書く（差分更新）。暗幕の実体は CSS の #bg-stack::after 1枚で、
  *     bg は数値を渡すだけ。重み和 0（静止した開幕の黒余白）とシーン 0 枚は DIM_DEFAULT
- *   - 画像ロードは現在シーン ±PRIORITY_RADIUS を優先、空き時間に残りをプリフェッチ（二重ロードは防ぐ）
+ *   - 画像ロードは現在シーン ±PRIORITY_RADIUS を優先、空き時間に残りを低い優先度（fetchpriority="low"）でプリフェッチ（二重ロードは防ぐ）
  *   - 画像 URL の解決先は BgSource で分岐する（要件 06-3 / 03）：
  *       kind: 'ep'        → public/vol[XX]/ep[YY]/img/{ファイル名}（本文モード）
  *       kind: 'afterword' → public/vol[XX]/{ファイル名}（あとがきモード＝ep/img/ フォルダを切らず vol 直下）
@@ -127,6 +127,12 @@ export function subscribe(cb: (n: ScrollNotification) => void): void {
 function _emit(container: HTMLElement): void {
   const scenes = document.querySelectorAll<HTMLElement>('#scene-content .scene');
   const n = Math.min(scenes.length, _layers.length);
+  // 寸法とスクロール量は、下でスタイルを書く前にまとめて読む（書いた後に読むと、ブラウザがその場でスタイルを計算し直す）
+  const forward = axis.getProgress(container);      // forward 進行 px（0 起点・正値）
+  const range = axis.getProgressRange(container);   // 進行軸の可動域（0〜range）
+  const scrollWidth = container.scrollWidth;
+  const clientWidth = container.clientWidth;
+  const anchorRatio = _readAnchorRatio();
 
   let currentScene = 1;
   let progress = 0;
@@ -137,7 +143,7 @@ function _emit(container: HTMLElement): void {
     const reverse = !axis.isReverse();
     const containerRect = container.getBoundingClientRect();
     // 読書点を進行軸の絶対 px へ（縦書き=水平 x／横書き=垂直 y）。
-    const anchor = axis.getAnchorPx(containerRect, _readAnchorRatio());
+    const anchor = axis.getAnchorPx(containerRect, anchorRatio);
 
     const centers: number[] = [];
     const rects: { left: number; right: number }[] = [];
@@ -160,7 +166,7 @@ function _emit(container: HTMLElement): void {
     const leadEdge = axis.isReverse() ? textEnd : textStart;
     // フェード窓＝接近距離（開幕余白を詰める距離＝「読み進める」移動量 ＝ 比率 × 進行軸ビューポート長）。
     // CROSSFADE_PX を上限に収めることで、静止した開幕（forward 0）では必ず黒、狭い画面でも開幕に背景が漏れない。
-    const approach = _readAnchorRatio() * axis.getClientSize(container);
+    const approach = anchorRatio * axis.getClientSize(container);
     const leadWindow = Math.min(CROSSFADE_PX, Math.max(0, approach));
     const opacities = layerOpacities(centers, anchor, CROSSFADE_PX, reverse, boundaries, leadEdge, leadWindow);
     for (let k = 0; k < _layers.length; k++) {
@@ -175,13 +181,11 @@ function _emit(container: HTMLElement): void {
   }
   _writeDim(dim);
 
-  const forward = axis.getProgress(container);      // forward 進行 px（0 起点・正値）
-  const range = axis.getProgressRange(container);   // 進行軸の可動域（0〜range）
   _scrollCb?.({
     scrollLeft: forward, // フィールド名は後方互換で据置だが生 scrollLeft ではない
     ratio: range > 0 ? forward / range : 0, // スクロール範囲比（0〜1・書字方向非依存）。オートセーブ／履歴の位置記録用
-    scrollWidth: container.scrollWidth,
-    clientWidth: container.clientWidth,
+    scrollWidth,
+    clientWidth,
     currentScene,
     progress,
   });
@@ -206,6 +210,10 @@ function _readAnchorRatio(): number {
 }
 
 // 現在シーン中心の ±PRIORITY_RADIUS を即ロードし、残りを空き時間にプリフェッチする。
+// 残りは取得の優先度を下げる（fetchpriority="low"）：背景は全レイヤーが画面いっぱいに重なっているので、ブラウザからは
+// どれも「見えている絵」に見え、指定が無いと近くの絵と同じ優先度で取り合う。
+// 取得が始まった絵の優先度は後から上げられない（属性を外しても src を入れ直しても変わらない。Chromium で確認）。
+// 先読み中の場面へ飛んだときは、その絵は低い優先度のまま届くのを待つ（先読みどうしの順番は、指定を付ける前と同じ）。
 function _prefetchAround(idx: number): void {
   for (let d = 0; d <= PRIORITY_RADIUS; d++) {
     _setSrc(idx - d);
@@ -215,7 +223,7 @@ function _prefetchAround(idx: number): void {
   _idleScheduled = true;
   const run = () => {
     _idleScheduled = false;
-    for (let k = 0; k < _specs.length; k++) _setSrc(k);
+    for (let k = 0; k < _specs.length; k++) _setSrc(k, true);
   };
   const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
   if (typeof ric === 'function') ric(run);
@@ -223,12 +231,14 @@ function _prefetchAround(idx: number): void {
 }
 
 // レイヤー k の画像を1度だけロードする。黒レイヤー（bgFile null）はロード対象外。
-function _setSrc(k: number): void {
+// low が真なら取得の優先度を下げる（空き時間の先読み。src より先に付ける）。
+function _setSrc(k: number, low = false): void {
   if (k < 0 || k >= _specs.length) return;
   if (_loaded.has(k)) return;
   _loaded.add(k);
   const spec = _specs[k];
   if (!spec.bgFile) return; // 黒背景：src を持たない
+  if (low) _layers[k].setAttribute('fetchpriority', 'low');
   _layers[k].src = `${import.meta.env.BASE_URL}${buildBgUrl(_source, spec.bgFile)}`;
 }
 

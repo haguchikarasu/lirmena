@@ -34,11 +34,14 @@ export function clearHeld(): void {
 }
 
 // 遷移元が外部か。空（直接アクセス・ブックマーク・リファラなしのリンク）と解釈できない値も外部扱い。
+// オリジンを持たない参照元（アプリからのリンクなど）は "null" に直列化される。こちらのオリジンも "null" のとき
+// （file: で開いた等）に文字列が一致しても同じ場所ではないので、"null" は常に外部として扱う。
 // isExternalReferrer(referrer: string, origin: string): boolean
 export function isExternalReferrer(referrer: string, origin: string): boolean {
     if (!referrer) return true;
     try {
-        return new URL(referrer).origin !== origin;
+        const from = new URL(referrer).origin;
+        return from === 'null' || from !== origin;
     } catch {
         return true;
     }

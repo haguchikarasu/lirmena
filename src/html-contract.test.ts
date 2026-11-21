@@ -8,6 +8,8 @@
  * 見るもの：
  *   - インラインのイベントハンドラ属性（onerror・onclick など）が無い。処理は addEventListener で登録する
  *     （design/architecture.md「HTML の書き方」）
+ *   - title 属性が無い（吹き出しはキーボードで出せない。名前は aria-label か見える文字で付ける）
+ *   - role="tab" の要素に aria-controls が無い（読み上げソフトが使わない。タブと中身の対応は aria-labelledby で付ける）
  * 見ないもの：lirmena-draft/ のミラー（git 管理外で CI から参照できない）、pages() が生成する contents/（雛形から作る）
  */
 
@@ -44,6 +46,12 @@ function inlineHandlers(html: string): string[] {
     return found;
 }
 
+/** 開始タグのうち、条件に合うものを「タグ名#id」で返す */
+function tagsWhere(html: string, pred: (tag: string) => boolean): string[] {
+    return (stripNonMarkup(html).match(/<[a-zA-Z][^>]*>/g) ?? []).filter(pred)
+        .map(tag => `${/^<([a-zA-Z][\w-]*)/.exec(tag)?.[1] ?? ''}#${/\sid="([^"]*)"/.exec(tag)?.[1] ?? ''}`);
+}
+
 describe('HTML の書き方の契約（全シェル・全断片）', () => {
     const files = htmlFiles();
 
@@ -61,5 +69,13 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
 
     it.each(files)('%s にインラインのイベントハンドラ属性が無い', (file) => {
         expect(inlineHandlers(read(file))).toEqual([]);
+    });
+
+    it.each(files)('%s に title 属性が無い', (file) => {
+        expect(tagsWhere(read(file), tag => /\stitle\s*=/.test(tag))).toEqual([]);
+    });
+
+    it.each(files)('%s のタブ（role="tab"）に aria-controls が無い', (file) => {
+        expect(tagsWhere(read(file), tag => /\srole="tab"/.test(tag) && /\saria-controls\s*=/.test(tag))).toEqual([]);
     });
 });
