@@ -549,7 +549,7 @@ function initLayoutObservers(): void {
 function renderStory(reached: Set<string>, read: Set<string>): void {
     const area = document.getElementById('episodes-area');
     if (!area) return;
-    area.innerHTML = '';
+    area.textContent = '';
     const storyStage = computeStoryStage(Array.from(read), _story as unknown as Parameters<typeof computeStoryStage>[1]);
     const point = _resumePoint();
 
@@ -802,7 +802,7 @@ function _focusBookmarkNear(at: number): void {
 function renderBookmarks(): void {
     const container = document.getElementById('bookmark-slots');
     if (!container) return;
-    container.innerHTML = '';
+    container.textContent = '';
 
     const point = _resumePoint();
     if (point && point.kind !== 'first') {
@@ -960,7 +960,7 @@ function _initChangelogControls(): void {
 function _renderContentChangelog(entries: ContentChangelogEntry[]): void {
     const listEl = document.getElementById('content-changelog-list');
     if (!listEl) return;
-    listEl.innerHTML = '';
+    listEl.textContent = '';
     for (const entry of entries) {
         const li = document.createElement('li');
         li.className = 'cl-entry';
@@ -1012,7 +1012,8 @@ function _updateVersion(type: 'content' | 'site', version: string): void {
 
 async function loadChangelog(type: 'content' | 'site'): Promise<void> {
     try {
-        const res = await fetch(`changelog/${type}-changelog.json`);
+        // サイトの変更履歴は足もとの版番号にしか使わないので、取得の優先度を下げる（本文の更新履歴は一覧に出すので既定のまま）
+        const res = await fetch(`changelog/${type}-changelog.json`, type === 'site' ? { priority: 'low' } : undefined);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         if (type === 'content') {
             const entries = (await res.json()) as ContentChangelogEntry[];
@@ -1061,7 +1062,7 @@ async function main(): Promise<void> {
     } catch {
         const area = document.getElementById('episodes-area');
         if (area) {
-            area.innerHTML = '';
+            area.textContent = '';
             const msg = document.createElement('p');
             msg.className = 'loading-text';
             msg.textContent = '話の読み込みに失敗しました。';

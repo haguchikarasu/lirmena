@@ -143,6 +143,23 @@ test.describe('目次のヒーロー：巻の素材の初期表示', () => {
         });
     }
 
+    // 素材が無い巻（完結の素材がまだ無い等）の代わり。早期スクリプトが src を入れる前に登録した error の処理を見る。
+    // story.json を返さないので、index.ts は素材を差し替え直さない
+    test('早期スクリプト：素材の取得に失敗したら、絵とロゴは第 1 巻の素材に替わり、背景は隠れる', async ({ page }) => {
+        await seed(page, { 'lirmena.storyStage': '5' });
+        await page.route('**/story.json', (route) => route.abort());
+        await page.route('**/theme/*', (route: Route) => route.request().url().includes('/final/theme/')
+            ? route.fulfill({ status: 404, body: '' })
+            : route.fulfill({ status: 200, contentType: 'image/png', body: PNG_1X1 }));
+        await page.goto('/lirmena/');
+        await expect(img(page)).toHaveAttribute('src', /(^|\/)vol01\/theme\/hero-wide\.avif$/);
+        await expect(page.locator('#idx-hero-logo')).toHaveAttribute('src', /(^|\/)vol01\/theme\/logo\.webp$/);
+        await expect(page.locator('#idx-page-bg')).toHaveJSProperty('hidden', true);
+        // 代わりの絵が届いたら、読み込み中の表示が外れて絵が見える
+        await expect(page.locator('html')).not.toHaveAttribute('data-hero-loading');
+        await expect(img(page)).toBeVisible();
+    });
+
     test('廃止した表紙の URL のキャッシュ（lirmena.heroCard）は起動時に消える', async ({ page }) => {
         await seed(page, { 'lirmena.heroCard': 'vol01/vol01.avif' });
         await mockStoryJson(page, FIXTURE_STORY);

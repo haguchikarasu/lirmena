@@ -144,7 +144,7 @@
 <body>
   <!-- ページの背景の風景（巻ごと。public/vol[NN]/theme/page-bg.avif＝core/theme.ts の規約）。暗く・ぼかして画面に固定する。
        読み進めても替わらない＝読者の stage で決まる。装飾なので支援技術からは隠す。src は下の早期スクリプトが入れる -->
-  <img id="idx-page-bg" alt="" aria-hidden="true" onerror="this.hidden=true" />
+  <img id="idx-page-bg" alt="" aria-hidden="true" />
 
   <!-- ヒーロー（要件 06-7）：巻ごとの横長の一枚絵に、その巻の色のロゴを重ねる。PC もスマホも同じ絵で、スマホは人物の部分を
        切り出す（toc-page.css）。body 直下の <header> なので ARIA ランドマーク banner はこれ 1 つだけ
@@ -157,15 +157,16 @@
       <!-- 絵は 1 枚ずつ「ヒーローと同じ大きさの枠」に入れて切り抜く（横長の絵がはみ出して隣の絵と重なるため）。
            表紙ギャラリーでは枠ごと横に滑らせる。前面の #idx-hero-img は**常に「いま見えている表紙」**。
            **src 属性を HTML に持たせない**：属性があるとプリロードスキャナが第1巻の絵を先読みし、stage 2 以上の読者には
-           第1巻 → 自分の巻の差し替えが必ず見える（2026-09-09 に実際に起きた）。src は下の早期スクリプトが入れる -->
-      <span class="idx-hero-slide" id="idx-hero-slide"><img id="idx-hero-img" alt="表紙" onerror="this.onerror=null;this.src='vol01/theme/hero-wide.avif'" /></span>
+           第1巻 → 自分の巻の差し替えが必ず見える（2026-09-09 に実際に起きた）。src は下の早期スクリプトが入れる。
+           開いた直後に画面の大半を占める絵なので、取得の優先度を上げる（fetchpriority。src が後から入っても効く） -->
+      <span class="idx-hero-slide" id="idx-hero-slide"><img id="idx-hero-img" alt="表紙" fetchpriority="high" /></span>
       <!-- 隣の巻の絵（払っている間・切り替えの間だけ出す）。地には今の絵をぼかして敷く（間に合わないとき黒い板を見せない） -->
       <span class="idx-hero-slide" id="idx-hero-slide-peer" hidden><img id="idx-hero-peer" alt="" /></span>
       <!-- 縦長の画面でロゴが絵に重なるときだけ、ロゴの後ろを暗くする幕 -->
       <span id="idx-hero-shade" aria-hidden="true"></span>
       <section id="idx-hero-side">
         <!-- ロゴは読者の今の stage の色のまま（表紙ギャラリーで過去の巻の絵を見ても替えない） -->
-        <h1><img id="idx-hero-logo" alt="輝くもの《リルメナ》" onerror="this.onerror=null;this.src='vol01/theme/logo.webp'" /></h1>
+        <h1><img id="idx-hero-logo" alt="輝くもの《リルメナ》" /></h1>
         <p id="idx-hero-rule" aria-hidden="true"><span>✦</span></p>
         <!-- 読み始めるボタン：初めて＝「第1話から読む」、途中＝「続きから読む」＋下に位置、最新まで読了＝「第N話 #M を読み返す」
              ＋下に次回の更新（index.ts）。素の href は JS が動かないとき用 -->
@@ -191,22 +192,30 @@
        stage 1〜4 → vol0N/theme、5（物語完結）→ final/theme。**この対応は core/theme.ts の themeKeyForStage の複製**で
        （stage の上限＝巻数 + 1 を前提にする。src/core/theme.test.ts が実データで確かめる）、片方だけ変えると
        読み込みの直後に index.ts が正しい絵へ差し替える＝一瞬だけ違う絵が見える（照合は e2e/toc-hero.spec.ts）。
-       ファイルが無いとき（物語完結の素材がまだ無い等）は onerror が第1巻の素材へ落とす。 -->
+       ファイルが無いとき（物語完結の素材がまだ無い等）は、絵とロゴを 1 回だけ第1巻の素材へ替え、背景は隠す
+       （error の処理。属性ではなくここで登録する。**src を入れる前に登録する**）。 -->
   <script>
     (function () {
       var s = null;
       try { s = localStorage.getItem('lirmena.storyStage'); } catch (e) {}
       var dir = s === '5' ? 'final/theme/' : (s && /^[1-4]$/.test(s) ? 'vol0' + s + '/theme/' : 'vol01/theme/');
       var art = document.getElementById('idx-hero-img');
-      // 絵が届くまで読み込み中の表示にする。代わりの絵（onerror）が届いても外す。どちらも届かなければ時間で外す
+      var logo = document.getElementById('idx-hero-logo');
+      var bg = document.getElementById('idx-page-bg');
+      // 取得に失敗したときの代わり。絵とロゴは 1 回だけ（第1巻の素材も無ければそこで止める）。
+      // 背景は失敗のたびに隠す（index.ts が巻を差し替えるときに hidden を戻して入れ直す）
+      art.addEventListener('error', function () { art.src = 'vol01/theme/hero-wide.avif'; }, { once: true });
+      logo.addEventListener('error', function () { logo.src = 'vol01/theme/logo.webp'; }, { once: true });
+      bg.addEventListener('error', function () { bg.hidden = true; });
+      // 絵が届くまで読み込み中の表示にする。代わりの絵が届いても外す。どちらも届かなければ時間で外す
       var root = document.documentElement;
       var loaded = function () { root.removeAttribute('data-hero-loading'); };
       root.setAttribute('data-hero-loading', '');
       art.addEventListener('load', loaded, { once: true });
       setTimeout(loaded, 8000);
       art.src = dir + 'hero-wide.avif';
-      document.getElementById('idx-hero-logo').src = dir + 'logo.webp';
-      document.getElementById('idx-page-bg').src = dir + 'page-bg.avif';
+      logo.src = dir + 'logo.webp';
+      bg.src = dir + 'page-bg.avif';
       // 空気の背景は CSS 変数の url()＝絶対 URL で渡す（変数の中の相対 URL は、使う側のスタイルシートの場所で解決される）
       document.getElementById('idx-hero-ext').style.setProperty('--art-url', 'url("' + art.src + '")');
     })();
