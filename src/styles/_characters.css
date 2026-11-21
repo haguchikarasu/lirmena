@@ -44,7 +44,8 @@
   font-size: 22px;
   /* 選んでいない顔は少し沈める */
   filter: brightness(0.72) saturate(0.85);
-  transition: border-color 0.2s, transform 0.2s, filter 0.2s;
+  scale: 1;   /* 選んだ顔は少し大きくする（下の aria-pressed="true"）。基準は等倍 */
+  transition: border-color 0.2s, scale 0.2s, filter 0.2s;
 }
 .cv-face-name { display: block; margin-top: 4px; font-size: 11px; white-space: nowrap; }
 .cv-face-name rt { font-size: 0.6em; }
@@ -53,7 +54,7 @@
 .cv-face[aria-pressed="true"] .cv-face-initial {
   border-color: var(--sheet-accent, #2df590);
   filter: none;
-  transform: scale(1.06);
+  scale: 1.06;
 }
 .cv-face:focus-visible { outline: 2px solid var(--sheet-accent, #2df590); outline-offset: 2px; border-radius: 8px; }
 
@@ -84,7 +85,6 @@
 /* 巻の選択（characters.ts の冒頭）：顔の帯のすぐ下に小さく。主は最新の巻なので目立たせない。
    字は小さいまま、押せる広さ（高さ 34px・幅 48px 以上）と間をとる＝指で隣の巻を押し違えない */
 .cv-vols { display: flex; align-items: center; gap: 8px; padding: 0 14px 8px; color: var(--sheet-dim, #9a968e); }
-.cv-vols[hidden] { display: none; }
 .cv-vols-ic { width: 16px; height: 16px; }
 .cv-vol {
   min-width: 48px;

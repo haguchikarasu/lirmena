@@ -58,7 +58,7 @@ body {
   background: var(--idx-bg);
   color: var(--idx-text-body);
   font-family: serif;
-  min-height: 100vh;
+  min-height: 100svh;
 }
 
 /* 開発モードの目印。<html data-dev>（＝GA を送らなかった）のときだけ出す＝読者には出ない。

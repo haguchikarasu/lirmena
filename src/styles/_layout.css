@@ -23,7 +23,7 @@
      レイアウトは一切動かず、バーが引っ込んだぶんは余白が増えるだけになる（横書きも同じ理由で svh＝下の分岐）。
      PC では svh = dvh = vh（可動 UI が無い）ため影響しない。可視領域に合わせるのは中央寄せの親側の役目で、
      `body { height: 100dvh }`（_base.css）が担う。
-     値の実体（svh 版と、非対応環境用の vh 版フォールバック）は _base.css の --story-height／@supports が持つ。
+     値の実体は _base.css の --story-height が持つ（vh のフォールバックは持たない）。
      **ここに単位を直書きしないこと**＝ビューポート単位の分岐を 1 箇所に閉じてある。 */
   height: var(--story-height);
   overflow-x: auto;
@@ -356,7 +356,7 @@ html[data-writing-mode="horizontal"] #main-container {
      可視領域と一致させる役目は中央寄せの親（_base.css の `body { height: 100dvh }`）が持つ。
      開幕（スクロール 0）ではバーが出ている＝svh が可視領域と一致するので、
      「余白帯がちょうど1ビューポート」＝覗き込み防止は必要な瞬間に成立する。
-     値の実体（svh 版と非対応環境用の vh 版）は基底と同じく _base.css の --story-height-full／@supports が持つ。 */
+     値の実体は基底と同じく _base.css の --story-height-full が持つ。 */
   height: var(--story-height-full);
   padding-block: 0;
   /* 横書きの物理横上限は基底 #main-container の max-inline-size（＝--line-length + 2×--body-margin）で頭打ち済み。

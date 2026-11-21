@@ -8,8 +8,9 @@
        長い中身（人物の紹介文・拡大した地図・用語の一覧）はその箱の中だけでスクロールする
      - スクロールを止める指定（overflow: hidden・position: fixed）を body に使わない：ビューポートへ伝わり、
        Chrome の「下に引っぱって更新」が死ぬ（同 (6)）。dvh も使わない（アドレスバーの出入りで中身の高さが揺れる＝同 (1)）
-     - min-height: 100vh（toc.css の body）を外す：height より勝ち、実機の Chrome ではアドレスバーの分はみ出す
-       （自動テストでは vh＝svh なので出ない＝実機で確かめる）
+     - toc.css の body の min-height（100svh）は 0 に戻す：min-height は height より勝つので、toc.css 側の値に
+       この高さを左右させない（以前の 100vh では実機の Chrome でアドレスバーの分はみ出した。自動テストでは
+       vh＝svh なので出ない＝実機で確かめる）
      - PC はアドレスバーが出入りしないので固定しない（ページ全体がスクロールする）。地図だけはページが画面より
        長くならない高さ（svh から帯と上下の余白を引く） */
 
@@ -55,7 +56,8 @@ body[data-world="glossary"]::before { background-image: url("/img/tile-glossary.
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 10px 10px 0;
+  padding-block: 10px;
+  padding-inline: 0 10px;
   color: var(--sheet-dim);
   text-decoration: none;
 }
@@ -97,7 +99,7 @@ body[data-world="glossary"]::before { background-image: url("/img/tile-glossary.
   margin: -1px;
   padding: 0;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -111,7 +113,6 @@ body[data-world="glossary"]::before { background-image: url("/img/tile-glossary.
 /* PC の地図：画面の高さから帯と上下の余白（28px＋28px）を引いた高さ＝ページがスクロールしない */
 body[data-world="map"] #wp-main { padding-bottom: 28px; }
 body[data-world="map"] #wp-panel .mv {
-  height: calc(100vh - var(--wp-top-h, 57px) - 56px);
   height: calc(100svh - var(--wp-top-h, 57px) - 56px);
   border: 1px solid var(--sheet-line);
   border-radius: 12px;
@@ -119,7 +120,7 @@ body[data-world="map"] #wp-panel .mv {
 
 /* ===== スマホ：3 枚とも 1 画面に固定（冒頭の「高さ」） ===== */
 @media (max-width: 900px) {
-  body.wp-root { display: flex; flex-direction: column; height: 100vh; height: 100svh; min-height: 0; }
+  body.wp-root { display: flex; flex-direction: column; height: 100svh; min-height: 0; }
   #wp-top { flex: none; padding: 0 8px; }
   #wp-mark { display: none; }
   .wp-tab { padding: 13px 9px 11px; }

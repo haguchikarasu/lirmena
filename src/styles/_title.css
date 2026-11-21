@@ -107,7 +107,7 @@
 #title-screen-changelog-head {
   flex: none;
   padding: 0.5rem 0 0.35rem;
-  text-align: right;
+  text-align: end;
 }
 
 #title-screen-changelog-filter {

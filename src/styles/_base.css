@@ -88,8 +88,8 @@
 
   /* レイアウト（開発者が調整する定数） */
   /* 読書エリア（#main-container）の高さ 2 種。縦書き＝天地余白ぶんを引いた高さ／横書き＝ビューポート全部。
-     _layout.css が var() で参照するだけにして、**ビューポート単位と端末別の分岐はこの直下の 2 ブロックに閉じてある。**
-     ここ（:root）は vh 版＝svh 非対応環境（iOS Safari 15.3 以前）用のフォールバックで、@supports が svh 版で上書きする。
+     _layout.css が var() で参照するだけにして、**ビューポート単位と端末別の分岐はここ（:root）と直下の html[data-device="sp"] に閉じてある。**
+     単位は svh（vh のフォールバックは持たない。svh 非対応＝2022 年 12 月より前のブラウザは対象外）。
      単位を vh から svh へ寄せた理由は _layout.css の #main-container の height コメントを見ること。
 
      **天地余白（100 との差）は PC 10%（上下 5% ずつ）／スマホ 4%（上下 2% ずつ）**。スマホを詰めてあるのは、
@@ -98,15 +98,9 @@
 
      **--story-padding のような「余白」変数を経由しないこと**：:root で合成した calc() の中の var() は :root スコープで
      置換されるため（CSS Custom Properties Level 1。同じ罠が --progress-fill-color にもある＝下の afterword の設計注記）、
-     html[data-device="sp"] 側で余白変数だけ上書きしても**高さには届かない**。だから高さそのものを各スコープで宣言する。
-
-     **なぜ `height: 100vh; height: 100svh;` の重ね書きで済ませないか**：var() を含む宣言はパース時に検証されず、
-     置換後に無効と分かった時点でプロパティが unset（height なら auto）へ落ちるだけで**前の宣言には戻らない**
-     （invalid at computed-value time）。つまり var() 経由では 2 行重ねがフォールバックにならず、非対応環境で
-     #main-container の高さが auto になって**内部スクロールごと消える**（この要素をスクロールする
-     nav / progress / bookmark / reader が全部動かなくなる）。@supports で「そもそも宣言しない」ことでのみ前の値が残る。 */
-  --story-height: 90vh;
-  --story-height-full: 100vh;
+     html[data-device="sp"] 側で余白変数だけ上書きしても**高さには届かない**。だから高さそのものを各スコープで宣言する。 */
+  --story-height: 90svh;
+  --story-height-full: 100svh;
   --nav-btn-w: 3.5rem;            /* 進行・戻るボタン幅 */
   --scene-max-w: 84rem;          /* メインコンテナの物理横上限（背景に対する座り＝縦書きで有効）。横書きでは max-inline-size と min() 合成 */
 
@@ -169,20 +163,7 @@
    端末カテゴリの真実源は <html data-device>（device.ts が反映・本文シェル雛形の早期スクリプトが FOUC 前に先付け）。
    属性が付く前は :root の PC 値へフォールバックする。 */
 html[data-device="sp"] {
-  --story-height: 96vh;
-}
-
-/* ビューポート単位の解決：svh に対応している環境だけ上書きする（上の 2 ブロックは非対応環境向けのフォールバック）。
-   **数値を変えるときは非対応側（:root / html[data-device="sp"]）と 1:1 で揃えること**（vh 版と svh 版で 4 宣言）。
-   このブロックを消すと、モバイルで本文の天地余白が画面外へ消える（症状と理屈は _layout.css の #main-container）。 */
-@supports (height: 1svh) {
-  :root {
-    --story-height: 90svh;
-    --story-height-full: 100svh;
-  }
-  html[data-device="sp"] {
-    --story-height: 96svh;
-  }
+  --story-height: 96svh;
 }
 
 /* 物語進行段階別キーカラーの解決（main.ts / src/index.ts が <html data-story-stage="N"> を付与、
@@ -282,7 +263,7 @@ html, body {
    ブラウザによって「バーが隠れた状態の大きさ」のまま動かない（iOS Safari が典型）ため、
    子が svh/dvh で正しい大きさでも**その大きい箱の中で中央寄せされて下端がバーの裏へ回る**。
    天地余白を画面内に出すには、中央寄せの基準そのものを可視領域に合わせる必要がある。
-   直前の html,body の 100% は dvh 非対応環境へのフォールバックとして残す（カスケードで上書きされる）。
+   直前の html,body の 100% は body についてはここで上書きされる（html の高さとしては残る）。
    ここを dvh（可動）にしても本文は組み直されない：#main-container の高さは svh（固定）で、
    動くのは中央寄せの位置だけだから（縦書きの行長＝子の高さは不変＝読書位置は飛ばない）。 */
 body {
@@ -294,7 +275,7 @@ body {
      親（100dvh）を超えないことが svh ≤ dvh の定義から保証されるので**通常は一切効かない**が、
      万一 dvh が可視領域より大きく解決される環境があっても、素の center だと上下均等にはみ出して
      行頭（縦書きは行の上端）まで欠けるところを、上端だけは必ず画面内に残す。
-     なお svh 対応環境では下の @supports で body を clip しているので、はみ出した分は文書スクロールで見に行けず切られる
+     なお下の指定で body を clip しているので、はみ出した分は文書スクロールで見に行けず切られる
      （保険が守るのは上端だけ）。 */
   align-items: center;
   align-items: safe center;
@@ -314,21 +295,16 @@ body {
      無効にする（cc の root_overflow_y_hidden → overscroll_refresh.cc がリセット。2026-10-04 に hidden で入れて実際に更新が効かなくなった）。
      auto ならビューポートは何も書かない場合と同じ扱い。中身は画面ぴったり（body 100dvh・はみ出しなし）なので文書スクロールは起きず、
      バーも隠れない
-   - body は hidden → clip の 2 行（var() を含まないので非対応環境は 1 行目が残る）。clip を優先するのは、hidden だと body が
-     スクリプトからスクロールできるスクロールコンテナになり、scrollIntoView 等で動く余地ができるため
+   - body は clip（hidden にしない）。hidden だと body がスクリプトからスクロールできるスクロールコンテナになり、
+     scrollIntoView 等で動く余地ができるため
    - 見た目は変わらない：body の子で fixed でないのは #main-container だけで（他はすべて position: fixed＝body のクリップを受けない）、
      その #main-container は svh ≤ dvh の定義から body をはみ出さない
-   - **svh 対応環境に限る（@supports）**：非対応環境では --story-height-full が 100vh・body が 100% に落ちて子が親を超えうるので、
-     切り取ると本文の末尾が永久に読めなくなる。非対応環境は svh 由来の昇格もそもそも起きないので何もしない
    **これを外すと横書きで再発する。** 理由と経緯は design/architecture.md のビューポート単位の項。 */
-@supports (height: 1svh) {
-  html {
-    overflow: auto;
-  }
-  body {
-    overflow: hidden;
-    overflow: clip;
-  }
+html {
+  overflow: auto;
+}
+body {
+  overflow: clip;
 }
 
 /* ボタン要素のフォント継承（UA スタイルシートの上書き） */

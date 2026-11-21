@@ -79,7 +79,7 @@ html.at-opening #opening-affordance {
   margin: 0;
   font-size: 0.95rem;
   letter-spacing: 0.3em;
-  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  color: color-mix(in oklab, var(--ink) 55%, transparent);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
 }
 
@@ -105,15 +105,15 @@ html.at-opening #opening-affordance {
 #opening-start {
   min-width: 64px;
   min-height: 64px;
-  animation: opening-breathe 2.6s ease-in-out infinite;   /* 明滅はボタン全体（アイコン＋文字） */
+  /* 明滅（ボタン全体＝アイコン＋文字）は下の @media (prefers-reduced-motion: no-preference) で付ける */
 }
 
 #opening-back {
-  color: color-mix(in srgb, var(--ink) 50%, transparent);   /* 副＝薄い */
+  color: color-mix(in oklab, var(--ink) 50%, transparent);   /* 副＝薄い */
   transition: color 0.2s;
 }
 #opening-back:hover {
-  color: color-mix(in srgb, var(--ink) 90%, transparent);
+  color: color-mix(in oklab, var(--ink) 90%, transparent);
 }
 
 #opening-start:focus-visible,
@@ -133,7 +133,7 @@ html.at-opening #opening-affordance {
   width: 40px;
   height: 40px;
   stroke-width: 1.2;           /* 大きく描くので、見た目の線が 2px 前後になるよう細くする */
-  animation: opening-nudge 2.6s ease-in-out infinite;   /* 明滅と同じ周期で進行方向へ揺れる */
+  /* 揺れ（明滅と同じ周期で進行方向へ）は下の @media (prefers-reduced-motion: no-preference) で付ける */
 }
 #opening-back .ic {
   width: 22px;
@@ -149,13 +149,13 @@ html[data-writing-mode="vertical"] #opening-affordance .ic {
 .opening-caption {
   font-size: 0.7rem;
   letter-spacing: 0.18em;
-  padding-left: 0.18em;        /* 字間で右へ寄るのを打ち消す */
+  padding-inline-start: 0.18em;   /* 字間で行末側へ寄るのを打ち消す */
   line-height: 1.4;
   white-space: nowrap;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
 }
 
-/* 「読み進める」のゆっくりした明滅（誘目）。動きを抑えたい設定では止める。 */
+/* 「読み進める」のゆっくりした明滅（誘目）。動きを抑えたい設定では付けない（下の no-preference の中でだけ付ける）。 */
 @keyframes opening-breathe {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 1; }
@@ -165,9 +165,13 @@ html[data-writing-mode="vertical"] #opening-affordance .ic {
   0%, 100% { translate: 0 0; }
   50%      { translate: var(--opening-nudge-x) var(--opening-nudge-y); }
 }
+@media (prefers-reduced-motion: no-preference) {
+  #opening-start { animation: opening-breathe 2.6s ease-in-out infinite; }
+  #opening-start .ic { animation: opening-nudge 2.6s ease-in-out infinite; }
+}
+/* 動きを抑えたい設定：明滅させない代わりに、明滅の明るい側に近い濃さで止めておく */
 @media (prefers-reduced-motion: reduce) {
-  #opening-start { animation: none; opacity: 0.92; }
-  #opening-start .ic { animation: none; }
+  #opening-start { opacity: 0.92; }
 }
 
 /* 開幕アフォーダンスの並びは「現在地ラベル → もどる → 読み進める」（シェルの DOM 順で固定。縦横共通＝
@@ -221,7 +225,7 @@ html.is-immersive .reading-anchor-cap {
   inset-block: 0;
   left: 0;
   width: 2px;
-  transform: translateX(-1px);
+  translate: -1px 0;
   background: var(--reading-anchor-color);
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -239,7 +243,7 @@ html.is-immersive .reading-anchor-cap {
 .reading-anchor-cap {
   position: absolute;
   left: 0;
-  transform: translateX(-50%);
+  translate: -50% 0;
   padding: 0.4rem;            /* 透明な当たり判定の余白(掴みやすさ) */
   background: transparent;
   border: 0;
@@ -303,13 +307,13 @@ html[data-writing-mode="horizontal"] .reading-anchor-line {
   top: 0;                 /* 親 box の上端（=読書点の横線位置）に重ねる */
   width: auto;            /* 縦書きの width:2px を解除（幅は inset-inline が決める） */
   height: 2px;
-  transform: translateY(-1px);
+  translate: 0 -1px;
 }
 
 html[data-writing-mode="horizontal"] .reading-anchor-cap {
   left: auto;
   top: 0;
-  transform: translateY(-50%);
+  translate: 0 -50%;
 }
 
 /* 三角形の向きを 90° 回す：上下 border を透明、左右 border に色を載せる */

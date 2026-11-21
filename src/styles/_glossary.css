@@ -95,11 +95,10 @@ body[data-kind="afterword"] .gl-root {
 
 .gl-entry {
   padding: 1.1rem 0 1.2rem;
-  border-bottom: 1px solid var(--gl-line);
   /* 相互参照・五十音ナビ・直リンクで飛んだとき、上の固定バーの下に隠れないように（用語集ページが値を入れる） */
   scroll-margin-top: var(--gl-sticky-h, 0px);
 }
-.gl-entry:last-child { border-bottom: none; }
+.gl-entry:not(:last-child) { border-bottom: 1px solid var(--gl-line); }
 .gl-group { scroll-margin-top: var(--gl-sticky-h, 0px); }
 
 /* 見出し行：見出し語の右に言語と綴りを添える（幅が足りなければ見出し語の下へ折り返す） */
@@ -125,7 +124,7 @@ body[data-kind="afterword"] .gl-root {
   line-height: 1.9;
   color: var(--gl-body);
 }
-.gl-entry ol { padding-left: 1.6em; }
+.gl-entry ol { padding-inline-start: 1.6em; }
 .gl-entry ol li::marker { color: var(--gl-muted); }
 
 /* 言語と綴り：見出し語の補足なので本文より小さく暗く。
@@ -152,7 +151,7 @@ body[data-kind="afterword"] .gl-root {
   padding: 0.05em 0.45em;
   border: 1px solid #2c2c2c;
   border-radius: 2px;
-  color: #9a968e;
+  color: var(--ink-dim);
 }
 /* 綴りは欧文なので等幅にしない（声調の上付き数字が詰まらないように） */
 .gl-lang-word {
@@ -186,9 +185,10 @@ body[data-kind="afterword"] .gl-root {
 }
 .gl-table th,
 .gl-table td {
-  padding: 0.35rem 0.9rem 0.35rem 0;
+  padding-block: 0.35rem;
+  padding-inline: 0 0.9rem;
   border-bottom: 1px solid var(--gl-line);
-  text-align: left;
+  text-align: start;
   font-weight: 400;
 }
 .gl-table th {
