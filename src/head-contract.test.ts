@@ -8,6 +8,7 @@
  *
  * 見るもの：
  *   - head-contract:<名前>:start / :end のマーカーで囲んだ 4 ブロック（meta / fouc / early / ga）が全シェルでバイト同一
+ *   - meta ブロックに配色（color-scheme）と参照元（referrer）の宣言があり、GA のスクリプトを優先度 low で挿す
  *   - <link rel="manifest"> と <link rel="apple-touch-icon"> のタグが 1 本ずつあり、href の深さがページの置き場所と合う
  *   - SHELLS の一覧が実在するシェル HTML と一致する（新しいシェルを足して登録し忘れたら落ちる）
  *   - public/*.webmanifest の id と start_url が一致し、scope がその接頭辞
@@ -50,6 +51,11 @@ function stripCommentsAndScripts(html: string): string {
     return html.replace(/<!--[\s\S]*?-->/g, '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
 }
 
+/** HTML のコメントと、スクリプトの行コメントを取り除く（説明文の中の語に当たらないように） */
+function stripComments(html: string): string {
+    return html.replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 function linkHrefs(html: string, rel: string): string[] {
     const tags = stripCommentsAndScripts(html).match(new RegExp(`<link\\b[^>]*\\brel="${rel}"[^>]*>`, 'g')) ?? [];
     return tags.map(t => /\bhref="([^"]*)"/.exec(t)?.[1] ?? '');
@@ -70,6 +76,25 @@ describe('<head> の契約（全シェル）', () => {
             for (const b of rest) expect(b.block, `${b.path} の ${name} ブロックが ${first.path} と違う`).toBe(first.block);
         });
     }
+
+    // 下の 3 件は index.html だけを見る（全シェルの一致は上のバイト比較が保証する）
+    it('meta ブロックが配色を dark と宣言する（CSS が届く前の地の色を暗くする）', () => {
+        const meta = extractBlock(read('index.html'), 'meta') ?? '';
+        expect(meta.match(/<meta name="color-scheme"[^>]*>/g)).toEqual(['<meta name="color-scheme" content="dark" />']);
+    });
+
+    it('meta ブロックが参照元の送り方を宣言する（別オリジンへはオリジンだけ送る）', () => {
+        const meta = extractBlock(read('index.html'), 'meta') ?? '';
+        expect(meta.match(/<meta name="referrer"[^>]*>/g)).toEqual(['<meta name="referrer" content="strict-origin-when-cross-origin" />']);
+    });
+
+    it('GA のスクリプトは async のまま、優先度を low にして挿す', () => {
+        const ga = stripComments(extractBlock(read('index.html'), 'ga') ?? '');
+        expect(ga).toContain('s.async = true;');
+        expect(ga).toContain("s.fetchPriority = 'low';");
+        // 優先度は取得が始まる前（head へ挿す前）に決める
+        expect(ga.indexOf("s.fetchPriority = 'low';")).toBeLessThan(ga.indexOf('document.head.appendChild(s)'));
+    });
 
     for (const shell of SHELLS) {
         it(`${shell.path}：manifest と apple-touch-icon が 1 本ずつ・深さが合う`, () => {

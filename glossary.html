@@ -18,6 +18,10 @@
   -->
   <!-- head-contract:meta:start -->
   <meta name="theme-color" content="#080808" />
+  <!-- 配色は暗いほうだけ：CSS が届く前の地と、色を指定していないブラウザ標準の部品（スクロールバーなど）が暗くなる -->
+  <meta name="color-scheme" content="dark" />
+  <!-- 別オリジンへ送る参照元はオリジンだけ（パスとクエリは送らない）。GitHub Pages は HTTP ヘッダを設定できないので meta で宣言する -->
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
   <meta property="og:title" content="輝くもの《リルメナ》" />
@@ -119,6 +123,8 @@
     if (!blockGA) {
       var s = document.createElement('script');
       s.async = true;
+      // 計測は表示に要らないので、表紙や CSS の取得と帯域を争わせない（取得が始まる前に決める）
+      s.fetchPriority = 'low';
       s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D750N4MKZY';
       document.head.appendChild(s);
       gtag('js', new Date());
