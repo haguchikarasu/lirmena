@@ -229,16 +229,16 @@ export async function openHold(page: Page): Promise<string | null> {
     return page.evaluate(() => sessionStorage.getItem('lirmena.recordHold'));
 }
 
-// 「記録されない」を確かめる前に、記録が走る機会を与える（スロットルを越えてスクロールする）。
+// 「記録されない」を確かめる前に、記録が走る機会を与える：スクロールして止め、止まったときの書き込み
+// （reader.ts の handleScrollEnd。止まってから 150ms 後）が済むだけ待つ。移動中の間引き（500ms）に乗るかどうかに
+// 関わらず、止まった位置は書かれる機会がある＝これで書かれなければ、抑止が効いている。
 export async function tryToRecord(page: Page): Promise<void> {
-    await page.waitForTimeout(600);
     await scrollToRatio(page, 0.3);
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(400);
 }
 
-// 指定の位置までスクロールして、autosave に書かれるまで待つ（reader.ts のスロットル 500ms を越える）。
+// 指定の位置までスクロールして止め、autosave に書かれるまで待つ（止まったときの書き込みが拾う。間引きの 500ms は待たない）。
 export async function scrollAndSave(page: Page, ratio: number): Promise<void> {
-    await page.waitForTimeout(600);
     await scrollToRatio(page, ratio);
     await expect.poll(async () => (await records(page)).autosave?.ratio ?? -1).toBeCloseTo(ratio, 1);
 }

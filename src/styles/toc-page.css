@@ -378,8 +378,10 @@ body[data-past-hero="true"] #idx-topbar-resume { opacity: 1; visibility: visible
   font-size: 12px;
   color: var(--idx-dim);
   rotate: 0deg;
-  transition: rotate 0.18s, color 0.18s;
+  /* 色の変化は常に。回る動きは下の no-preference でだけ足す（動きを減らす設定では、開いた向きへその場で変わる） */
+  transition: color 0.18s;
 }
+@media (prefers-reduced-motion: no-preference) { .idx-vol-chev { transition: rotate 0.18s, color 0.18s; } }
 .idx-vol-card[open] > .idx-vol-head .idx-vol-chev { rotate: 90deg; color: var(--idx-accent); }
 /* 見出しの下の間は開いた巻だけ（閉じた巻と予告の巻＝<section> で [open] を持たない、には付けない） */
 .idx-vol-card[open] > .idx-vol-head { margin-bottom: 16px; }
@@ -395,7 +397,6 @@ body[data-past-hero="true"] #idx-topbar-resume { opacity: 1; visibility: visible
   white-space: nowrap;
 }
 .idx-vol-card + .idx-vol-card { margin-top: 28px; }
-@media (prefers-reduced-motion: reduce) { .idx-vol-chev { transition: none; } }
 
 /* 予告の巻（開けない。見出しだけ）：▶ は場所を保って隠し、札は長い文でも折り返す */
 .idx-vol-card--notice > .idx-vol-head { cursor: default; flex-wrap: wrap; }

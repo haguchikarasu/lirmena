@@ -1,9 +1,11 @@
 /*
  * reader.test.ts
- * 対象: reader.ts のスクロール通知の fan-out（progress / opening / state）とオートセーブの間引き（500ms）。
- * 方針: 期待値は reader.ts 冒頭の IF コメント（fan-out ①〜④）から導く（仕様駆動）。
+ * 対象: reader.ts のスクロール通知の fan-out（progress / opening / state）とオートセーブの間引き（500ms）、
+ *       止まったときの書き込み（handleScrollEnd）。
+ * 方針: 期待値は reader.ts 冒頭の IF コメント（fan-out ①〜⑤）から導く（仕様駆動）。
  *   間引きの境界（499ms と 500ms）、あとがきでは autosave を書かず履歴だけ刻むこと、init で間引きが解けることを固定する。
- *   リファクタリング前の安全網＝今の仕様をそのまま置く。
+ *   止まったときは静かな時間（SCROLL_END_QUIET_MS）を待って 1 回書くこと、毎フレーム scrollend が来る移動でも
+ *   書き込みが「500ms に 1 回＋止まったときの 1 回」を超えないことを固定する。
  * 環境: jsdom。依存 4 モジュールは vi.mock で差し替え、時刻は fake timers で動かす。
  *   間引きの時刻はモジュール内の変数なので、テストごとに vi.resetModules() して動的 import する。
  */
@@ -118,19 +120,119 @@ describe('オートセーブと履歴への書き込み（間引き 500ms）', (
         expect(bookmark.saveAutoSave).toHaveBeenLastCalledWith(3, 4, 0.9);
     });
 
-    // 今の実装の限界。最後の書き込みから 500ms 以内に止まると、止まった位置は誰にも書かれない。
-    it('最後の書き込みから 500ms 以内に止まると、止まった位置は保存されない（今の仕様。R2-13 で scrollend を足すとき、このテストを書き換える）', async () => {
+    it('scrollend の通知が来なければ、間引かれた位置は書かれない（止まったことは handleScrollEnd でだけ知る）', async () => {
         const { reader, bookmark } = await load();
         reader.init({ ep: 1, sec: 1 });
         reader.handleScroll(note({ ratio: 0.1 }));   // 書く
         vi.advanceTimersByTime(100);
+        reader.handleScroll(note({ ratio: 0.8 }));   // 間引かれる
+        vi.advanceTimersByTime(60_000);
+
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(1);
+        expect(reader.getLastRatio()).toBe(0.8);     // 読書位置としては最新を持っている（書かれないだけ）
+    });
+});
+
+describe('止まったときの書き込み（handleScrollEnd）', () => {
+    it('最後の書き込みから 500ms 以内に止まっても、止まった位置が書かれる', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 2, sec: 3 });
+        reader.handleScroll(note({ ratio: 0.1 }));   // 書く
+        vi.advanceTimersByTime(100);
         reader.handleScroll(note({ ratio: 0.8 }));   // 間引かれる＝ここで止まった
-        vi.advanceTimersByTime(60_000);              // 通知が来ないまま時間が経っても書かれない
+        reader.handleScrollEnd();
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS);
+
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(2);
+        expect(bookmark.saveAutoSave).toHaveBeenLastCalledWith(2, 3, 0.8);
+        expect(bookmark.saveScrollToHistory).toHaveBeenCalledTimes(2);
+        expect(bookmark.saveScrollToHistory).toHaveBeenLastCalledWith(0.8);
+    });
+
+    it('止まった通知のあと静かな時間が SCROLL_END_QUIET_MS に満たないうちは書かない', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 1, sec: 1 });
+        reader.handleScroll(note({ ratio: 0.1 }));
+        reader.handleScroll(note({ ratio: 0.8 }));
+        reader.handleScrollEnd();
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS - 1);
+
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('止まった通知が続けて来たら、最後の通知から数え直す（rAF で位置を書き換える移動は毎フレーム scrollend が出る）', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 1, sec: 1 });
+        reader.handleScroll(note({ ratio: 0.1 }));
+        reader.handleScrollEnd();
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS - 10);
+        reader.handleScroll(note({ ratio: 0.2 }));
+        reader.handleScrollEnd();                    // 数え直し
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS - 10);
+
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(10);
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(2);
+        expect(bookmark.saveAutoSave).toHaveBeenLastCalledWith(1, 1, 0.2);
+    });
+
+    it('止まった位置が前回書いた値と同じなら書かない', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 1, sec: 1 });
+        reader.handleScroll(note({ ratio: 0.4 }));   // 書く
+        reader.handleScrollEnd();
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS);
+
+        expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(1);
+        expect(bookmark.saveScrollToHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('あとがきでは止まったときも saveAutoSave を呼ばず、saveScrollToHistory だけ呼ぶ', async () => {
+        const { reader, bookmark, state } = await load();
+        vi.mocked(state.getMode).mockReturnValue('afterword');
+        reader.init({ ep: 0, sec: 0 });
+        reader.handleScroll(note({ ratio: 0.1 }));
+        reader.handleScroll(note({ ratio: 0.6 }));
+        reader.handleScrollEnd();
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS);
+
+        expect(bookmark.saveAutoSave).not.toHaveBeenCalled();
+        expect(bookmark.saveScrollToHistory).toHaveBeenCalledTimes(2);
+        expect(bookmark.saveScrollToHistory).toHaveBeenLastCalledWith(0.6);
+    });
+
+    it('init すると待っている書き込みは捨てる（前のページの位置を次のページへ書かない）', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 1, sec: 1 });
+        reader.handleScroll(note({ ratio: 0.1 }));
+        reader.handleScroll(note({ ratio: 0.8 }));
+        reader.handleScrollEnd();
+        reader.init({ ep: 1, sec: 2 });
+        vi.advanceTimersByTime(60_000);
 
         expect(bookmark.saveAutoSave).toHaveBeenCalledTimes(1);
         expect(bookmark.saveAutoSave).toHaveBeenCalledWith(1, 1, 0.1);
-        expect(bookmark.saveScrollToHistory).toHaveBeenCalledTimes(1);
-        expect(reader.getLastRatio()).toBe(0.8);     // 読書位置としては最新を持っている（書かれないだけ）
+    });
+
+    it('rAF ごとに位置を書き換える移動（毎フレーム scroll と scrollend）でも、書き込みは 500ms に 1 回＋止まったときの 1 回まで', async () => {
+        const { reader, bookmark } = await load();
+        reader.init({ ep: 1, sec: 1 });
+        const FRAME = 16;
+        const DURATION = 2000;
+        for (let t = 0; t <= DURATION; t += FRAME) {
+            reader.handleScroll(note({ ratio: t / DURATION / 2 + 0.001 }));
+            reader.handleScrollEnd();
+            vi.advanceTimersByTime(FRAME);
+        }
+        const duringMove = vi.mocked(bookmark.saveAutoSave).mock.calls.length;
+        expect(duringMove).toBeLessThanOrEqual(Math.floor(DURATION / 500) + 1);
+        vi.advanceTimersByTime(reader.SCROLL_END_QUIET_MS);
+
+        const total = vi.mocked(bookmark.saveAutoSave).mock.calls.length;
+        expect(total).toBeLessThanOrEqual(duringMove + 1);
+        expect(vi.mocked(bookmark.saveScrollToHistory).mock.calls.length).toBe(total);
+        // 最後に書かれたのは止まった位置
+        expect(bookmark.saveAutoSave).toHaveBeenLastCalledWith(1, 1, reader.getLastRatio());
     });
 });
 

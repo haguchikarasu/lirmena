@@ -65,11 +65,15 @@ dialog.sheet {
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
   flex-direction: column;
   overflow: hidden;
-  transition: height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family: sans-serif;
   /* 縦書きなのは本文（#main-container）だけだが、シートは文書の末尾にあるので明示的に横書きへ戻す */
   writing-mode: horizontal-tb;
   overscroll-behavior: contain;
+}
+/* 段（half・full・fit）を切り替えたときに高さが伸び縮みする動きは no-preference でだけ付ける（動きを減らす設定では、
+   その場で次の段の高さになる）。ui/sheet は transitionend を待たないので、付かなくても段の切り替えは止まらない */
+@media (prefers-reduced-motion: no-preference) {
+  dialog.sheet { transition: height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
 }
 dialog.sheet[open] { display: flex; }
 dialog.sheet[data-detent="half"] { height: 56dvh; }

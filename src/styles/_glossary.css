@@ -210,15 +210,13 @@ body[data-kind="afterword"] .gl-root {
   border-bottom-color: #2a2a2a;
 }
 
-/* 相互参照で着地した項目を一瞬光らせる（glossary.ts の flash()） */
+/* 相互参照で着地した項目を一瞬光らせる（glossary.ts の flash()）。背景色が薄れるだけで移動ではないので、
+   動きを減らす設定でも光らせる。クラスは次の着地まで外れないので、ここに枠線などの残る見た目を足さない */
 @keyframes gl-flash {
   from { background: var(--gl-flash); }
   to   { background: transparent; }
 }
 .gl-flash { animation: gl-flash 1.4s ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .gl-flash { animation: none; outline: 1px solid var(--gl-accent-dim); }
-}
 
 /* 「該当なし」と「読み込めませんでした」 */
 .gl-empty {

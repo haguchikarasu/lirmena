@@ -233,3 +233,99 @@ describe('CSS の書き方の契約（src/styles）：フォーカスとホバ�
         for (const s of hovers) expect(s).toMatch(/:hover:not\(:disabled\)/);
     });
 });
+
+/**
+ * 規則を { セレクタの並び, 宣言, 囲んでいる @media の条件（外側から） } で返す（コメントは除く。入れ子は何段でも追う）。
+ * @media 以外の @ 規則（@keyframes・@font-face など）の中身は返さない。
+ */
+function rulesWithMedia(css: string): { selectors: string[]; body: string; media: string[] }[] {
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const out: { selectors: string[]; body: string; media: string[] }[] = [];
+    const stack: { prelude: string; isMedia: boolean; skip: boolean }[] = [];
+    let buf = '';
+    for (const ch of src) {
+        if (ch === '{') {
+            const prelude = buf.trim();
+            buf = '';
+            const parentSkip = stack.length > 0 && stack[stack.length - 1].skip;
+            const isAt = prelude.startsWith('@');
+            const isMedia = /^@media\b/.test(prelude);
+            stack.push({ prelude, isMedia, skip: parentSkip || (isAt && !isMedia) });
+        } else if (ch === '}') {
+            const top = stack.pop();
+            if (top && !top.skip && !top.prelude.startsWith('@')) {
+                out.push({
+                    selectors: top.prelude.split(',').map(s => s.trim()),
+                    body: buf,
+                    media: stack.filter(s => s.isMedia).map(s => s.prelude.replace(/\s+/g, ' ')),
+                });
+            }
+            buf = '';
+        } else {
+            buf += ch;
+        }
+    }
+    return out;
+}
+
+/** 宣言の並びから、指定のプロパティ（完全一致）の値を返す */
+function declValues(body: string, prop: string): string[] {
+    return [...body.matchAll(new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+)`, 'g'))].map(m => m[1].trim());
+}
+
+const NO_PREF = /prefers-reduced-motion:\s*no-preference/;
+const REDUCE = /prefers-reduced-motion:\s*reduce/;
+// 動き（移動・拡大・回転・大きさ）に当たる transition の対象。色・不透明度は入れない
+const SPATIAL = /\b(scale|rotate|translate|transform|height)\b/;
+
+/** 動きを減らす設定の基準（design/architecture.md）を見る CSS。チュートリアルまわりの 3 本は別の段で揃える */
+function motionCssFiles(): string[] {
+    return cssFiles().filter(f => !/\/_(tutorial|firstrun|ui)\.css$/.test(f));
+}
+
+/** src/ の .ts（テストを除く） */
+function tsFiles(): string[] {
+    const walk = (dir: string): string[] => readdirSync(resolve(ROOT, dir), { withFileTypes: true }).flatMap(d => {
+        const rel = `${dir}/${d.name}`;
+        if (d.isDirectory()) return d.name === 'test-support' ? [] : walk(rel);
+        return d.name.endsWith('.ts') && !d.name.endsWith('.test.ts') ? [rel] : [];
+    });
+    return walk('src');
+}
+
+describe('CSS・TS の書き方の契約：動きを減らす設定', () => {
+    it('検出器が、入れ子の @media を数え、@keyframes の中身を規則として返さない', () => {
+        const css = 'a { transition: scale 1s } @media (prefers-reduced-motion: no-preference) { b { transition: rotate 1s } } '
+            + '@keyframes k { from { color: red } } @media (min-width: 1px) { @media (prefers-reduced-motion: reduce) { c { transition: none } } }';
+        const rules = rulesWithMedia(css);
+        expect(rules.map(r => [r.selectors[0], r.media.length])).toEqual([['a', 0], ['b', 1], ['c', 2]]);
+        expect(rules[2].media[1]).toMatch(REDUCE);
+    });
+
+    it.each(motionCssFiles())('%s：拡大・回転・移動・高さの transition は prefers-reduced-motion: no-preference の中にだけある', (file) => {
+        const bad = rulesWithMedia(read(file))
+            .filter(r => !r.media.some(m => NO_PREF.test(m)))
+            .filter(r => [...declValues(r.body, 'transition'), ...declValues(r.body, 'transition-property')].some(v => SPATIAL.test(v)))
+            .map(r => r.selectors.join(', '));
+        expect(bad).toEqual([]);
+    });
+
+    it.each(motionCssFiles())('%s：reduce の分岐で transition・animation を none にしない（色の変化まで止まる。動きは no-preference で足す）', (file) => {
+        const bad = rulesWithMedia(read(file))
+            .filter(r => r.media.some(m => REDUCE.test(m)))
+            .filter(r => [...declValues(r.body, 'transition'), ...declValues(r.body, 'animation')].some(v => v === 'none'))
+            .map(r => r.selectors.join(', '));
+        expect(bad).toEqual([]);
+    });
+
+    it('_glossary.css：着地の .gl-flash に reduce の分岐と枠線が無い（クラスは次の着地まで外れないので、枠線が残り続ける）', () => {
+        const flash = rulesWithMedia(read('src/styles/_glossary.css')).filter(r => r.selectors.includes('.gl-flash'));
+        expect(flash.length).toBeGreaterThan(0);
+        expect(flash.filter(r => r.media.some(m => REDUCE.test(m)))).toEqual([]);
+        for (const r of flash) expect(declValues(r.body, 'outline')).toEqual([]);
+    });
+
+    it.each(tsFiles())("%s：behavior: 'smooth' を裸で書かない（動きを減らす設定のときは 'auto' にする）", (file) => {
+        expect(read(file)).not.toMatch(/behavior\s*:\s*['"]smooth['"]/);
+    });
+});

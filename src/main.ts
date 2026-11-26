@@ -17,7 +17,7 @@
  *   renderer : renderScenes(scenes: Scene[]): void
  *   bg       : init(layers: BgLayerSpec[], source: BgSource): void
  *              subscribe(cb: (n: ScrollNotification) => void): void
- *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void
+ *   reader   : init(address: SecAddress): void / handleScroll(n: ScrollNotification): void / handleScrollEnd(): void
  *   nav      : init() / initAfterword(vol) / update() / updateAfterword() / arm() / resetReadDetection()
  *   transition: init(): void（到着フェードイン起動。シェル class="fading" を外す）
  *   menu     : init(characters: CharactersData): void
@@ -123,7 +123,7 @@ async function _bootstrap(): Promise<void> {
  *   3. characters.json と本文 txt を取得・パース（vol 情報は story から派生）
  *   4-11. wheel/pan/immersive → settings/device/bookmark → stage 算出＋analytics → 記録の判定（保留）→
  *         nav/menu/feedback → renderScenes/bg.init → 初期スクロール復元 → tutorial/opening/nav.update →
- *         reader.init/bg.subscribe → arm → loading 非表示
+ *         reader.init/bg.subscribe/scrollend の結線 → arm → loading 非表示
  */
 async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise<void> {
     const data: EpisodesData = story.flatMap(v => v.episodes);
@@ -216,6 +216,7 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
 
     reader.init({ ep, sec });
     bg.subscribe(reader.handleScroll);
+    _wireScrollEnd(mainContainer);
 
     requestAnimationFrame(() => requestAnimationFrame(() => nav.arm()));
 
@@ -324,6 +325,7 @@ async function _bootstrapAfterword(story: StoryData, vol: number): Promise<void>
     // state.getMode() を見てオートセーブを書かないため、ep/sec=0 のダミーを渡してよい。
     reader.init({ ep: 0, sec: 0 });
     bg.subscribe(reader.handleScroll);
+    _wireScrollEnd(mainContainer);
 
     requestAnimationFrame(() => requestAnimationFrame(() => nav.arm()));
 
@@ -382,11 +384,22 @@ function _initMainContainer(): HTMLElement {
         if (axis.getMode() === 'horizontal') return;
         e.preventDefault();
         const forward = axis.getProgressFromEvent(e) * WHEEL_SCROLL_MULTIPLIER;
-        mainContainer.scrollBy({ left: -forward, behavior: 'smooth' });
+        // 動きを減らす設定のときは滑らかにしない（その場で移る。着く位置は同じ）
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        mainContainer.scrollBy({ left: -forward, behavior: reduce ? 'auto' : 'smooth' });
     }, { passive: false });
     pan.init();
     immersive.init();
     return mainContainer;
+}
+
+// スクロールが止まったことを reader.handleScrollEnd へ伝える（止まった位置を 1 回書く。reader.ts 冒頭の ⑤）。
+// scrollend 未対応のブラウザ（Safari 26.2 より前）では scroll ごとに伝え、reader 側の静かな時間の待ちが
+// 「scroll が来なくなった」の判定を兼ねる（characters.ts の _wireWheel と同じ流儀）。bg.subscribe の後に呼ぶ（両モード共通）。
+// _wireScrollEnd(container: HTMLElement): void
+function _wireScrollEnd(container: HTMLElement): void {
+    const type = 'onscrollend' in window ? 'scrollend' : 'scroll';
+    container.addEventListener(type, () => reader.handleScrollEnd(), { passive: true });
 }
 
 /**

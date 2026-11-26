@@ -45,7 +45,12 @@
   /* 選んでいない顔は少し沈める */
   filter: brightness(0.72) saturate(0.85);
   scale: 1;   /* 選んだ顔は少し大きくする（下の aria-pressed="true"）。基準は等倍 */
-  transition: border-color 0.2s, scale 0.2s, filter 0.2s;
+  /* 枠の色と明るさの変化は常に。大きくなる動きは下の no-preference でだけ足す（動きを減らす設定では、その場で 1.06 倍になる） */
+  transition: border-color 0.2s, filter 0.2s;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cv-face img,
+  .cv-face-initial { transition: border-color 0.2s, scale 0.2s, filter 0.2s; }
 }
 .cv-face-name { display: block; margin-top: 4px; font-size: 11px; white-space: nowrap; }
 .cv-face-name rt { font-size: 0.6em; }

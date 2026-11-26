@@ -264,6 +264,12 @@ export interface GlossaryUi {
     updateHash?: boolean;
 }
 
+// 一覧の中で飛ぶときのスクロールの仕方。動きを減らす設定のときは滑らかにしない（その場で移る。着く位置は同じ）
+// _scrollBehavior(): ScrollBehavior
+function _scrollBehavior(): ScrollBehavior {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+
 function _el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
     const el = document.createElement(tag);
     if (className) el.className = className;
@@ -372,7 +378,7 @@ export function renderGlossary(ui: GlossaryUi, g: Glossary): void {
         b.setAttribute('aria-label', `${row}行へ`);
         b.addEventListener('click', () => {
             if (ui.search.value) { ui.search.value = ''; applyFilter(); }
-            groups.find(gr => gr.dataset.kana === row)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            groups.find(gr => gr.dataset.kana === row)?.scrollIntoView({ block: 'start', behavior: _scrollBehavior() });
         });
         ui.kana.appendChild(b);
         return b;
@@ -405,7 +411,7 @@ export function renderGlossary(ui: GlossaryUi, g: Glossary): void {
         const target = ui.list.ownerDocument.getElementById(a.dataset.target);
         if (!target) return;
         if (target.hidden) { ui.search.value = ''; applyFilter(); }
-        target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        target.scrollIntoView({ block: 'start', behavior: _scrollBehavior() });
         flash(target);
         if (ui.updateHash) history.replaceState(history.state, '', `#${a.dataset.target}`);
     });

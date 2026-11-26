@@ -488,14 +488,16 @@ function _commit(step: number): void {
     });
 }
 
-// 取り消し：2 枚とも元の位置へ滑って戻る
+// 取り消し：2 枚とも元の位置へ滑って戻る（動きを減らす設定では、滑らずに戻る）
 function _cancel(step: number): void {
     const art = _heroEl.art();
     const slide = _heroEl.slide();
     const peer = _heroEl.peer();
     if (!art || !slide || !peer) return;
     const w = art.clientWidth;
-    slide.style.transition = peer.style.transition = SLIDE;
+    // 動きを減らす設定のときは滑らせない（その場で元の位置へ戻る。確定の側は _afterSlide がすぐ終わらせる）
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    slide.style.transition = peer.style.transition = reduce ? 'none' : SLIDE;
     slide.style.translate = '0 0';
     peer.style.translate = `${step > 0 ? w : -w}px 0`;
     _afterSlide(slide, () => { peer.hidden = true; });

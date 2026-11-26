@@ -265,6 +265,24 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         expect((await records(page)).autosave).toMatchObject(autosave);
     });
 
+    // 止まった位置は、最後の書き込みから 500ms 以内に止まっても書かれる（reader.ts の handleScrollEnd）。
+    // 直前に 1 回書かせてから（scrollAndSave）すぐ動かして止めるので、移動中の間引きの書き込みには乗らない。
+    for (const mode of ['horizontal', 'vertical'] as const) {
+        test(`A20 スクロールして止め、600ms 待たずに読み込み直すと、止めた位置から再開する（${mode}）`, async ({ page }) => {
+            await setWritingMode(page, mode);
+            await seed(page);
+            await openFromToc(page, 1, 2);
+            await scrollAndSave(page, 0.3);
+            const savedAt = Date.now();
+            await scrollToRatio(page, 0.7);
+            expect(Date.now() - savedAt, '前の書き込みから 500ms 以内に止めている（間引きの窓の中）').toBeLessThan(500);
+            await expect.poll(async () => (await records(page)).autosave?.ratio ?? -1, { timeout: 600 }).toBeCloseTo(0.7, 1);
+            await page.reload();
+            await waitReader(page);
+            await expect.poll(async () => (await position(page)).ratio).toBeCloseTo(0.7, 1);
+        });
+    }
+
     test('A16 スロット 0 に × は無く、手動栞の行にはある', async ({ page }) => {
         await seed(page, {
             autosave: { ep: 1, sec: 2, ratio: 0.3 },
