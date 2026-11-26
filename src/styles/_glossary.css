@@ -52,11 +52,15 @@ body[data-kind="afterword"] .gl-root {
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
-.gl-kana-btn:not(:disabled):hover,
-.gl-kana-btn:focus-visible {
+/* ホバーは色の変化、キーボードのフォーカスは輪郭線（別の見た目にする）。
+   輪郭線はボタンの内側（-2px）に収める＝隣のボタンとの間（4px）にはみ出さない */
+.gl-kana-btn:not(:disabled):hover {
   color: var(--gl-accent);
   border-color: var(--gl-accent-dim);
-  outline: none;
+}
+.gl-kana-btn:focus-visible {
+  outline: 2px solid var(--gl-accent);
+  outline-offset: -2px;
 }
 .gl-kana-btn:disabled {
   opacity: 0.3;
@@ -74,9 +78,12 @@ body[data-kind="afterword"] .gl-root {
   font: inherit;
   font-size: 0.95rem;
 }
-.gl-search::placeholder { color: #5a5a5a; }
+/* 案内文は地（#0e0e0e）の上で 4.6 : 1（明るさだけを上げた値。弱い文字 --ink-dim より暗いまま） */
+.gl-search::placeholder { color: #7c7c7c; }
+/* フォーカスは輪郭線（外側 2px。上下の部品とは 0.6rem 以上離れている）。枠の色の変化も残す */
 .gl-search:focus-visible {
-  outline: none;
+  outline: 2px solid var(--gl-accent);
+  outline-offset: 2px;
   border-color: var(--gl-accent-dim);
 }
 
@@ -127,7 +134,8 @@ body[data-kind="afterword"] .gl-root {
 .gl-entry ol { padding-inline-start: 1.6em; }
 .gl-entry ol li::marker { color: var(--gl-muted); }
 
-/* 言語と綴り：見出し語の補足なので本文より小さく暗く。
+/* 言語と綴り：見出し語の補足なので本文より小さく暗く（暗さは地に対して 4.5 : 1 を割らない所まで。
+   用語集ページの地 #080808 で 4.9 : 1、資料シートの地 #121212 で 4.6 : 1）。
    セレクタを .gl-entry .gl-langs にしているのは、上の .gl-entry p（本文段落）に勝つため
    （.gl-langs 単独だと字の大きさ・色・上余白を本文段落の指定に上書きされ、本文と同じトーンに見える） */
 .gl-entry .gl-langs {
@@ -137,7 +145,7 @@ body[data-kind="afterword"] .gl-root {
   margin: 0;
   font-size: 0.72rem;
   line-height: 1.5;
-  color: #6e6e6e;
+  color: #7e7e7e;
 }
 .gl-lang {
   display: inline-flex;
@@ -169,11 +177,15 @@ body[data-kind="afterword"] .gl-root {
   border-bottom: 1px dotted var(--gl-accent-dim);
   padding: 0 0.1em;
 }
-.gl-ref:hover,
-.gl-ref:focus-visible {
+/* ホバーは下線を実線に、キーボードのフォーカスは輪郭線（別の見た目にする）。
+   輪郭線は文の中のリンクなので外へ離さない（offset 0。離すと前後の字と上下の行に掛かる） */
+.gl-ref:hover {
   border-bottom-style: solid;
   border-bottom-color: var(--gl-accent);
-  outline: none;
+}
+.gl-ref:focus-visible {
+  outline: 2px solid var(--gl-accent);
+  outline-offset: 0;
 }
 
 /* 表（エシュカの時法） */

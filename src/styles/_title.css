@@ -193,8 +193,9 @@
   transition: background 0.2s;
 }
 
-#btn-title-enter:hover,
-#btn-title-prev:hover,
+/* 無効なボタン（第 1 話の扉の「前の話へ」など。title.ts が disabled にする）には当てない＝押せそうに見せない */
+#btn-title-enter:hover:not(:disabled),
+#btn-title-prev:hover:not(:disabled),
 #btn-title-index:hover {
   background: rgba(0, 0, 0, 0.68);
 }

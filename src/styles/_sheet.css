@@ -368,3 +368,19 @@ dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.55); }
    （:focus-visible だけだと、クリックで開いたときにブラウザが枠を出さない） */
 .confirm-btns button:focus { outline: 2px solid var(--sheet-accent); outline-offset: 2px; }
 .confirm-btns .confirm-ok { color: #f2b3a5; border-color: rgba(233, 160, 143, 0.5); background: rgba(233, 160, 143, 0.08); }
+
+/* ===== 強制カラーモード（Windows のコントラスト テーマ） =====
+   色と影はシステム色に置き換わる（透明の枠も線として描かれ、内側の影は消える）。色だけで表していた
+   「選んでいる」を、Highlight の線の有無・太さで表し直す。通常の表示はここでは変えない。
+   フォーカスの輪郭線（上の :focus-visible）は四辺を囲むので、下線・枠・塗りの印とは見分けられる。
+   検査：e2e/forced-colors.spec.ts */
+@media (forced-colors: active) {
+  /* タブ：選んでいるタブだけに下線。選んでいないタブは線を消し、その 2px を padding で埋めて高さを保つ */
+  .sheet-tab:not([aria-selected="true"]) { border-bottom-style: none; padding-bottom: 12px; }
+  .sheet-tab[aria-selected="true"] { border-bottom-color: Highlight; }
+  /* プリセット：選んでいるカードは枠を 2px に（内側の影の代わり）。太った 1px は padding で相殺して外形を保つ */
+  .settings-preset__btn.active { border-width: 2px; border-color: Highlight; padding: 9px; }
+  /* 選択肢：選んでいるものの下に太い線を引く（高さ 40px は変わらない）。Highlight で塗る形にはしない：Chromium は
+     強制カラーで文字の裏に Canvas 色の下敷きを描くので、塗りの中に下敷きの箱が浮き、HighlightText の字は消える（実測） */
+  .settings-opt.active { border-block-end: 4px solid Highlight; }
+}

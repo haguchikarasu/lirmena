@@ -8,6 +8,7 @@
  * manifest（07-ogp.md）。--ground・--ink を変えたらそれらも直す。
  */
 :root {
+  color-scheme: dark;                         /* 根は暗い配色（head の meta color-scheme と同じ値） */
   --ground:         #080808;                  /* 地：html・body の背景 */
   --surface:        #121212;                  /* 面：シート・資料ページの紙面 */
   --surface-raised: #161616;                  /* 一段浮いた面：確認のポップアップ */
@@ -22,6 +23,7 @@
    紙・墨は地図の SVG（執筆/地図/source/render_map.py の WEB_CSS の --m-paper・--m-ink）と同じ値＝
    一致は src/map-svg.test.ts が見る。弱い文字は紙の上で 6.2 : 1 */
 [data-paper="light"] {
+  color-scheme: light;                        /* 明るい紙の中は、スクロールバーなどブラウザの部品も明るい配色に戻す（付ける要素は背景を持つこと：_map.css の .mv） */
   --ground:         #eeedea;                  /* 紙 */
   --surface:        #eeedea;
   --surface-raised: #f6f5f2;

@@ -2,7 +2,8 @@
  * 骨格 E2E：資料シートの「地図」タブ（要件 06-14）。
  * 地図の部品は map.ts 1 か所が描き、資料シート（ui/world-sheet）に置かれて本文ページ（右下メニュー）から開く
  * （目次の付録カードは map.html へ移る＝e2e/characters-popup.spec.ts が見る）。見るのは「開く／閉じる／地図が届く／
- * ＋−で拡大し端で押せなくなる／別タブ導線が生きている」で、寸法・レイアウトは手動スモークに残す（骨格導線しか見ない方針）。
+ * ＋−で拡大し端で押せなくなる／別タブ導線が生きている」と、地図の枠（明るい紙）の color-scheme で、
+ * 寸法・レイアウトは手動スモークに残す（骨格導線しか見ない方針）。
  */
 
 import { test, expect } from './_fixtures';
@@ -47,4 +48,16 @@ test('本文ページ：右下メニューのエシュカ地図が開き、＋�
     await page.keyboard.press('Escape');
     await expect(page.locator('#world-sheet')).toBeHidden();
     await expect(page.locator('#menu-toggle')).toBeFocused();
+});
+
+// ブラウザの部品（スクロールバーなど）の配色：ページの根は暗い配色、明るい紙の地図の枠の中は明るい配色（_palette.css）。
+// 拡大して出るスクロールバーが、明るい紙の上で暗い配色のまま浮かないように
+test('資料ページ：ページの根は color-scheme: dark、地図の枠（明るい紙）は light', async ({ page }) => {
+    await page.goto('/lirmena/map.html');
+    await expectMapReady(page);
+    const scheme = await page.evaluate(() => ({
+        root: getComputedStyle(document.documentElement).colorScheme,
+        map: getComputedStyle(document.getElementById('map-popup')!).colorScheme,
+    }));
+    expect(scheme).toEqual({ root: 'dark', map: 'light' });
 });

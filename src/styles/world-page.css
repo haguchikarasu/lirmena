@@ -129,3 +129,14 @@ body[data-world="map"] #wp-panel .mv {
   body[data-world="map"] #wp-main { padding-bottom: 0; }
   body[data-world="map"] #wp-panel .mv { height: 100%; border: none; border-radius: 0; }
 }
+
+/* ===== 強制カラーモード（Windows のコントラスト テーマ） =====
+   透明の下線もシステム色で描かれ、全部のタブに線が出る。いまのページのタブだけに下線を残し、ほかは線を消して
+   その 2px を padding で埋める（高さを保つ。padding の値は上の .wp-tab の下の値＋2px）。考え方は _sheet.css の同じ節 */
+@media (forced-colors: active) {
+  .wp-tab:not([aria-current="page"]) { border-bottom-style: none; padding-bottom: 14px; }
+  .wp-tab[aria-current="page"] { border-bottom-color: Highlight; }
+}
+@media (forced-colors: active) and (max-width: 900px) {
+  .wp-tab:not([aria-current="page"]) { padding-bottom: 13px; }
+}

@@ -16,6 +16,8 @@
  *   - 本文シェル：開幕の「もどる」「読み進める」が <main> より前にある（開幕で最初の Tab が止まる先）、
  *     「読み込み中」に role を付けない（一時的な表示を読み上げさせない）
  *   - CSS：user-select の宣言の直前に、同じ値の -webkit-user-select がある（Safari は接頭辞つきしか読まない）
+ *   - CSS：用語集（_glossary.css）の :focus-visible の規則で輪郭線を消さない。タイトルページのボタンのホバーは
+ *     無効なボタンに当たらない（:hover:not(:disabled)）
  * 見ないもの：lirmena-draft/ のミラー（git 管理外で CI から参照できない）、pages() が生成する contents/（雛形から作る）
  */
 
@@ -198,5 +200,36 @@ describe('CSS の書き方の契約（src/styles）', () => {
 
     it.each(cssFiles())('%s の user-select には同じ値の -webkit-user-select が並んでいる', (file) => {
         expect(unprefixedUserSelect(read(file))).toEqual([]);
+    });
+});
+
+/** 規則を { セレクタの並び, 宣言 } で返す（コメントは除く。@media の中の規則も 1 段だけ拾う） */
+function rulesOf(css: string): { selectors: string[]; body: string }[] {
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    return [...src.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .map(m => ({ selectors: m[1].split(',').map(s => s.trim()), body: m[2] }));
+}
+
+describe('CSS の書き方の契約（src/styles）：フォーカスとホバー', () => {
+    it('検出器が、:focus-visible の規則の outline: none を拾う', () => {
+        const css = 'a:hover, a:focus-visible { outline: none } b:focus-visible { outline: 2px solid red } c { outline: none }';
+        const found = rulesOf(css).filter(r => r.selectors.some(s => s.includes(':focus-visible')) && /outline\s*:\s*none/.test(r.body));
+        expect(found.map(r => r.selectors[0])).toEqual(['a:hover']);
+    });
+
+    // 用語集（R2-08）：枠や下線の色の変化だけでは、フォーカスの位置が見えにくい。輪郭線で示す
+    it('_glossary.css の :focus-visible の規則に outline: none が無い', () => {
+        const bad = rulesOf(read('src/styles/_glossary.css'))
+            .filter(r => r.selectors.some(s => s.includes(':focus-visible')) && /(?:^|[;\s])outline\s*:\s*none/.test(r.body));
+        expect(bad.map(r => r.selectors.join(', '))).toEqual([]);
+    });
+
+    // タイトルページ（R2-15）：無効なボタンにマウスを乗せても、押せそうな見た目（地が濃くなる）にしない
+    it('_title.css の「本文を読む」「前の話へ」のホバーは、無効なボタンに当たらない', () => {
+        const hovers = rulesOf(read('src/styles/_title.css'))
+            .flatMap(r => r.selectors)
+            .filter(s => /#btn-title-(enter|prev):hover/.test(s));
+        expect(hovers.length).toBeGreaterThan(0);
+        for (const s of hovers) expect(s).toMatch(/:hover:not\(:disabled\)/);
     });
 });

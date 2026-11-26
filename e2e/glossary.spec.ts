@@ -74,6 +74,43 @@ async function expectLandedBelowStickyBar(page: import('@playwright/test').Page,
     }, selector)).toBe(true);
 }
 
+// キーボードのフォーカスは輪郭線で示す（_glossary.css。ホバーの色の変化とは別の見た目）。
+// Tab で運ぶ＝:focus-visible が確実に当たる（focus() だけだと、ブラウザの判断で当たらないことがある）
+test.describe('用語集のキーボードのフォーカス', () => {
+    async function tabTo(page: import('@playwright/test').Page, selector: string): Promise<void> {
+        for (let i = 0; i < 300; i++) {
+            await page.keyboard.press('Tab');
+            if (await page.evaluate((s) => document.activeElement?.matches(s) ?? false, selector)) return;
+        }
+        throw new Error(`Tab で ${selector} に届かない`);
+    }
+
+    for (const [label, selector] of [
+        ['検索欄', '.gl-search'],
+        ['五十音のボタン', '.gl-kana-btn:not(:disabled)'],
+        ['相互参照のリンク', '.gl-ref'],
+    ] as const) {
+        test(`${label}にフォーカスすると 2px の輪郭線が出る`, async ({ page, browserName }) => {
+            await page.goto('/lirmena/glossary.html');
+            await expect(page.locator('#gl-list .gl-entry').first()).toBeVisible();
+            // WebKit（Safari）は既定では Tab がリンクに止まらない。Tab を 1 回押して「キーボードで操作中」にしてから
+            // スクリプトでフォーカスを移す（直前の操作がキーボードなら :focus-visible が当たる）
+            if (browserName === 'webkit' && selector === '.gl-ref') {
+                await page.keyboard.press('Tab');
+                await page.locator(selector).first().focus();
+            } else {
+                await tabTo(page, selector);
+            }
+            const outline = await page.evaluate(() => {
+                const s = getComputedStyle(document.activeElement!);
+                return { style: s.outlineStyle, width: s.outlineWidth };
+            });
+            expect(outline.style).not.toBe('none');
+            expect(outline.width).toBe('2px');
+        });
+    }
+});
+
 test.describe('本文 → 用語集ポップアップ', () => {
     const openPopup = async (page: import('@playwright/test').Page): Promise<void> => {
         await page.locator('#menu-toggle').click();

@@ -599,7 +599,7 @@ a.idx-chip:focus-visible { outline: 2px solid var(--idx-accent); outline-offset:
   border: 1px solid var(--idx-line);
   border-radius: 999px;
   background: none;
-  color: #6f6b63;
+  color: #827d74;   /* 枠の地（--idx-panel を #080808 に重ねた色）で 4.8 : 1。選んでいるボタンは --idx-text */
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -645,7 +645,8 @@ a.cl-ep-link:hover { text-decoration: underline; }
 
 /* ===== 足もと：版だけ ===== */
 #idx-foot { display: grid; place-items: center; padding: 0 0 48px; }
-#idx-foot-ver { font: 11px/1 ui-monospace, monospace; color: #666; letter-spacing: 0.05em; }
+/* 地 #080808 で 4.9 : 1（明るさだけを上げた値。弱い文字 --ink-dim より暗いまま） */
+#idx-foot-ver { font: 11px/1 ui-monospace, monospace; color: #7e7e7e; letter-spacing: 0.05em; }
 
 /* ===== 設定の見本（PC だけ。設定シートを開いている間、ページ全体を本文の見本にする） ===== */
 #idx-preview { position: fixed; inset: 0; z-index: 30; overflow: clip; background: #000; }
@@ -759,4 +760,11 @@ a.cl-ep-link:hover { text-decoration: underline; }
   .idx-ep:where(:not(.idx-ep--preview, .idx-ep--afterword)) .idx-chip { min-width: 0; padding-inline: 0; }
   /* 指で操作する端末の押せる範囲を、狭めた列の間隔（4px）の中に収めて隣のチップと重ねない */
   .idx-ep:where(:not(.idx-ep--preview, .idx-ep--afterword)) a.idx-chip::before { inset-inline: -2px; }
+}
+
+/* ===== 強制カラーモード（Windows のコントラスト テーマ） =====
+   既読の点は背景色で描いていて、強制カラーではチップの地と同じ色（Canvas）になって消える。文字の色（CanvasText）で
+   塗り直す。表紙の点（#idx-hero-dots）はここでは扱わない。検査：e2e/forced-colors.spec.ts */
+@media (forced-colors: active) {
+  .idx-chip--read::after { background: CanvasText; }
 }
