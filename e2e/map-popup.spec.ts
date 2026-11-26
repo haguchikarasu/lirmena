@@ -21,6 +21,26 @@ async function expectMapReady(page: import('@playwright/test').Page): Promise<vo
     await expect(page.locator('#map-popup svg#eshka-map')).toBeVisible();
 }
 
+test('本文ページ：キーボードで拡大を端まで押しても、拡大ボタンのフォーカスが残る', async ({ page }) => {
+    await page.goto('/lirmena/contents/01-01.html');
+    await page.locator('#menu-toggle').click();
+    await page.getByRole('button', { name: '地図', exact: true }).click();
+    await expectMapReady(page);
+
+    const fig = page.locator('#map-popup');
+    const plus = page.getByRole('button', { name: '拡大' });
+    await plus.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(fig).toHaveAttribute('data-zoom', '3');
+    await expect(plus).toHaveAttribute('aria-disabled', 'true');
+    // disabled にするとフォーカスが消える（activeElement が body に戻る）。aria-disabled ならボタンに残る
+    await expect(plus).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(fig).toHaveAttribute('data-zoom', '3');
+    await expect(plus).toBeFocused();
+});
+
 test('本文ページ：右下メニューのエシュカ地図が開き、＋／− で拡大・縮小できる', async ({ page }) => {
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();
@@ -34,11 +54,20 @@ test('本文ページ：右下メニューのエシュカ地図が開き、＋�
     const plus = page.getByRole('button', { name: '拡大' });
     const minus = page.getByRole('button', { name: '縮小' });
     await expect(fig).toHaveAttribute('data-zoom', '1');
-    await expect(minus).toBeDisabled();
+    await expect(minus).toHaveAttribute('aria-disabled', 'true');
+    await expect(plus).not.toHaveAttribute('aria-disabled', 'true');
     await plus.click();
     await plus.click();
     await expect(fig).toHaveAttribute('data-zoom', '3');
-    await expect(plus).toBeDisabled();
+    await expect(plus).toHaveAttribute('aria-disabled', 'true');
+    // 端のボタンを押しても、拡大率もスクロール位置も変わらない（aria-disabled は JS で作動を止める）
+    const box = page.locator('#map-popup .mv-scroll');
+    const pos = () => box.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    const before = await pos();
+    // Playwright は aria-disabled のボタンを「押せない」と見て待ち続けるので、判定を飛ばして実際に押す
+    await plus.click({ force: true });
+    await expect(fig).toHaveAttribute('data-zoom', '3');
+    expect(await pos()).toEqual(before);
     // 拡大すると絵が枠より広くなる＝横にスクロールできる
     const scrollable = await page.locator('#map-popup .mv-scroll').evaluate((el) => el.scrollWidth > el.clientWidth);
     expect(scrollable).toBe(true);

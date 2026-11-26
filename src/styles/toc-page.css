@@ -295,6 +295,9 @@ body[data-reader="caught"] #idx-cta-btn { color: #d8d8d8; border-color: rgba(255
   border-bottom: 1px solid transparent;
   transition: background 0.3s, border-color 0.3s;
 }
+/* Shift+Tab でさかのぼったとき、フォーカスした要素を帯の裏に残さない（WCAG 2.4.11）。値は上の帯の高さ。
+   帯は fixed なので、帯の中のボタンへのフォーカスでページは動かない（sticky だと動く＝glossary-page.css） */
+html { scroll-padding-top: 64px; }
 .idx-top-btn {
   display: flex;
   align-items: center;

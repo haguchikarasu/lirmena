@@ -248,6 +248,9 @@ body[data-kind="afterword"] .gl-root {
   padding: 0.8rem 1rem 0.7rem;
   border-bottom: 1px solid var(--gl-line);
 }
+/* 検索欄の包み（<search>）。UA の display: block のままだと、中の input が inline-block のまま行ボックスに載って
+   下に数 px の隙間が出る。grid にして input を blockify し、包み無しのとき（頭の grid 直下）と同じ高さにする */
+#glossary-search-row { display: grid; }
 #glossary-kana { justify-content: space-between; }
 
 /* 一覧だけがスクロールする。min-height: 0 が無いと flex item が内容より縮まず器を突き抜ける。

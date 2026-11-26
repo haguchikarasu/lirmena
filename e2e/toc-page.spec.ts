@@ -339,3 +339,27 @@ test.describe('リンクの名前（飾りの ↗ を読み上げに入れない
         expect(await link.evaluate(el => !!el.closest('#idx-links'))).toBe(true);
     });
 });
+
+// WCAG 2.4.11（フォーカスが隠れない）：Shift+Tab でさかのぼると、帯（position: fixed）の裏にある要素へフォーカスが移ることがある。
+// Tab キーを送る検査は WebKit の既定（リンクに止まらない）で揃わないので、帯の裏に置いた要素へ focus() して見る
+test.describe('フォーカスした要素が上の帯の裏に隠れない', () => {
+    test('帯の裏にある巻の見出しへフォーカスすると、帯の下端より下へ出てくる', async ({ page }) => {
+        await setup(page);
+        await page.goto('/lirmena/');
+        const head = page.locator('.idx-vol-head').first();
+        await expect(head).toBeVisible();
+        const r = await head.evaluate(async (el) => {
+            const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+            // 見出しの上端を画面の上から 8px（帯の裏）に置く
+            document.scrollingElement!.scrollTop += el.getBoundingClientRect().top - 8;
+            await frame();
+            const before = el.getBoundingClientRect().bottom;
+            (el as HTMLElement).focus();
+            await frame();
+            return { before, top: el.getBoundingClientRect().top, bar: document.getElementById('idx-topbar')!.getBoundingClientRect().bottom };
+        });
+        // 前提：フォーカスする前は見出しが丸ごと帯の裏にある
+        expect(r.before).toBeLessThan(r.bar);
+        expect(r.top).toBeGreaterThanOrEqual(r.bar - 0.5);
+    });
+});

@@ -98,6 +98,116 @@ describe('open とタブの表示', () => {
     });
 });
 
+describe('タブの矢印キー（roving tabindex・選択は Enter / Space）', () => {
+    const tabs = ['characters', 'map', 'glossary'] as const;
+    const press = (target: HTMLElement, key: string, init: KeyboardEventInit = {}) => {
+        const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+        target.dispatchEvent(e);
+        return e;
+    };
+    const tabindexes = () => tabs.map((t) => tabBtn(t).getAttribute('tabindex'));
+
+    it('開いた直後：選択中のタブだけ tabindex=0、ほかは -1', async () => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('map');
+        expect(tabindexes()).toEqual(['-1', '0', '-1']);
+    });
+
+    it('タブを切り替えると tabindex も付け替わる（click ＝ Enter・Space で選ぶ）', async () => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('glossary').click();
+        expect(tabindexes()).toEqual(['-1', '-1', '0']);
+    });
+
+    it('ArrowRight / ArrowLeft：フォーカスと Tab の止まり先が隣へ移り、選択・部品の呼び出しは変わらない', async () => {
+        const { ws, characters, map, glossary } = await load();
+        ws.init(source());
+        ws.open('characters');
+        vi.mocked(characters.render).mockClear();
+
+        tabBtn('characters').focus();
+        const e = press(tabBtn('characters'), 'ArrowRight');
+        expect(e.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(tabBtn('map'));
+        expect(tabBtn('characters').getAttribute('aria-selected')).toBe('true');
+        expect(tabBtn('map').getAttribute('aria-selected')).toBe('false');
+        // Tab の止まり先はフォーカスに付いて動く（動かないと、次の Tab が選択中のタブにもう一度止まる）
+        expect(tabindexes()).toEqual(['-1', '0', '-1']);
+        // 列の中の移動では戻さない
+        tabBtn('map').dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: tabBtn('glossary') }));
+        expect(tabindexes()).toEqual(['-1', '0', '-1']);
+        // タブの列からフォーカスが出たら、選択中のタブへ戻る
+        tabBtn('map').dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+        expect(tabindexes()).toEqual(['0', '-1', '-1']);
+        expect(dlg().dataset.tab).toBe('characters');
+        expect(characters.render).not.toHaveBeenCalled();
+        expect(map.mount).not.toHaveBeenCalled();
+        expect(glossary.mountPanel).not.toHaveBeenCalled();
+
+        press(tabBtn('map'), 'ArrowLeft');
+        expect(document.activeElement).toBe(tabBtn('characters'));
+    });
+
+    it('端では反対の端へ回る', async () => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('glossary').focus();
+        press(tabBtn('glossary'), 'ArrowRight');
+        expect(document.activeElement).toBe(tabBtn('characters'));
+        press(tabBtn('characters'), 'ArrowLeft');
+        expect(document.activeElement).toBe(tabBtn('glossary'));
+    });
+
+    it('Home は最初、End は最後へ', async () => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('map').focus();
+        const end = press(tabBtn('map'), 'End');
+        expect(end.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(tabBtn('glossary'));
+        press(tabBtn('glossary'), 'Home');
+        expect(document.activeElement).toBe(tabBtn('characters'));
+    });
+
+    it('矢印で移したあと Enter 相当（click）で選ぶと、選択と tabindex が付け替わる', async () => {
+        const { ws, map } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('characters').focus();
+        press(tabBtn('characters'), 'ArrowRight');
+        tabBtn('map').click();
+        expect(tabBtn('map').getAttribute('aria-selected')).toBe('true');
+        expect(tabindexes()).toEqual(['-1', '0', '-1']);
+        expect(map.mount).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['ctrlKey', 'altKey', 'metaKey', 'shiftKey'] as const)('%s が押されているときは何もしない', async (mod) => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('characters').focus();
+        const e = press(tabBtn('characters'), 'ArrowRight', { [mod]: true });
+        expect(e.defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(tabBtn('characters'));
+    });
+
+    it('上下の矢印とタブ以外から来たキーは扱わない', async () => {
+        const { ws } = await load();
+        ws.init(source());
+        ws.open('characters');
+        tabBtn('characters').focus();
+        expect(press(tabBtn('characters'), 'ArrowDown').defaultPrevented).toBe(false);
+        const nav = document.querySelector<HTMLElement>('.sheet-tabs')!;
+        expect(press(nav, 'ArrowRight').defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(tabBtn('characters'));
+    });
+});
+
 describe('「ページで開く」の行き先', () => {
     it.each(['characters', 'map', 'glossary'] as const)('%s のタブは <tab>.html を指す', async (tab) => {
         const { ws } = await load();

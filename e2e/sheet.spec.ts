@@ -200,6 +200,39 @@ test.describe('スマホ幅', () => {
         await expect.poll(async () => Math.round((await sheet.boundingBox())!.height)).toBe(Math.round(h0));
     });
 
+    test('資料シートのタブ：矢印キーはフォーカスだけを移し、Enter で選ぶ。Tab で止まるのは選択中の 1 つだけ', async ({ page }) => {
+        await page.goto('/lirmena/contents/01-01.html');
+        await expect(page.locator('#main-container')).toBeVisible();
+        await openMenuItem(page, '人物');
+        await expect(page.locator('#world-sheet')).toBeVisible();
+        const tab = (name: string) => page.locator(`#world-tab-${name}`);
+
+        // Tab で止まるタブは選択中の 1 つだけ（roving tabindex）
+        await expect(tab('characters')).toHaveAttribute('tabindex', '0');
+        await expect(tab('map')).toHaveAttribute('tabindex', '-1');
+        await expect(tab('glossary')).toHaveAttribute('tabindex', '-1');
+
+        await tab('characters').focus();
+        await page.keyboard.press('ArrowRight');
+        await expect(tab('map')).toBeFocused();
+        await expect(tab('characters')).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#map-overlay')).toBeHidden();
+        // Tab の止まり先はフォーカスに付いて動く（次の Tab が選択中のタブにもう一度止まらない）
+        await expect(tab('map')).toHaveAttribute('tabindex', '0');
+        await expect(tab('characters')).toHaveAttribute('tabindex', '-1');
+        // タブの列から出ると、止まり先は選択中のタブへ戻る
+        await page.locator('#world-sheet [data-sheet-close]').focus();
+        await expect(tab('characters')).toHaveAttribute('tabindex', '0');
+        await expect(tab('map')).toHaveAttribute('tabindex', '-1');
+        await tab('characters').focus();
+        await page.keyboard.press('ArrowRight');
+
+        await page.keyboard.press('Enter');
+        await expect(tab('map')).toHaveAttribute('aria-selected', 'true');
+        await expect(tab('map')).toHaveAttribute('tabindex', '0');
+        await expect(tab('characters')).toHaveAttribute('tabindex', '-1');
+    });
+
     test('ボタンの上から掴んだあとも、キーボードでボタンを押せる', async ({ page }) => {
         await page.goto('/lirmena/contents/01-01.html');
         await expect(page.locator('#main-container')).toBeVisible();

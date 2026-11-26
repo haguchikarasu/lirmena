@@ -14,6 +14,7 @@
  * 飛んだ先（五十音・相互参照・直リンク）の見出しを検索欄の裏に潜らせないため、--gl-sticky-h（_glossary.css の
  * scroll-margin-top）に「検索欄の下端からの余白」を渡す。PC は検索欄が上の帯の真下に貼り付く（sticky）ので
  * 「帯の高さ＋検索欄の高さ＋8px」、スマホは検索欄が一覧の箱の外にある（static）ので 8px だけ。
+ * 同じ値を、Shift+Tab でフォーカスした相互参照を欄の裏に残さないためにも使う（glossary-page.css の #gl-list）。
  */
 
 import './styles/toc.css';

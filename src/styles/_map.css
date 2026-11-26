@@ -51,7 +51,7 @@
   color: var(--sheet-text);
   cursor: pointer;
 }
-.mv-zoom-btn:disabled { opacity: 0.35; cursor: default; }
+.mv-zoom-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
 .mv-zoom-btn:focus-visible { outline: 2px solid var(--sheet-accent); }
 
 /* 拡大より細かく見たい読者のための別タブの導線（↗ は ::after）。枠の左下に置く */

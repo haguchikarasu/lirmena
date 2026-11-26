@@ -458,6 +458,8 @@ let _mounted: Promise<void> | null = null;
  * md を取得して描く。ui/world-sheet が用語のタブを開くたびに呼ぶ：1 回目だけ組み立てと取得をし、取得に失敗していたら
  * 取り直す（成功したあとは何もしない＝検索語とスクロール位置は閉じても残る。ページを移れば消える）。
  * 頭は一覧の外に置く（一覧だけがスクロールする）ので、五十音で飛んだ先の見出しが検索欄の裏に潜らない。
+ * 検索欄（#glossary-search）は <search id="glossary-search-row"> で包んで頭に入れる（五十音は包まない）。
+ * 欄には autocorrect="off"・autocapitalize="none"・spellcheck=false を付ける（autocomplete="off" は従来どおり）。
  * mountPanel(el: HTMLElement): void
  */
 export function mountPanel(el: HTMLElement): void {
@@ -475,11 +477,20 @@ export function mountPanel(el: HTMLElement): void {
         _search.placeholder = '用語を検索（ひらがな可）';
         _search.autocomplete = 'off';
         _search.setAttribute('aria-label', '用語を検索');
+        // 識別子に近い入力なので、文字の自動修正（綴り・大文字化）を止める
+        _search.setAttribute('autocorrect', 'off');
+        _search.setAttribute('autocapitalize', 'none');
+        _search.spellcheck = false;
+
+        // 検索欄は <search>（検索のランドマーク）で包む。五十音はジャンプ用なので包みに入れない
+        const searchRow = _el('search');
+        searchRow.id = 'glossary-search-row';
+        searchRow.append(_search);
 
         const kana = _el('nav', 'gl-kana');
         kana.id = 'glossary-kana';
         kana.setAttribute('aria-label', '五十音');
-        head.append(_search, kana);
+        head.append(searchRow, kana);
 
         const list = _el('section', 'gl-list');
         list.id = 'glossary-popup-list';

@@ -8,6 +8,10 @@
   margin: 0 auto;
   padding: 0 1.5rem 5rem;
 }
+/* Shift+Tab でさかのぼったとき、フォーカスした相互参照を帯と検索欄の裏に残さない（WCAG 2.4.11）。
+   html の scroll-padding-top にしない：帯も検索欄も sticky なので、Chromium と WebKit では中のタブ・検索欄・五十音へ
+   フォーカスするたびにページが数百 px 上へ動く。飛んだ先と同じ --gl-sticky-h を一覧の中の部品にだけ持たせる */
+#gl-list :is(a, button) { scroll-margin-top: var(--gl-sticky-h, 0px); }
 
 /* 検索と五十音：PC は最初から上の帯の真下に置き、そのまま貼り付ける（上に余白を空けると、五十音で飛んだとき
    貼り付く位置まで「サッと上へ」動いて不自然）。貼り付く位置は帯の実際の高さ（--wp-top-h。ui/world-nav が測る） */

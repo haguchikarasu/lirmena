@@ -13,6 +13,8 @@
  *   PC（マウス）は拡大中に地図をつかんで動かせる（手のひら）。指はブラウザのスクロールに任せる（pointerType で分ける）。
  *   「原寸で開く ↗」は同じ SVG を別タブで開く（拡大より細かく見たい読者向け）。URL に #s0〜#s5 を付けて、開いた先でも
  *   いまの stage（あとがきは #s0＝無彩色）の色で出す。
+ *   端の段（1 段で −、3 段で ＋）のボタンは disabled にせず aria-disabled="true" を付ける（押したボタン自身が
+ *   無効になるとキーボードのフォーカスが消えるため）。押しても何も起きないよう click 側で止める。
  *   枠には data-paper="light" を付ける＝枠・ボタンもライトの紙面の色（_map.css）。
  *
  * 地図（SVG）：
@@ -61,7 +63,11 @@ export function mount(el: HTMLElement): void {
         b.className = 'mv-zoom-btn';
         b.setAttribute('aria-label', label);
         b.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
-        b.addEventListener('click', () => _zoom(fig, box, dir));
+        // 端の段のボタンは aria-disabled で「押せない」を伝えるだけなので、作動は自分で止める
+        b.addEventListener('click', () => {
+            if (b.getAttribute('aria-disabled') === 'true') return;
+            _zoom(fig, box, dir);
+        });
         return b;
     };
     zoom.append(zoomBtn(1, '拡大', 'M12 5v14M5 12h14'), zoomBtn(-1, '縮小', 'M5 12h14'));
@@ -119,13 +125,20 @@ function _zoom(fig: HTMLElement, box: HTMLElement, dir: 1 | -1): void {
     _updateZoomButtons(fig);
 }
 
-// 端の段では押しても変わらないボタンを押せなくする。
+// 端の段では押しても変わらないボタンに aria-disabled="true" を付け、それ以外では属性を外す。
+// disabled にしないのは、押したボタン自身が無効になるとキーボードのフォーカスが消えるため。
+// 押しても何も起きないことは click 側のガード（mount）が受け持つ。
 // _updateZoomButtons(fig: HTMLElement): void
 function _updateZoomButtons(fig: HTMLElement): void {
     const z = Number(fig.dataset.zoom);
     const [plus, minus] = fig.querySelectorAll<HTMLButtonElement>('.mv-zoom-btn');
-    if (plus) plus.disabled = z >= ZOOM_MAX;
-    if (minus) minus.disabled = z <= 1;
+    const set = (b: HTMLButtonElement | undefined, off: boolean): void => {
+        if (!b) return;
+        if (off) b.setAttribute('aria-disabled', 'true');
+        else b.removeAttribute('aria-disabled');
+    };
+    set(plus, z >= ZOOM_MAX);
+    set(minus, z <= 1);
 }
 
 // PC（マウス）：拡大中は地図をつかんで動かせる（手のひら）。指はブラウザのスクロールに任せる。

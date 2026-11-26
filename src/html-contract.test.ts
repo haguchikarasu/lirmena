@@ -160,6 +160,19 @@ describe('HTML の書き方の契約：名前・見出し・読み上げ', () =>
         expect(mark).not.toBe('');
         expect(label).toContain(mark);
     });
+
+    it('用語集ページの検索欄（#gl-search）は <search> の中にあり、文字の自動修正を止めている', () => {
+        const html = stripNonMarkup(read('glossary.html'));
+        const inner = /<search[\s>][^]*?<\/search>/.exec(html)?.[0] ?? '';
+        expect(inner).not.toBe('');
+        const input = openTags(inner).find(t => idOf(t) === 'gl-search') ?? '';
+        expect(input).not.toBe('');
+        expect(input).toMatch(/\sautocorrect="off"/);
+        expect(input).toMatch(/\sautocapitalize="none"/);
+        expect(input).toMatch(/\sspellcheck="false"/);
+        // 五十音（ジャンプ用）は検索ではないので <search> に入れない
+        expect(inner).not.toContain('id="gl-kana"');
+    });
 });
 
 /** 指定セレクタ（カンマ区切りの 1 つと完全一致）の規則の中にある content 宣言の値を返す */

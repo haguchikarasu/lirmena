@@ -12,6 +12,15 @@
  * 人物のデータと Stage は呼び出す側が渡す（WorldSource）：本文は「そのページが属する Stage」。
  * 人物のタブは開くたび・タブを選ぶたびに描き直す。
  * 地図と用語は最初に開いたときだけ作る（画像・md を開くまで落とさない）。
+ * タブの操作（ARIA のタブ。focusgroup 属性はまだ一部のブラウザだけなので使わない）：
+ *   - roving tabindex：選択中のタブだけ tabindex=0、ほかは -1（Tab で止まるのは 1 つ）。付けるのは JS だけ＝HTML は
+ *     素のままで、JS が動かなければ 3 つとも止まる。
+ *   - 矢印キー（← →。端で回る）・Home・End は「フォーカスだけ」を隣へ移す。選ぶのは Enter・Space（button の click）。
+ *     選択をフォーカスに付けない（selection by activation）のは、地図と用語は初めて選ぶときに画像・md を取得し、
+ *     選ぶと中身へフォーカスを移すため。矢印を押すたびに取得が走り、フォーカスも中身へ飛んでしまう。
+ *     Tab の止まり先（tabindex=0）はフォーカスと一緒に移す（動かさないと、矢印で移ったあとの Tab が選択中のタブに
+ *     もう一度止まる）。タブの列からフォーカスが出たら、選択中のタブへ戻す（Tab で戻ると選択中のタブに入る）。
+ *   - Ctrl・Alt・Meta・Shift つきのキーは扱わない。タブは横並びなので上下の矢印も扱わない。
  * Escape：用語のタブでは glossary.handleEscape が閉じる要求を止めることがある（日本語の変換中・検索欄に文字があるとき）。
  * 「ページで開く」（#world-sheet-page）：いまのタブの資料ページ（<tab>.html）を指す。タブを切り替えるたびに href を
  * 付け直す。?dev は core/query の withQuery で引き継ぐ（落ちると作者の閲覧が計測される）。人物のタブでは、いま見ている
@@ -55,6 +64,41 @@ export function init(source: WorldSource): void {
     for (const btn of dlg.querySelectorAll<HTMLButtonElement>('.sheet-tab[data-tab]')) {
         btn.addEventListener('click', () => _show(btn.dataset.tab as WorldTab));
     }
+    const tablist = dlg.querySelector<HTMLElement>('.sheet-tabs');
+    tablist?.addEventListener('keydown', _onTabKeydown);
+    // タブの列からフォーカスが出たら、Tab の止まり先を選択中のタブへ戻す（列の中の移動では戻さない）
+    tablist?.addEventListener('focusout', (e) => {
+        if (e.relatedTarget instanceof Node && tablist.contains(e.relatedTarget)) return;
+        _setTabStop(_tab);
+    });
+}
+
+// Tab の止まり先（tabindex=0）を 1 つのタブに置き、ほかを -1 にする。
+// _setTabStop(tab: WorldTab): void
+function _setTabStop(tab: WorldTab): void {
+    if (!_dlg) return;
+    for (const btn of _dlg.querySelectorAll<HTMLButtonElement>('.sheet-tab[data-tab]')) {
+        btn.tabIndex = btn.dataset.tab === tab ? 0 : -1;
+    }
+}
+
+// タブの上のキー操作。矢印・Home・End はフォーカスと Tab の止まり先を移す（選ぶのは click＝Enter・Space）。
+// _onTabKeydown(e: KeyboardEvent): void
+function _onTabKeydown(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    const cur = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('.sheet-tab[data-tab]') : null;
+    if (!cur || !_dlg) return;
+    const tabs = [..._dlg.querySelectorAll<HTMLButtonElement>('.sheet-tab[data-tab]')];
+    const i = tabs.indexOf(cur);
+    let next: number;
+    if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    _setTabStop(tabs[next].dataset.tab as WorldTab);
+    tabs[next].focus();
 }
 
 // open(tab: WorldTab, opener?: HTMLElement | null): void
@@ -70,7 +114,7 @@ export function isOpen(): boolean {
     return sheet.isOpen(_dlg);
 }
 
-// タブを切り替えて中身を描く。切り替えたらタブの中身へフォーカスを移す（スマホでは何も光らない・キーボードは中から Tab）。
+// タブを切り替えて中身を描く（選択中のタブだけ tabindex=0）。切り替えたらタブの中身へフォーカスを移す（スマホでは何も光らない・キーボードは中から Tab）。
 // _show(tab: WorldTab): void
 function _show(tab: WorldTab): void {
     if (!_dlg) return;
@@ -79,6 +123,7 @@ function _show(tab: WorldTab): void {
     for (const btn of _dlg.querySelectorAll<HTMLButtonElement>('.sheet-tab[data-tab]')) {
         btn.setAttribute('aria-selected', String(btn.dataset.tab === tab));
     }
+    _setTabStop(tab);
     const panels: Record<WorldTab, HTMLElement | null> = {
         characters: _dlg.querySelector('#characters-overlay'),
         map: _dlg.querySelector('#map-overlay'),

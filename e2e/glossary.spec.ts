@@ -111,6 +111,34 @@ test.describe('用語集のキーボードのフォーカス', () => {
     }
 });
 
+test.describe('検索欄のランドマークと自動修正', () => {
+    // <search> の role は WebKit で怪しいことがあるので、要素と親子関係で確かめる（3 ブラウザ共通）
+    const expectSearchLandmark = async (page: import('@playwright/test').Page, inputSelector: string): Promise<void> => {
+        const input = page.locator(inputSelector);
+        await expect(input).toHaveCount(1);
+        await expect(page.locator('search').filter({ has: input })).toHaveCount(1);
+        await expect(page.locator('search').locator('#gl-kana, #glossary-kana')).toHaveCount(0);
+        await expect(input).toHaveAttribute('autocorrect', 'off');
+        await expect(input).toHaveAttribute('autocapitalize', 'none');
+        await expect(input).toHaveAttribute('spellcheck', 'false');
+        await expect(input).toHaveAttribute('autocomplete', 'off');
+    };
+
+    test('用語集ページの検索欄は <search> の中にあり、文字の自動修正を止めている', async ({ page }) => {
+        await page.goto('/lirmena/glossary.html');
+        await expectSearchLandmark(page, '#gl-search');
+    });
+
+    test('資料シートの用語タブの検索欄は <search> の中にあり、文字の自動修正を止めている', async ({ page }) => {
+        await page.goto('/lirmena/contents/01-01.html');
+        await expect(page.locator('#main-container')).toBeVisible();
+        await page.locator('#menu-toggle').click();
+        await page.getByRole('button', { name: '用語', exact: true }).click();
+        await expect(page.locator('#glossary-overlay')).toBeVisible();
+        await expectSearchLandmark(page, '#glossary-search');
+    });
+});
+
 test.describe('本文 → 用語集ポップアップ', () => {
     const openPopup = async (page: import('@playwright/test').Page): Promise<void> => {
         await page.locator('#menu-toggle').click();
@@ -170,5 +198,50 @@ test.describe('本文 → 用語集ポップアップ', () => {
         await page.locator('#world-tab-characters').click();
         // 人物のタブでは見ている巻と人を # に載せる（中身は e2e/world-page.spec.ts が見る）
         await expect(pageLink).toHaveAttribute('href', /^\/lirmena\/characters\.html\?dev#vol=1&who=/);
+    });
+});
+
+// WCAG 2.4.11（フォーカスが隠れない）：PC の用語集ページは、上の帯と検索欄（どちらも sticky）が一覧の上に被さる。
+// Shift+Tab でさかのぼって、その裏にある相互参照へフォーカスが移っても隠れないこと。Tab キーは WebKit の既定で
+// リンクに止まらないので、裏に置いた相互参照へ focus() して見る
+test.describe('用語集ページ：フォーカスした相互参照が検索欄の裏に隠れない', () => {
+    test('検索欄の裏にある相互参照へフォーカスすると、検索欄の下端より下へ出てくる', async ({ page }) => {
+        await page.goto('/lirmena/glossary.html');
+        await expect(page.locator('#gl-list .gl-entry').first()).toBeVisible();
+        const r = await page.locator('#gl-list a.gl-ref').nth(10).evaluate(async (el) => {
+            const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+            // 相互参照の上端を画面の上から 10px（帯の裏）に置く
+            document.scrollingElement!.scrollTop += el.getBoundingClientRect().top - 10;
+            await frame();
+            const before = el.getBoundingClientRect().bottom;
+            (el as HTMLElement).focus();
+            await frame();
+            return { before, top: el.getBoundingClientRect().top, bar: document.getElementById('gl-sticky')!.getBoundingClientRect().bottom };
+        });
+        // 前提：フォーカスする前は相互参照が丸ごと帯と検索欄の裏にある
+        expect(r.before).toBeLessThan(r.bar);
+        expect(r.top).toBeGreaterThanOrEqual(r.bar - 0.5);
+    });
+
+    test('帯と検索欄の中の部品へフォーカスしても、ページが動かない', async ({ page }) => {
+        await page.goto('/lirmena/glossary.html');
+        await expect(page.locator('#gl-list .gl-entry').first()).toBeVisible();
+        // 一覧の途中までスクロールしてから、帯のタブ・検索欄・五十音へ順にフォーカスする
+        const moved = await page.evaluate(async () => {
+            const frame = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+            const se = document.scrollingElement!;
+            se.scrollTop = 3000;
+            await frame();
+            const out: string[] = [];
+            for (const el of document.querySelectorAll<HTMLElement>('#wp-top a, #gl-sticky input, #gl-sticky button:not([disabled])')) {
+                el.focus();
+                await frame();
+                if (Math.abs(se.scrollTop - 3000) > 0.5) out.push(el.id || el.textContent || el.tagName);
+                se.scrollTop = 3000;
+                await frame();
+            }
+            return out;
+        });
+        expect(moved).toEqual([]);
     });
 });
