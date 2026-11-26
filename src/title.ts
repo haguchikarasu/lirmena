@@ -10,7 +10,7 @@
  *
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
  *   #title-screen            … 縦長フルスクリーンの器（初期 hidden、描画後に表示）
- *   #title-screen-ep-title   … ep タイトル（半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は src/styles/_title.css 側）
+ *   #title-screen-ep-title   … ep タイトル（<h1>＝そのページの見出し。半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は src/styles/_title.css 側）
  *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
  *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
  *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）

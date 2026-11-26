@@ -133,8 +133,8 @@
        タイトル・ボタン群（nav）・更新履歴は src/styles/_title.css で #title-screen 基準に絶対配置し、
        縦位置を4つの CSS 変数で独立調整する（中央を背景の絵に空ける）。 -->
   <section id="title-screen" hidden>
-    <p id="title-screen-ep-title"></p>
-    <nav id="title-screen-nav">
+    <h1 id="title-screen-ep-title"></h1>
+    <nav id="title-screen-nav" aria-label="ページ送り">
       <button id="btn-title-enter" type="button">本文を読む</button>
       <button id="btn-title-prev" type="button">前の話へ</button>
       <a id="btn-title-index" href="../">目次へもどる</a>

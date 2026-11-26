@@ -29,3 +29,11 @@ test('目次 → タイトル(01-00) → reader(01-01)', async ({ page }) => {
     // 本文レンダ完了（scene-content の hidden 解除）
     await expect(page.locator('#scene-content')).toBeVisible();
 });
+
+test('タイトルページの話名は見出し（h1）として読める', async ({ page }) => {
+    await page.goto('/lirmena/contents/01-00.html');
+    const h1 = page.getByRole('heading', { level: 1 });
+    await expect(h1).toHaveCount(1);
+    await expect(h1).toContainText('太陽の行く先');
+    await expect(h1).toHaveAttribute('id', 'title-screen-ep-title');
+});

@@ -87,7 +87,7 @@ dialog#hold-popup::backdrop { background: transparent; }
 .hold-body .sheet-close { position: absolute; top: 4px; right: 4px; }
 .hold-body p { margin: 0 0 0.6em; }
 .hold-body ul { margin: 0; padding: 0; list-style: none; }
-.hold-body li::before { content: '・'; }
+.hold-body li::before { content: '・' / ''; }
 
 /* 文字は <html data-dev> のトークンから出す：query（?dev 付き）→「?dev」、host（本番ホストではない）→「non-prod」。
    両方付けば並ぶ（中身の空の span 1 つ）。見た目は作者が見落とさないための目立つ札で、

@@ -111,8 +111,7 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
         expect(tagsWhere(read(file), tag => /\stabindex="[1-9]\d*"/.test(tag))).toEqual([]);
     });
 
-    // タイトルページの <nav> はセッション 8（目次・タイトル・資料ページの構造）で直すまで対象から外す
-    it.each(files.filter(f => f !== 'templates/title.html'))('%s の <nav> には名前がある', (file) => {
+    it.each(files)('%s の <nav> には名前がある', (file) => {
         expect(navTags(read(file)).filter(tag => !/\saria-label(ledby)?="[^"]+"/.test(tag))).toEqual([]);
     });
 
@@ -135,6 +134,58 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
         const tag = openTags(read('templates/reader.html')).find(t => idOf(t) === 'loading');
         expect(tag).toBeDefined();
         expect(tag).not.toMatch(/\srole\s*=/);
+    });
+});
+
+describe('HTML の書き方の契約：名前・見出し・読み上げ', () => {
+    it('タイトルページの話名は <h1>（<p> ではない）', () => {
+        const tags = openTags(read('templates/title.html'));
+        expect(tags.some(t => /^<h1[\s>]/.test(t) && idOf(t) === 'title-screen-ep-title')).toBe(true);
+        expect(tags.some(t => /^<p[\s>]/.test(t) && idOf(t) === 'title-screen-ep-title')).toBe(false);
+    });
+
+    it('目次の「読み込み中」に role を付けない', () => {
+        const tag = openTags(read('index.html')).find(t => idOf(t) === 'idx-hero-loading');
+        expect(tag).toBeDefined();
+        expect(tag).not.toMatch(/\srole\s*=/);
+    });
+
+    it('資料ページの「もどる」の名前は、見えている文字（#wp-mark）を含む', () => {
+        const html = read('templates/parts/world-nav.html');
+        const back = openTags(html).find(t => idOf(t) === 'wp-back') ?? '';
+        const label = /\saria-label="([^"]*)"/.exec(back)?.[1] ?? '';
+        const mark = /<span id="wp-mark"[^>]*>([^<]*)<\/span>/.exec(html)?.[1] ?? '';
+        expect(mark).not.toBe('');
+        expect(label).toContain(mark);
+    });
+});
+
+/** 指定セレクタ（カンマ区切りの 1 つと完全一致）の規則の中にある content 宣言の値を返す */
+function contentOf(css: string, selector: string): string[] {
+    const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const out: string[] = [];
+    for (const m of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!m[1].split(',').some(sel => sel.trim() === selector)) continue;
+        const c = /(?:^|[;\s])content\s*:\s*([^;}]+)/.exec(m[2])?.[1];
+        if (c) out.push(c.trim());
+    }
+    return out;
+}
+
+describe('CSS の書き方の契約（src/styles）：読み上げ', () => {
+    it.each([
+        ['src/styles/_misc.css', '.hold-body li::before'],
+        ['src/styles/toc-page.css', 'a.cl-ep-link::after'],
+        ['src/styles/toc-page.css', '#idx-links a::after'],
+        ['src/styles/_map.css', '.mv-open::after'],
+    ])('%s の %s は、飾りの文字を読み上げから外す（content: "…" / ""）', (file, selector) => {
+        const found = contentOf(read(file), selector);
+        expect(found.length).toBeGreaterThan(0);
+        for (const c of found) expect(c).toMatch(/\/\s*(""|'')$/);
+    });
+
+    it.each(cssFiles())('%s に負の order が無い（見た目だけ入れ替えると、Tab と読み上げの順と食い違う）', (file) => {
+        expect(read(file).replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\border\s*:\s*-\d/);
     });
 });
 

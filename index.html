@@ -190,7 +190,8 @@
       <!-- 読み込み中の印：ヒーローの絵が届くまで（<html data-hero-loading> の間）だけ出す。背景の風景・ロゴ・ボタンも
            その間は隠す（小さい背景だけが先に届いて一瞬見えると、何のページか分からない）。出すのは少し待ってから
            （手元にある絵ならすぐ届くので、印がちらつかない）。見た目は toc-page.css -->
-      <p id="idx-hero-loading" role="status"><span class="idx-hero-spinner" aria-hidden="true"></span>読み込み中</p>
+      <!-- すぐ消える一時的な表示なので、読み上げの対象（role="status"）にしない -->
+      <p id="idx-hero-loading"><span class="idx-hero-spinner" aria-hidden="true"></span>読み込み中</p>
     </section>
   </header>
   <!-- 巻の素材の先付け（ちらつき回避）：story.json を待たずに、端末に残っている stage（lirmena.storyStage）から

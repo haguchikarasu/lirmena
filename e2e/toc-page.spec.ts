@@ -255,3 +255,87 @@ test.describe('設定シート（上の帯の ⚙）', () => {
         await expect(page.locator('#idx-preview')).toBeHidden();
     });
 });
+
+// 「最新」の DOM 上の位置：スマホ幅では話の一覧の前、PC 幅では右カラムの先頭（index.ts の initNewsPlacement。見た目だけ CSS の order で
+// 入れ替えると、Tab と読み上げの順が見た目と食い違う）
+test.describe('最新の位置（画面幅で DOM の位置を移す）', () => {
+    const state = (page: Page) => page.evaluate(() => {
+        const news = document.getElementById('idx-news')!;
+        const nav = document.getElementById('idx-ep-nav')!;
+        const side = document.getElementById('idx-side')!;
+        return {
+            beforeNav: !!(news.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING),
+            aboveNav: news.getBoundingClientRect().top < nav.getBoundingClientRect().top,
+            firstOfSide: side.firstElementChild === news,
+            parentId: news.parentElement?.id,
+        };
+    });
+
+    test('スマホ幅（390×844）：DOM でも画面でも話の一覧より前', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await setup(page);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#idx-news')).toBeVisible();
+        const s = await state(page);
+        expect(s.beforeNav).toBe(true);
+        expect(s.aboveNav).toBe(true);
+        expect(s.parentId).toBe('idx-main');
+    });
+
+    test('PC 幅（1280×800）：右カラムの最初の子', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await setup(page);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#idx-news')).toBeVisible();
+        expect((await state(page)).firstOfSide).toBe(true);
+    });
+
+    test('1280 → 390 → 1280 と切り替えると、位置がそのつど追従する', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await setup(page);
+        await page.goto('/lirmena/');
+        await expect(page.locator('#idx-news')).toBeVisible();
+        expect((await state(page)).firstOfSide).toBe(true);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect.poll(async () => (await state(page)).beforeNav).toBe(true);
+        expect((await state(page)).parentId).toBe('idx-main');
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await expect.poll(async () => (await state(page)).firstOfSide).toBe(true);
+    });
+
+    // 「最新」にフォーカスがあるときに幅が切り替わっても（スマホの回転など）、フォーカスを失わない。
+    // moveBefore があるブラウザはそれが保つ。無いブラウザ（insertBefore に落ちる）でも保つことを、moveBefore を消して確かめる
+    for (const withMoveBefore of [true, false]) {
+        test(`「最新」にフォーカスがあるまま幅が切り替わっても、フォーカスが残る（moveBefore ${withMoveBefore ? 'あり' : 'なし'}）`, async ({ page }) => {
+            if (!withMoveBefore) {
+                await page.addInitScript(() => { delete (Element.prototype as { moveBefore?: unknown }).moveBefore; });
+            }
+            await page.setViewportSize({ width: 1280, height: 800 });
+            await setup(page);
+            await page.goto('/lirmena/');
+            await expect(page.locator('#idx-news')).toBeVisible();
+            const has = await page.evaluate(() => 'moveBefore' in Element.prototype);
+            // moveBefore を持たないブラウザ（2026-11 時点の WebKit）では「あり」の側は試せない。「なし」の側が同じ経路を見る
+            test.skip(withMoveBefore && !has, 'このブラウザは moveBefore を持たない');
+            expect(has).toBe(withMoveBefore);
+            await page.locator('#idx-news').focus();
+            await page.setViewportSize({ width: 390, height: 844 });
+            await expect.poll(async () => (await state(page)).parentId).toBe('idx-main');
+            expect(await page.evaluate(() => document.activeElement?.id)).toBe('idx-news');
+            await page.setViewportSize({ width: 1280, height: 800 });
+            await expect.poll(async () => (await state(page)).firstOfSide).toBe(true);
+            expect(await page.evaluate(() => document.activeElement?.id)).toBe('idx-news');
+        });
+    }
+});
+
+test.describe('リンクの名前（飾りの ↗ を読み上げに入れない）', () => {
+    test('目次のリンクは「カクヨム」の名前で取れる', async ({ page }) => {
+        await setup(page);
+        await page.goto('/lirmena/');
+        const link = page.getByRole('link', { name: 'カクヨム', exact: true });
+        await expect(link).toHaveCount(1);
+        await expect(link).toHaveAttribute('href', /kakuyomu\.jp/);
+        expect(await link.evaluate(el => !!el.closest('#idx-links'))).toBe(true);
+    });
+});

@@ -26,7 +26,7 @@
  *   - 巻カード（<details class="idx-vol-card">）→ 話の扉絵バナー（article.idx-ep）→ 節のチップ。巻の初期 open は
  *     stage の巻だけ（物語完結なら全部閉じる）。予告の巻・予告の話・部分公開の話のゴーストのチップ・巻末のあとがきの帯
  *   - 節のチップの状態（B 案）：読了＝右上の点、到達（か読了）＝明るい数字、「続きから読む」の地点＝細い枠（toc-page.css）
- *   - 右カラム：最新（最後に公開した節と次回の更新）・世界（資料ページ 3 枚への入口）・栞（スロット 0 は地点。手動栞は行の × で確認つきで 1 件ずつ消す）・
+ *   - 右カラム：最新（最後に公開した節と次回の更新。狭い幅では DOM ごと話の一覧の前へ移る＝initNewsPlacement）・世界（資料ページ 3 枚への入口）・栞（スロット 0 は地点。手動栞は行の × で確認つきで 1 件ずつ消す）・
  *     変更履歴（版種別スイッチ・最初は 3 件・すべて表示で枠の中だけスクロール）・リンク
  *   - 設定（上の帯の ⚙）：本文と同じ設定シート。スマホは全画面、PC は開いている間ページ全体を本文の見本にする（#idx-preview）。
  *     記録の消去（栞・既読・読破）と初期値に戻すもここ（以前の FAB の項目）
@@ -89,6 +89,9 @@ const SHORT_SHA_RE = /^[0-9a-f]{7,40}$/;
 const CHANGELOG_INITIAL_COUNT = 3;
 // PC の 2 カラム・右から出るシートに切り替わる幅（toc-page.css・_sheet.css の @media と同じ値）
 const PC_QUERY = '(min-width: 901px)';
+// 右カラムを解体して 1 列にする幅（toc-page.css の @media (max-width: 900px) と同じ値。片方だけ変えない）。
+// 「最新」の DOM 上の位置を移す initNewsPlacement が使う
+const NARROW_QUERY = '(max-width: 900px)';
 
 let _story: StoryVolume[] = [];
 let _episodes: Episode[] = [];
@@ -239,6 +242,40 @@ function initCta(): void {
 }
 
 // ----- 右カラム：最新 -----
+
+/**
+ * 「最新」（#idx-news）の DOM 上の位置を画面幅に合わせる。
+ * 狭い幅（NARROW_QUERY。toc-page.css の @media が右カラムを解体する幅と同じ）では #idx-main の直下・#idx-ep-nav の直前、
+ * 広い幅では #idx-side の先頭（HTML の初期位置）。CSS の order で見た目だけ入れ替えると Tab と読み上げの順が見た目と
+ * 食い違うので、要素そのものを動かす。既に正しい位置なら何もしない。
+ * 移動は moveBefore があればそれ（フォーカスや状態を保つ）、無ければ insertBefore（外れたフォーカスは戻す）。
+ * 初期化で 1 回（renderNews が hidden を外す前に済ませる＝ちらつかせない）と、幅をまたぐ change のたびに呼ぶ。
+ * 依存: #idx-main・#idx-ep-nav・#idx-side・#idx-news（index.html）。どれか欠けていれば何もしない
+ */
+function initNewsPlacement(): void {
+    const news = document.getElementById('idx-news');
+    const main = document.getElementById('idx-main');
+    const nav = document.getElementById('idx-ep-nav');
+    const side = document.getElementById('idx-side');
+    if (!news || !main || !nav || !side) return;
+    const mql = matchMedia(NARROW_QUERY);
+    const place = (): void => {
+        const parent = mql.matches ? main : side;
+        const before = mql.matches ? nav : side.firstElementChild;
+        // 既に正しい位置（親が同じで、基準の直前にいる）なら動かさない
+        if (news.parentElement === parent && (before === news || news.nextElementSibling === before)) return;
+        // moveBefore は TS 4.x/5.7 の lib.dom に無いので、最小の型注釈で呼ぶ
+        const mover = parent as Element & { moveBefore?: (node: Node, child: Node | null) => void };
+        if ('moveBefore' in Element.prototype && mover.moveBefore) { mover.moveBefore(news, before); return; }
+        // insertBefore は要素をいったん文書から外すので、フォーカスが外れる。持っていたら戻す
+        // （preventScroll：幅の切り替わりでページを勝手に動かさない）
+        const hadFocus = document.activeElement === news;
+        parent.insertBefore(news, before);
+        if (hadFocus) news.focus({ preventScroll: true });
+    };
+    place();
+    mql.addEventListener('change', place);
+}
 
 // 最後に公開した節を扉絵つきの 1 枚で。下に次回の更新（予定が無ければ出さない）。公開済みの節が無ければ枠ごと出さない
 function renderNews(): void {
@@ -1042,6 +1079,8 @@ async function main(): Promise<void> {
     // 廃止した表紙の URL のキャッシュ（P4 まで index.ts と main.ts が書いていた）を掃除する
     try { localStorage.removeItem('lirmena.heroCard'); } catch { /* noop */ }
     // story.json の取得を待たずに結線する（待つ間に押されても素の href で動く）
+    // 「最新」の位置は、hidden を外す renderNews より前に決める（先に動かさないと、狭い幅で一瞬だけ下に見える）
+    initNewsPlacement();
     initWorldLinks();
     initCta();
     renderCta();

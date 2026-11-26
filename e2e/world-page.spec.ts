@@ -122,3 +122,12 @@ test.describe('資料ページ（スマホ幅）', () => {
         expect(bottom).toBeLessThanOrEqual(740);
     });
 });
+
+test.describe('資料ページの「もどる」', () => {
+    test('見えている文字を含む名前で取れる', async ({ page }) => {
+        await page.goto('/lirmena/characters.html');
+        const back = page.getByRole('link', { name: '輝くもの《リルメナ》へもどる' });
+        await expect(back).toHaveCount(1);
+        await expect(back).toHaveAttribute('id', 'wp-back');
+    });
+});

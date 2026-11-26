@@ -68,7 +68,7 @@
   font-size: 12px;
   text-decoration: none;
 }
-.mv-open::after { content: '↗'; font-size: 10px; margin-inline-start: 0.3em; }
+.mv-open::after { content: '↗' / ''; font-size: 10px; margin-inline-start: 0.3em; }
 .mv-open:hover,
 .mv-open:focus-visible { color: var(--sheet-text); }
 
