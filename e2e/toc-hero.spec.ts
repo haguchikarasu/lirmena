@@ -386,6 +386,48 @@ test.describe('目次のヒーロー：表紙ギャラリー', () => {
     });
 });
 
+// ── スマホを横向きにしたときのロゴと読み始めるボタン ────────────────────────────
+// 【未対応。fixme＝今は走らせない。直すときに fixme を外す。plans/2026-11-26-toc-hero-landscape.md】
+// 作者の指示（2026-11-26）：「スマホ横にしたときのタイトルの位置が想定と違う」「PCのときと同じような位置になるようにしたい」。
+// PC（1280×800）の位置：ロゴの中心が画面幅の 75%・ヒーローの高さの 41%、ボタンはロゴのすぐ下で最初の 1 画面に入る。
+// いま（2026-11-26 の実測）：
+//   幅 900 以下の横向き（898×357・844×390）＝縦持ち用の組み方になり、ロゴが右端（91%）、ボタンは中央で画面の下へ外れる（y499）
+//   幅 901 以上の横向き（915×412・932×430）＝PC の組み方だが、ヒーローの最低の高さ 560 が画面より高く、ボタンが画面の下へ外れる（y408）
+// 「PC と同じような位置」の読み方（ロゴは右寄りの中ほど・ボタンはロゴの下・どちらも最初の 1 画面に入る）は Claude の解釈。
+// 数値の幅は、直す前に作者と決める。素材は実物を使う（1x1 に差し替えるとロゴの大きさが変わる）。
+test.describe('目次のヒーロー：スマホを横向きにしたときの位置', () => {
+    const LANDSCAPE: Array<[number, number]> = [[898, 357], [844, 390], [915, 412], [932, 430]];
+    for (const [w, h] of LANDSCAPE) {
+        test.fixme(`横向き ${w}×${h}：ロゴとボタンが PC と同じような位置で、最初の 1 画面に入る`, async ({ browser }) => {
+            const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+            const page = await ctx.newPage();
+            await page.goto('/lirmena/');
+            await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute('data-hero-loading'))).toBe(false);
+            const m = await page.evaluate(() => {
+                const r = (id: string) => document.getElementById(id)!.getBoundingClientRect();
+                const logo = r('idx-hero-logo'), cta = r('idx-cta-btn');
+                return {
+                    vw: innerWidth, vh: innerHeight,
+                    logoTop: logo.top, logoBottom: logo.bottom, logoCx: logo.left + logo.width / 2,
+                    ctaTop: cta.top, ctaBottom: cta.bottom, ctaCx: cta.left + cta.width / 2,
+                };
+            });
+            // ロゴもボタンも、スクロールしない最初の 1 画面に全部入る
+            expect(m.logoTop).toBeGreaterThanOrEqual(0);
+            expect(m.logoBottom).toBeLessThanOrEqual(m.vh);
+            expect(m.ctaTop).toBeGreaterThanOrEqual(0);
+            expect(m.ctaBottom).toBeLessThanOrEqual(m.vh);
+            // ロゴは右寄りの中ほど（PC は 69〜75%）。右端に張り付かない
+            expect(m.logoCx / m.vw).toBeGreaterThan(0.62);
+            expect(m.logoCx / m.vw).toBeLessThan(0.82);
+            // ボタンはロゴの下（横の中心がロゴと近い。PC は差が 60px 以内）で、ロゴより下にある
+            expect(Math.abs(m.ctaCx - m.logoCx)).toBeLessThan(80);
+            expect(m.ctaTop).toBeGreaterThanOrEqual(m.logoBottom);
+            await ctx.close();
+        });
+    }
+});
+
 // ── 次巻の公開直後（要件 06-7「次巻の公開直後」。受け入れ条件 E）──────────────────
 // 本番の story.json では表が空なので、ビルド済みの目次の HTML の表だけを route で差し替える（埋め込みの結線は E7・Vitest で見る）。
 test.describe('次巻の公開直後：story.json を待たずに正しい巻を出す', () => {
