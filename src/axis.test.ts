@@ -11,7 +11,7 @@
  * 環境: jsdom。書字方向は <html data-writing-mode> 属性で切替える（axis の唯一の真実源）。
  *   scroll 系プロパティはレイアウトしない jsdom で 0 固定のため、プレーンなスタブ要素を HTMLElement として渡す。
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     getMode,
     isReverse,
@@ -19,6 +19,7 @@ import {
     getProgress,
     setProgress,
     getProgressRange,
+    scrollProgressTo,
     getClientSize,
     getProgressFromEvent,
     getAnchorPx,
@@ -114,6 +115,23 @@ describe('setProgress（forward 位置を生 scroll 座標へ）', () => {
         const el = stubEl({ scrollLeft: 0 });
         setProgress(el, 320);
         expect(getProgress(el)).toBe(320);
+    });
+});
+
+describe('scrollProgressTo（forward 位置へのスクロールを頼む）', () => {
+    // 期待値の根拠は setProgress と同じ対応表：vertical は left を負へ、horizontal は top を正へ。
+    const scroller = () => ({ scrollTo: vi.fn() });
+
+    it('scrollProgressTo: vertical は left=-v、horizontal は top=v', () => {
+        setMode('vertical');
+        const v = scroller();
+        scrollProgressTo(v as unknown as HTMLElement, 300, false);
+        expect(v.scrollTo.mock.calls).toEqual([[{ left: -300, behavior: 'auto' }]]);
+
+        setMode('horizontal');
+        const h = scroller();
+        scrollProgressTo(h as unknown as HTMLElement, 300, true);
+        expect(h.scrollTo.mock.calls).toEqual([[{ top: 300, behavior: 'smooth' }]]);
     });
 });
 

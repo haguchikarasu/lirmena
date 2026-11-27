@@ -108,7 +108,7 @@ module.exports = {
     // characters → core/chara は人物の画像の置き場所と顔の画像名の規約（ビルド時の実在検査と共有）。
     { from: { path: '(^|/)src/characters\\.ts$' }, to: { path: '(^|/)src/((ruby|volumes)\\.ts|core/chara\\.ts)$' } },
     { from: { path: '(^|/)src/title\\.ts$' },    to: { path: '(^|/)src/((state|loader|bookmark|transition|ruby)\\.ts|core/(changelog|record-hold)\\.ts)$' } },
-    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|bookmark|loader|parser|feedback|volumes|suppression|analytics|core/record-hold|ui/hold-badge)\\.ts$' } },
+    { from: { path: '(^|/)src/main\\.ts$' },     to: { path: '(^|/)src/(axis|device|state|renderer|bg|reader|nav|transition|menu|settings|tutorial|firstrun|opening|pan|immersive|keyscroll|bookmark|loader|parser|feedback|volumes|suppression|analytics|core/record-hold|ui/hold-badge)\\.ts$' } },
     // 最前線の判定は stage と同じ順序を使う（「続きから読む」の地点と最大読破の次）。
     { from: { path: '(^|/)src/suppression\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },
     // 札の説明はシートで開く。
@@ -132,6 +132,8 @@ module.exports = {
     { from: { path: '(^|/)src/firstrun\\.ts$' }, to: { path: '(^|/)src/settings\\.ts$' } },
     { from: { path: '(^|/)src/bg\\.ts$' },       to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/pan\\.ts$' },      to: { path: '(^|/)src/axis\\.ts$' } },
+    // keyscroll → immersive は「鑑賞モード中か」「メニューやシートが開いているか」の判定を二重に持たないための 1 本。
+    { from: { path: '(^|/)src/keyscroll\\.ts$' }, to: { path: '(^|/)src/(axis|immersive)\\.ts$' } },
     { from: { path: '(^|/)src/feedback\\.ts$' }, to: { path: '(^|/)src/state\\.ts$' } },
     // page-meta → ruby は話名のルビの外し方（plainRuby）を目次と二重管理しないための 1 本。
     // page-meta は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。

@@ -29,6 +29,7 @@
  *   opening  : init(): void / update(progress: number): void
  *   pan      : init(): void
  *   immersive: init(): void
+ *   keyscroll: init(): void
  *   bookmark : init() / setAutoRecordSuppressed / recordReached / recordReachedAfterword / hasRead / etc.
  *   suppression: isFrontier（このページは最前線か。純関数）
  *   core/record-hold: isHeld / setHeld / clearHeld / startsHold / isExternalReferrer（タブの保留。要件 06-5）
@@ -58,6 +59,7 @@ import * as firstrun from './firstrun';
 import * as opening from './opening';
 import * as pan from './pan';
 import * as immersive from './immersive';
+import * as keyscroll from './keyscroll';
 import * as bookmark from './bookmark';
 import * as loader from './loader';
 import * as parser from './parser';
@@ -377,7 +379,7 @@ function _toBgLayerSpecs(scenes: Scene[]): BgLayerSpec[] {
     return scenes.map(s => ({ bgFile: s.bgFile, bgPositionX: s.bgPositionX, bgPositionY: s.bgPositionY, bgDim: s.bgDim }));
 }
 
-/** #main-container を取得し、wheel/pan/immersive の共通結線を行う（両モード共通） */
+/** #main-container を取得し、wheel/pan/immersive/keyscroll の共通結線を行う（両モード共通） */
 function _initMainContainer(): HTMLElement {
     const mainContainer = document.querySelector<HTMLElement>('#main-container')!;
     mainContainer.addEventListener('wheel', (e) => {
@@ -390,6 +392,7 @@ function _initMainContainer(): HTMLElement {
     }, { passive: false });
     pan.init();
     immersive.init();
+    keyscroll.init();
     return mainContainer;
 }
 

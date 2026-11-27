@@ -5,7 +5,7 @@
  *       を外して背景本来の色を見せる。見た目（伏せる／暗幕除去）とスクロール・パン・ホイールの無効化
  *       （#main-container の pointer-events:none + overflow:hidden）は CSS（html.is-immersive …）が担い、
  *       本モジュールは状態クラスのトグルと入力判定のみを持つ。
- * export: init(): void ／ isImmersive(): boolean ／ shouldToggleFromTap(input): boolean（テスト用の純関数）
+ * export: init(): void ／ isImmersive(): boolean ／ isOverlayOpen(): boolean（keyscroll.ts も読む）／ shouldToggleFromTap(input): boolean（テスト用の純関数）
  * 依存: なし（#main-container 等の DOM と <html> のクラス（is-immersive / is-selecting / at-opening）・ポップアップの
  *       開閉状態のみを読む。他モジュールを import しない。pan.ts は is-immersive を読んで自身のパン開始を抑止する）。
  *
@@ -67,6 +67,13 @@ export function isImmersive(): boolean {
   return document.documentElement.classList.contains(IMMERSIVE_CLASS);
 }
 
+// メニュー・シート・確認・初回の読み方選択・初回ガイドのどれかが開いているか。開いている間は鑑賞モードへ入らず、
+// キーボードのスクロール（keyscroll.ts）も本文を動かさない。「開いている」の定義をここ 1 か所に置くために公開する。
+// isOverlayOpen(): boolean
+export function isOverlayOpen(): boolean {
+  return document.querySelector(OVERLAY_OPEN_SELECTOR) !== null;
+}
+
 // Esc キーで鑑賞モードをトグルする（capture フェーズ）。
 // _onKeyDown(e: KeyboardEvent): void
 function _onKeyDown(e: KeyboardEvent): void {
@@ -126,7 +133,7 @@ function _enter(): void {
   const html = document.documentElement;
   if (html.classList.contains('at-opening')) return;   // 先頭の黒い余白＝鑑賞対象なし
   if (html.classList.contains('is-selecting')) return; // Shift 選択モード中
-  if (document.querySelector(OVERLAY_OPEN_SELECTOR)) return; // ポップアップ/メニューが開いている
+  if (isOverlayOpen()) return;                         // ポップアップ/メニューが開いている
   html.classList.add(IMMERSIVE_CLASS);
 }
 

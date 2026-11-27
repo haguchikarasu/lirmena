@@ -12,6 +12,7 @@
  *   sign(): 1 | -1                                    … forward 1px が生 scroll 座標へ進む符号
  *   getProgress(el: HTMLElement): number              … forward 現在位置（px・0 起点・正値）
  *   setProgress(el: HTMLElement, v: number): void     … forward 位置 v(px・>=0) を生 scroll 座標へ書く
+ *   scrollProgressTo(el: HTMLElement, v: number, smooth: boolean): void … forward 位置 v(px・>=0) へスクロールする（smooth=true は滑らかに）
  *   getProgressRange(el: HTMLElement): number         … forward 可動域（0〜range）
  *   getClientSize(el: HTMLElement): number            … 進行軸方向のビューポート長
  *   getProgressFromEvent(ev: WheelEvent): number      … wheel → forward 増分 px（係数適用前・smooth 化は呼び出し側）
@@ -19,7 +20,7 @@
  *
  * 依存: なし（DOM 読取と <html data-writing-mode> 属性のみ。他モジュール非依存のリーフ）。
  * 結線: settings.ts が <html data-writing-mode> を切替え、本ファイルが唯一の読み手として参照する。
- *       利用側は main / bg / nav / menu / opening / tutorial / pan の 7 本（bookmark・reader は不使用）。
+ *       利用側は main / bg / nav / menu / opening / tutorial / pan / keyscroll の 8 本（bookmark・reader は不使用）。
  *       この列挙は用途を掴むための参考で、真実源は .dependency-cruiser.cjs の allowed
  *       （順引きは 1 行で読めるが逆引きは全スキャンが要るため、断ったうえで併記する）。
  */
@@ -57,6 +58,15 @@ export function getProgress(el: HTMLElement): number {
 export function setProgress(el: HTMLElement, v: number): void {
     if (isReverse()) el.scrollLeft = -v;
     else el.scrollTop = v;
+}
+
+// forward 位置 v（px・>=0）へスクロールする。smooth=true ならブラウザの滑らかなスクロールに任せる
+// （setProgress は即時の書き込みだけなので、滑らかに動かしたい呼び出し側はこちらを使う）。
+// scrollProgressTo(el: HTMLElement, v: number, smooth: boolean): void
+export function scrollProgressTo(el: HTMLElement, v: number, smooth: boolean): void {
+    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
+    if (isReverse()) el.scrollTo({ left: -v, behavior });
+    else el.scrollTo({ top: v, behavior });
 }
 
 // forward 可動域（0〜この値）。vertical=scrollWidth-clientWidth, horizontal=scrollHeight-clientHeight。

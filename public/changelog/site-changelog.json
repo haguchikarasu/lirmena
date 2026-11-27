@@ -1,5 +1,12 @@
 [
   {
+    "version": "4.2.13",
+    "date": "2026/11/28",
+    "changes": [
+      "本文ページで、キーボード（矢印・PageUp / PageDown・Space・Home / End）で本文をスクロールできなかったのを修正。"
+    ]
+  },
+  {
     "version": "4.2.12",
     "date": "2026/11/28",
     "changes": [
