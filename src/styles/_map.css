@@ -54,7 +54,8 @@
 .mv-zoom-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
 .mv-zoom-btn:focus-visible { outline: 2px solid var(--sheet-accent); }
 
-/* 拡大より細かく見たい読者のための別タブの導線（↗ は ::after）。枠の左下に置く */
+/* 拡大より細かく見たい読者のための別タブの導線。枠の左下に置く。別タブで開く印は ::after（飾り＝代替文字は空。
+   形は mask、色は文字色。強制カラーでは背景色が消されるのでシステム色を指定する） */
 .mv-open {
   position: absolute;
   left: 12px;
@@ -68,7 +69,10 @@
   font-size: 12px;
   text-decoration: none;
 }
-.mv-open::after { content: '↗' / ''; font-size: 10px; margin-inline-start: 0.3em; }
+.mv-open::after { content: '' / ''; display: inline-block; inline-size: 0.9em; block-size: 0.9em; margin-inline-start: 0.4em; vertical-align: -0.1em; background-color: currentColor; mask: var(--icon-external) center / contain no-repeat; }
+@media (forced-colors: active) {
+  .mv-open::after { background-color: LinkText; }
+}
 .mv-open:hover,
 .mv-open:focus-visible { color: var(--sheet-text); }
 

@@ -329,7 +329,7 @@ test.describe('最新の位置（画面幅で DOM の位置を移す）', () => 
     }
 });
 
-test.describe('リンクの名前（飾りの ↗ を読み上げに入れない）', () => {
+test.describe('リンクの名前（外へ出る印は飾り＝読み上げに入れない）', () => {
     test('目次のリンクは「カクヨム」の名前で取れる', async ({ page }) => {
         await setup(page);
         await page.goto('/lirmena/');

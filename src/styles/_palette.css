@@ -6,6 +6,9 @@
  *
  * CSS 変数を読めない場所には値の写しがある：templates/reader.html・title.html の先付けと meta theme-color、
  * manifest（07-ogp.md）。--ground・--ink を変えたらそれらも直す。
+ *
+ * 色のほかに 1 つだけ、外へ出る・別タブで開くリンクの印（--icon-external）の形を置く。目次（toc-page.css）と
+ * 地図（_map.css）は別の束なので、両方が読むこのファイルに置いた。使い方は各 ::after のコメント。
  */
 :root {
   color-scheme: dark;                         /* 根は暗い配色（head の meta color-scheme と同じ値） */
@@ -15,6 +18,10 @@
   --ink:            #e8e0d0;                  /* 文字 */
   --ink-dim:        #9a968e;                  /* 弱い文字：補足・日付・ラベル */
   --line:           rgba(255, 255, 255, 0.12); /* 線：区切り・枠 */
+  /* 外へ出る・別タブで開くリンクの印（角を丸めた四角から右上へ出る矢印）。mask の形として使い、色は background-color で付ける。
+     線の端と角は丸く、ほかのアイコン（_sheet.css の .ic）と同じ流儀。線幅 2.4/24 は、10px で出したとき約 1px になる太さ
+     （.ic の 1.6 のままだと 1px を切って薄くなる）。形はこのサイトのために描いたもの（2026-11-27） */
+  --icon-external: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-4M11 13l9-9M14 4h6v6'/%3E%3C/svg%3E");
 }
 
 /* ライトの紙面（要件 06-14「紙面」）。この属性を付けた要素の中だけが明るい紙になる。

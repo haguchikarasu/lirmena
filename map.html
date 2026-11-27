@@ -12,7 +12,7 @@
          ＝SNS のクローラは URL 単位で画像をキャッシュするので、URL が同じままだと旧画像が配られ続ける
        - og:description は設定しない
        - 全シェル（目次・用語集・templates/ の本文／タイトル）で同じ値を持つ。head-contract:* で囲んだ範囲は
-         src/head-contract.test.ts が全シェル間でバイト比較する（<title> は範囲外＝ページ種別で変えてよい）
+         src/head-contract.test.ts が全シェル間でバイト比較する（<title>・og:title・og:url は範囲外＝ページごとに変える。要件 07）
   -->
   <!-- head-contract:meta:start -->
   <meta name="theme-color" content="#080808" />
@@ -22,11 +22,12 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ja_JP" />
-  <meta property="og:title" content="輝くもの《リルメナ》" />
-  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/" />
   <meta property="og:image" content="https://haguchikarasu.github.io/lirmena/ogp.png?v=3" />
   <meta name="twitter:card" content="summary_large_image" />
   <!-- head-contract:meta:end -->
+  <!-- ページごとに変わる題と正規 URL。og:title は <title> と同じ文字にする（src/head-contract.test.ts が見る） -->
+  <meta property="og:title" content="エシュカの地図｜輝くもの《リルメナ》" />
+  <meta property="og:url" content="https://haguchikarasu.github.io/lirmena/map.html" />
   <title>エシュカの地図｜輝くもの《リルメナ》</title>
   <!-- 資料ページの favicon は vol1 で固定（用語集ページと同じ（目次のような stage 連動はしない＝story.json の取得と volumes を
        持ち込むほどの価値が無い。manifest・apple-touch-icon も vol1 固定なのでそれに揃う。design/modules/glossary-page.md） -->

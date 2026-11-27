@@ -53,7 +53,7 @@ import * as recordHold from './core/record-hold';
 import * as settingsPanel from './ui/settings-panel';
 import * as share from './ui/share';
 import { confirmDialog } from './ui/confirm';
-import { applyRuby } from './ruby';
+import { applyRuby, plainRuby } from './ruby';
 import { computeStoryStage, resolveResumePoint, type ResumePoint, type StoryStage } from './volumes';
 
 // preview（vol/ep 単位の予告テキスト・要件 06-7）は任意。**text が非空**のときのみ「予告あり」扱い（core/preview）。
@@ -100,7 +100,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // 「第4話 #3」（sec 番号はゼロ埋めしない）
 const posLabel = (ep: number, sec: number) => `第${ep}話 #${sec}`;
 // |漢字《かな》 の書式を外した読み（aria-label・確認文に使う）
-const plainTitle = (t: string) => t.replace(/\|([^《|]+)《[^》]+》/g, '$1');
+const plainTitle = plainRuby;
 
 // 節のページの URL。sec01 は ep の扉（タイトルページ EE-00.html）、sec02 以降は本文ページ（要件 06-7）
 function secHref(ep: number, sec: number): string {

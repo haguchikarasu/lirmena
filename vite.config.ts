@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync
 import { validateStoryFiles } from './src/story-integrity'
 import { embedStageTable } from './src/volumes'
 import { bgStub } from './src/bg-stub'
+import { afterwordPageTitle, episodePageTitle, fillPageMeta, sectionPageTitle } from './src/page-meta'
 import type { StoryData } from './src/types'
 
 // マルチページ構成（1ページ＝1sec）のビルド設定。
@@ -18,7 +19,9 @@ import type { StoryData } from './src/types'
 // - ページをまたいで共通の静的な HTML（設定・共有のポップアップ）は templates/parts/*.html に 1 つずつ置き、
 //   各ページの `<!-- include: parts/xxx.html -->` の 1 行を expandIncludes が中身に置き換える。
 //   本文/タイトル/あとがきページは generatePages が**書き出す時点で**展開する（contents/*.html の実ファイルに
-//   中身が入る＝lirmena の plugins を通さないエディタのプレビューでもそのまま効く）。目次・用語集は
+//   中身が入る＝lirmena の plugins を通さないエディタのプレビューでもそのまま効く）。
+// - 生成ページの題（<title>・og:title）と正規 URL（og:url）はページごとに埋める。文言は src/page-meta.ts が
+//   story.json の値から組み立て、雛形の {{pageTitle}} / {{pageFile}} へ HTML エスケープして入れる（要件 07）。目次・用語集は
 //   transformIndexHtml（order: 'pre'）が dev・build の両方で展開する。
 // - 出力はハッシュ名（Vite 既定＝固定名指定を置かない）。固定名参照をやめたのでデプロイ直後のキャッシュ
 //   新旧不整合（HTML は新・JS は旧）が構造的に起きない。
@@ -123,19 +126,22 @@ function generatePages(root: string): string[] {
     for (const ep of vol.episodes) {
       // タイトルページ (sec=0)
       const titlePath = resolve(outDir, `${pad(ep.id)}-00.html`)
-      writeFileSync(titlePath, renderTitleTpl(titleTpl, ep.id, 0, favicon))
+      const titleFile = `${pad(ep.id)}-00.html`
+      writeFileSync(titlePath, fillPageMeta(renderTitleTpl(titleTpl, ep.id, 0, favicon), episodePageTitle(ep), titleFile))
       paths.push(titlePath)
       // 本文ページ
       for (const sec of ep.sections) {
-        const p = resolve(outDir, `${pad(ep.id)}-${pad(sec.id)}.html`)
-        writeFileSync(p, renderReaderTpl(readerTpl, bodyAttrsSec(ep.id, sec.id), favicon))
+        const file = `${pad(ep.id)}-${pad(sec.id)}.html`
+        const p = resolve(outDir, file)
+        writeFileSync(p, fillPageMeta(renderReaderTpl(readerTpl, bodyAttrsSec(ep.id, sec.id), favicon), sectionPageTitle(ep, sec.id), file))
         paths.push(p)
       }
     }
     // あとがきページ（published=true のときだけ生成）
     if (vol.afterword?.published === true) {
-      const afterwordPath = resolve(outDir, `vol${pad(vol.volume)}-afterword.html`)
-      writeFileSync(afterwordPath, renderReaderTpl(readerTpl, bodyAttrsAfterword(vol.volume), favicon))
+      const file = `vol${pad(vol.volume)}-afterword.html`
+      const afterwordPath = resolve(outDir, file)
+      writeFileSync(afterwordPath, fillPageMeta(renderReaderTpl(readerTpl, bodyAttrsAfterword(vol.volume), favicon), afterwordPageTitle(vol.volume), file))
       paths.push(afterwordPath)
     }
   }

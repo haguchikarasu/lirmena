@@ -117,3 +117,23 @@ test('目次の話のチップ：既読の印の点が、チップの地と違�
     // チップの地とは不透明度を除いた色で比べる（強制カラーではチップの地も点も同じシステム色になりうる）
     expect(rgba(dotColor!).slice(0, 3)).not.toEqual(rgba(paint.chipBg).slice(0, 3));
 });
+
+// 外へ出る・別タブで開く印は、形を mask、色を背景色で付けている（toc-page.css・_map.css）。強制カラーでは作者の背景色が
+// 消されるので、システム色を指定していないと印ごと見えなくなる。ここでは印が不透明な色で塗られていることを見る
+for (const [name, url, selector] of [
+    ['目次の外部リンク', '/lirmena/', '#idx-links a'],
+    ['地図の「原寸で開く」', '/lirmena/map.html', '.mv-open'],
+] as const) {
+    test(`${name}：外へ出る印が、強制カラーでも塗られている`, async ({ page }) => {
+        await page.goto(url);
+        const link = page.locator(selector).first();
+        await expect(link).toBeVisible();
+        const paint = await link.evaluate((el) => {
+            const s = getComputedStyle(el, '::after');
+            return { bg: s.backgroundColor, mask: s.maskImage, w: parseFloat(s.inlineSize) };
+        });
+        expect(paint.mask).toContain('data:image/svg+xml');
+        expect(paint.w).toBeGreaterThan(6);
+        expect(rgba(paint.bg)[3], `印の色が透けている：${paint.bg}`).toBeGreaterThanOrEqual(0.5);
+    });
+}

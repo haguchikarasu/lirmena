@@ -3,6 +3,7 @@
  * 責務: ルビ記法（|漢字《かんじ》）を含む文字列を <ruby> 要素＋テキストノードに展開する共有ヘルパー。
  *       本文外（ep タイトル・キャラ名/説明など）の短い文字列のインライン表示に使う。
  * export: applyRuby(text: string, el: HTMLElement): void
+ *         plainRuby(text: string): string  … ルビ記法を外した親文字だけの文字列（DOM を使わない＝build からも呼べる）
  * 依存: なし（DOM 生成のみ）
  *
  * - innerHTML を使わず createTextNode / createElement で組み立てる（XSS 安全）。
@@ -10,6 +11,13 @@
  * - 本文の DOM 構造（renderer.ts）と一致：<ruby>base<rt>rt</rt></ruby>。
  * - 目次ページ（index.ts）は src/ を import しない設計のため、本関数のロジックを inline 複製する。
  */
+
+// |base《rt》 記法を外して親文字だけの文字列にする（読みは落とす）。<title>・aria-label・確認文など、
+// 要素を置けない場所に使う。切り方は applyRuby と同じ（表示と同じ親文字が残る）。
+// plainRuby(text: string): string
+export function plainRuby(text: string): string {
+    return text.replace(/\|([^《\n]+)《[^》\n]+》/g, '$1');
+}
 
 // |base《rt》 記法をパースして ruby 要素とテキストノードを el に追加する。
 // マッチしない部分は素のテキストノードとして追加する（接頭辞・接尾辞はそのまま）。

@@ -32,7 +32,7 @@ module.exports = {
     {
       name: 'no-orphans',
       severity: 'error',
-      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index/world-page/glossary-page）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub は対象外',
+      comment: '他モジュールから参照されない孤立ファイルを禁止。エントリ（main/title/index/world-page/glossary-page）と型集約（types）と、呼び出し元が vite.config.ts だけの bg-stub・page-meta は対象外',
       from: {
         orphan: true,
         pathNot: [
@@ -40,6 +40,7 @@ module.exports = {
           '(^|/)src/types\\.ts$',
           '(^|/)src/vite-env\\.d\\.ts$',
           '(^|/)src/bg-stub\\.ts$',
+          '(^|/)src/page-meta\\.ts$',
         ],
       },
       to: {},
@@ -132,6 +133,9 @@ module.exports = {
     { from: { path: '(^|/)src/bg\\.ts$' },       to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/pan\\.ts$' },      to: { path: '(^|/)src/axis\\.ts$' } },
     { from: { path: '(^|/)src/feedback\\.ts$' }, to: { path: '(^|/)src/state\\.ts$' } },
+    // page-meta → ruby は話名のルビの外し方（plainRuby）を目次と二重管理しないための 1 本。
+    // page-meta は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。
+    { from: { path: '(^|/)src/page-meta\\.ts$' }, to: { path: '(^|/)src/ruby\\.ts$' } },
     // story-integrity → volumes は stage 上限 MAX_STORY_STAGE の二重管理を避けるための 1 本（検査 (m)）。
     // story-integrity は vite.config.ts からしか呼ばれずランタイムバンドルに入らない＝実行時の依存は増えない。
     { from: { path: '(^|/)src/story-integrity\\.ts$' }, to: { path: '(^|/)src/volumes\\.ts$' } },

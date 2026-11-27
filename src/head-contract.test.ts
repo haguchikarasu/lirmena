@@ -9,6 +9,7 @@
  * 見るもの：
  *   - head-contract:<名前>:start / :end のマーカーで囲んだ 4 ブロック（meta / fouc / early / ga）が全シェルでバイト同一
  *   - meta ブロックに配色（color-scheme）と参照元（referrer）の宣言があり、GA のスクリプトを優先度 low で挿す
+ *   - og:title が <title> と同じ文字で、og:url がそのページを指す（どちらもページごとに変わるので meta ブロックの外に置く）
  *   - <link rel="manifest"> と <link rel="apple-touch-icon"> のタグが 1 本ずつあり、href の深さがページの置き場所と合う
  *   - SHELLS の一覧が実在するシェル HTML と一致する（新しいシェルを足して登録し忘れたら落ちる）
  *   - public/*.webmanifest の id と start_url が一致し、scope がその接頭辞
@@ -95,6 +96,26 @@ describe('<head> の契約（全シェル）', () => {
         // 優先度は取得が始まる前（head へ挿す前）に決める
         expect(ga.indexOf("s.fetchPriority = 'low';")).toBeLessThan(ga.indexOf('document.head.appendChild(s)'));
     });
+
+    // ページごとに変わる題と正規 URL（要件 07）。バイト比較の範囲（meta ブロック）には置かない
+    for (const shell of SHELLS) {
+        it(`${shell.path}：og:title は <title> と同じ文字、og:url はそのページを指す`, () => {
+            const html = read(shell.path);
+            const tags = stripCommentsAndScripts(html);
+            const contents = (prop: string): string[] =>
+                (tags.match(new RegExp(`<meta property="${prop}"[^>]*>`, 'g')) ?? []).map(t => /\bcontent="([^"]*)"/.exec(t)?.[1] ?? '');
+            const title = /<title>([^<]*)<\/title>/.exec(tags)?.[1];
+            expect(title, '<title> が無い').toBeTruthy();
+            expect(contents('og:title')).toEqual([title]);
+            const base = 'https://haguchikarasu.github.io/lirmena/';
+            const url = shell.depth === 'sub' ? `${base}contents/{{pageFile}}` : shell.path === 'index.html' ? base : `${base}${shell.path}`;
+            expect(contents('og:url')).toEqual([url]);
+            // 雛形の題は pages() が埋める
+            if (shell.depth === 'sub') expect(title).toBe('{{pageTitle}}');
+            const meta = extractBlock(html, 'meta') ?? '';
+            expect(meta).not.toMatch(/og:title|og:url/);
+        });
+    }
 
     for (const shell of SHELLS) {
         it(`${shell.path}：manifest と apple-touch-icon が 1 本ずつ・深さが合う`, () => {
