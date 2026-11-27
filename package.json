@@ -13,7 +13,10 @@
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "depcruise:graph": "depcruise src --config .dependency-cruiser.cjs --output-type dot",
     "lint": "eslint src",
-    "test:e2e": "playwright install chromium && playwright test"
+    "test:e2e": "playwright install chromium && playwright test",
+    "build:verify": "tsc && vite build --outDir dist-verify",
+    "preview:verify": "vite preview --outDir dist-verify --port 4186 --strictPort --host 127.0.0.1",
+    "test:e2e:verify": "playwright test -c playwright.verify.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

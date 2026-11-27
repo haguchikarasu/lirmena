@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# 検証用のビルド（`npm run build:verify`）。作者の目視が使う dist/ と分けて、e2e と同時に回せるようにする
+dist-verify/
 .DS_Store
 .claude/
 
