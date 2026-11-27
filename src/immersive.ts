@@ -32,14 +32,14 @@ const TAP_PX = 10;
 const TAP_MS = 400;
 
 // この要素（の子孫）上で始まったタップはトグルしない＝各自のクリック/ドラッグ挙動を温存する。
-// ボタン・リンク・読書点ノブ・FAB一式・シートと確認と初回の読み方選択（<dialog>。背景＝::backdrop を押したときも
-// 対象は dialog 自身）・初回ガイド（tutorial）のポップアップ（<section role="dialog">）。
-const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, dialog, [role="dialog"]';
+// ボタン・リンク・読書点ノブ・FAB一式・シートと確認と初回の読み方選択と初回ガイド（<dialog>。背景＝::backdrop を
+// 押したときも対象は dialog 自身）。
+const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, dialog';
 
 // 「ポップアップ/メニューが開いている」とみなす要素。開いている間は鑑賞モードへ入らない。
-// <dialog> は hidden ではなく open で開閉するので dialog[open] で見る。**<dialog> に role="dialog" 属性を付けない**
-// （閉じていても hidden が付かないので [role="dialog"]:not([hidden]) に当たり、鑑賞モードへ二度と入れなくなる）。
-const OVERLAY_OPEN_SELECTOR = '#menu-panel:not([hidden]), dialog[open], [role="dialog"]:not([hidden])';
+// ポップアップは全部 <dialog>（シート・確認・初回の読み方選択・初回ガイド）。hidden ではなく open で開閉するので
+// dialog[open] で見る。
+const OVERLAY_OPEN_SELECTOR = '#menu-panel:not([hidden]), dialog[open]';
 
 // タップ判定の作業状態（pointerdown で記録し、move で打ち切り、up で確定する）。
 let _candidate = false;

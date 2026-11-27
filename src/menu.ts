@@ -115,7 +115,7 @@ function _buildItems(): void {
     });
 
     const btnTutorial = makeBtn('チュートリアル', 'help', () => {
-        tutorial.open();
+        tutorial.open({ opener: _toggle });   // 戻り先は下の人物・地図と同じ理由で _toggle
     });
 
     // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、

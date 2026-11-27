@@ -255,9 +255,10 @@
        参照する #firstrun-title も firstrun.ts が作る。目次ページ（index.html）には置かない -->
   <dialog id="firstrun-popup" aria-labelledby="firstrun-title"></dialog>
 
-  <!-- 読み方（読書点）チュートリアル：初回ガイドのカルーセル。中身（案内役立ち絵＋説明＋CSS図解）は
-       tutorial.ts が STEPS から生成する。デバイス×書字方向は html[data-device][data-writing-mode] で CSS が解決 -->
-  <section id="tutorial-popup" hidden role="dialog" aria-label="読み方"></section>
+  <!-- 読み方（読書点）チュートリアル：初回ガイドのカルーセル。器そのものがカード。中身（案内役立ち絵＋説明＋CSS図解）は
+       tutorial.ts が STEPS から生成する（参照する #tutorial-title も）。デバイス×書字方向は
+       html[data-device][data-writing-mode] で CSS が解決 -->
+  <dialog id="tutorial-popup" aria-labelledby="tutorial-title"></dialog>
   <div id="reading-anchor" aria-hidden="true" hidden></div>
 
   <!-- 暗転オーバーレイ（transition.ts が .fading をトグル。class="fading" 初期値＝到着フェードイン用） -->

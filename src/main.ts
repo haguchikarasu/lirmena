@@ -237,9 +237,8 @@ async function _bootstrapSec(story: StoryData, ep: number, sec: number): Promise
  *      登録直後に同期で走らせる _emit → reader.handleScroll の 1 回目。それより前にプリセットが適用されると
  *      onWritingModeChange が ratio=0 で復元して**本文先頭へ飛ぶ**（オートセーブで途中から開いた読者が
  *      「書籍風」を押した瞬間に場所を失う）。
- *   2. tutorial.init() より後。firstrun の Escape ハンドラが tutorial のものより後に登録される必要がある
- *      ——ただし firstrun 側が onDone をマイクロタスクに載せて構造的に守っているので、これは二重の保険
- *      （詳細は firstrun.ts の IF コメント）。
+ *   2. tutorial.init() より後。onDone が呼ぶ tutorial.openIfFirstVisit() は、init() が器を組み立てた後でないと
+ *      何も開かない。
  */
 function _initFirstRun(): void {
     firstrun.init({ onDone: () => { tutorial.openIfFirstVisit(); } });

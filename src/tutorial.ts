@@ -1,7 +1,7 @@
 /*
  * tutorial.ts
  * 責務: 読書点（基準点）チュートリアル。常時アンカーマーカーの表示とドラッグ移動、初回ガイドのカルーセル。
- * export: init(), open(), openIfFirstVisit(), reposition()
+ * export: init(): void ／ open(opts?: { opener?: HTMLElement | null }): void ／ openIfFirstVisit(): boolean ／ reposition(): void
  * 依存: axis.ts（進行軸・書字方向の解決）／ settings.ts（読書点の所有者。ドロップ時に setReadingAnchor() で永続化）
  *
  * 読書点の値の所在（要件 06-12 / 06-4）:
@@ -24,12 +24,20 @@
  *   init() では出さない（呼ぶ順序は main.ts が決める＝読み方ダイアログ firstrun.ts の後に開く）。
  *   再表示は menu.ts の「チュートリアル」が open() を呼ぶ。
  * ガイドカルーセル: ステップ（バッジ・見出し・本文・CSS 図解・案内役立ち絵）は STEPS から tutorial.ts が生成する
- *   （#tutorial-popup は空の器で、本文シェルに中身は持たない）。カードの枠・戻る/次へ・ドット・立ち絵は _buildShell() で
- *   一度だけ作り、送り操作は _update() で中身だけ差し替える（カードを作り直さない＝出現アニメの再発なし）。
+ *   （#tutorial-popup は空の <dialog> で、本文シェルに中身は持たない）。**器そのものがカード**で、showModal() で開く。
+ *   閉じる・戻る/次へ・ドット・立ち絵は _buildShell() で一度だけ作り、送り操作は _update() で中身だけ差し替える
+ *   （カードを作り直さない＝出現アニメの再発なし）。
  *   デバイス×書字方向（図解の三角の向き等）は CSS の html[data-device][data-writing-mode] が解決する（device を
  *   import しない＝疎結合）。立ち絵の background-image は public 参照を import.meta.env.BASE_URL で JS 注入する。
  *   カード/見出し帯の高さは _measureMax() で全ステップ最大に固定（送ってもサイズ・絵の位置が動かない）。
  *   操作: カード地クリックで次へ／最後で閉じる、背景クリック・×・Escape で閉じる、戻る/次へボタンで前後。
+ *
+ * <dialog> の showModal() に任せているもの（自分では書かない）: 裏を操作できなくする・Tab を中に留める・Esc で閉じる・
+ *   最前面の層に出す・暗幕（::backdrop）。最初のフォーカスは「次へ」の autofocus（Enter・Space でそのまま読み進められる）。
+ *   **器に role="dialog"・aria-modal を付けない**（<dialog> が自分で持つ）。名前は見出し（#tutorial-title）を aria-labelledby で指す。
+ * 背景クリックで閉じる判定は手書き（closedby="any" は使わない：タッチで閉じたあとの click が下のページへ抜ける。
+ *   ui/sheet.ts と同じ判定）。背景（::backdrop）のクリックは dialog 自身に届くので、座標が器の矩形の外かで見分ける。
+ * モーダルにできない環境（器が <dialog> でない・showModal() が無い）では開かない（既読フラグも立てない）。
  */
 
 import * as axis from './axis';
@@ -41,7 +49,8 @@ const KEY_TUTORIAL_SEEN = 'lirmena.tutorialSeen';
 // 立ち絵（public/img/tutorial/）の参照ベース。menu.ts のキャラ画像と同じ import.meta.env.BASE_URL 流儀。
 const IMG_BASE = `${import.meta.env.BASE_URL}img/tutorial/`;
 
-// オーバーレイの上下 padding（_tutorial.css の #tutorial-popup padding と一致）。カード高の頭打ち算出に使う。
+// カードと画面の端のあいだに空ける長さ（_tutorial.css の #tutorial-popup の max-height: calc(100dvh - 48px) の半分）。
+// カード高の頭打ち算出に使う。
 const OVERLAY_PAD = 24;
 
 let _marker: HTMLElement | null = null;
@@ -93,7 +102,6 @@ const STEPS: Step[] = [
 ];
 
 interface ShellRefs {
-    card: HTMLElement;
     head: HTMLElement;
     badge: HTMLElement;
     title: HTMLElement;
@@ -104,8 +112,10 @@ interface ShellRefs {
     dots: HTMLElement[];
 }
 
-let _popup: HTMLElement | null = null;
+let _popup: HTMLDialogElement | null = null;
 let _el: ShellRefs | null = null;
+// 閉じたときにフォーカスを戻す先（メニューから開いたとき。押された項目は閉じたパネルの中でもう見えない）
+let _opener: HTMLElement | null = null;
 let _step = 0;
 let _cardMinH = 0;   // 全ステップ最大のカード自然高（px）。0 の間は min-height を当てない＝自然高
 let _headMinH = 0;   // 全ステップ最大の見出し帯の高さ（px）。head を固定してメディア帯（絵）の位置を揃える
@@ -145,8 +155,10 @@ export function init(): void {
 // init() から分離してあるのは、初回の読み方ダイアログ（firstrun.ts）を先に出し、**書字方向が確定してから**
 // このガイドを開くため（図解の三角の向き・帯の縦横を CSS の html[data-writing-mode] が解決するので、
 // 未確定のまま開くと選ばれる前の方向で描かれる）。順序を決めるのは main.ts。
+// 器が無い・モーダルにできない環境では開かず、フラグも立てない（false を返す）。
 // openIfFirstVisit(): boolean
 export function openIfFirstVisit(): boolean {
+    if (!_popup || !_el) return false;
     if (localStorage.getItem(KEY_TUTORIAL_SEEN) !== null) return false;
     open();
     localStorage.setItem(KEY_TUTORIAL_SEEN, '1');
@@ -154,15 +166,20 @@ export function openIfFirstVisit(): boolean {
 }
 
 // ガイドを開く（初回自動・再表示とも）。先頭ステップから表示し、表示後に全ステップ最大高を測って固定する。
-// open(): void
-export function open(): void {
+// opts.opener は閉じたときにフォーカスを戻す先（省くとブラウザの既定＝開く直前のフォーカス先）。
+// open(opts?: { opener?: HTMLElement | null }): void
+export function open(opts: { opener?: HTMLElement | null } = {}): void {
     if (!_popup || !_el) return;
+    _opener = opts.opener ?? null;
     _step = 0;
     _cardMinH = 0;
     _headMinH = 0;
     _update();
-    _popup.hidden = false;
+    if (!_popup.open) _popup.showModal();
     _measureMax();   // 表示（レイアウト確定）後でないと offsetHeight が測れない
+    // 中身がカードに収まらない画面（スマホ横向き・文字を大きくした環境）では、「次へ」へのフォーカスでカードの中が
+    // 末尾まで送られる。見出しから読めるように頭へ戻す（フォーカスは「次へ」のまま）。
+    _popup.scrollTop = 0;
 }
 
 // マーカーを現在の #main-container 矩形・読書点に合わせて配置し直す。書字方向のライブ切替でレイアウトが
@@ -259,39 +276,40 @@ function _onPointerUp(e: PointerEvent): void {
     _activeGrip = null;
 }
 
-// #tutorial-popup にカードの枠・閉じる・戻る/次へ・ドット・立ち絵を一度だけ生成し、可変部分の参照を保持する。
-// クリック／Escape のハンドラもここで一度だけ登録する（以後 innerHTML は作り直さない）。
+// #tutorial-popup（<dialog>＝カード）に閉じる・戻る/次へ・ドット・立ち絵を一度だけ生成し、可変部分の参照を保持する。
+// クリックと close のハンドラもここで一度だけ登録する（以後 innerHTML は作り直さない）。
 // _buildShell(): void
 function _buildShell(): void {
-    _popup = document.getElementById('tutorial-popup');
+    // モーダルにできない環境（器が <dialog> でない・showModal() が無い）では組み立てない＝器が無いのと同じ扱い
+    const el = document.getElementById('tutorial-popup');
+    _popup = el instanceof HTMLDialogElement && typeof el.showModal === 'function' ? el : null;
+    _el = null;
     if (!_popup) return;
 
     let dots = '';
     for (let i = 0; i < STEPS.length; i++) dots += '<span class="dot"></span>';
 
     _popup.innerHTML =
-        '<figure class="tutorial-step">' +
-            '<div class="tutorial-card">' +
-                '<button type="button" class="tutorial-close" aria-label="閉じる">×</button>' +
-                '<div class="tutorial-head">' +
-                    '<span class="tutorial-badge"></span>' +
-                    '<h2 class="tutorial-title"></h2>' +
-                    '<p class="tutorial-text"></p>' +
-                '</div>' +
-                '<div class="tutorial-media">' +
-                    '<div class="tutorial-figslot"></div>' +
-                    '<figure class="tutorial-guide tutorial-guide--foll" aria-hidden="true"></figure>' +
-                    '<figure class="tutorial-guide tutorial-guide--rikka" aria-hidden="true"></figure>' +
-                '</div>' +
-                '<footer class="tutorial-foot">' +
-                    '<div class="tutorial-nav">' +
-                        '<button type="button" class="tutorial-prev">もどる</button>' +
-                        '<div class="tutorial-dots">' + dots + '</div>' +
-                        '<button type="button" class="tutorial-next">次へ</button>' +
-                    '</div>' +
-                '</footer>' +
+        '<button type="button" class="tutorial-close" aria-label="閉じる">×</button>' +
+        '<div class="tutorial-head">' +
+            '<span class="tutorial-badge"></span>' +
+            // 器（templates/reader.html）が aria-labelledby でこの id を参照する
+            '<h2 class="tutorial-title" id="tutorial-title"></h2>' +
+            '<p class="tutorial-text"></p>' +
+        '</div>' +
+        '<div class="tutorial-media">' +
+            '<div class="tutorial-figslot"></div>' +
+            '<figure class="tutorial-guide tutorial-guide--foll" aria-hidden="true"></figure>' +
+            '<figure class="tutorial-guide tutorial-guide--rikka" aria-hidden="true"></figure>' +
+        '</div>' +
+        '<footer class="tutorial-foot">' +
+            '<div class="tutorial-nav">' +
+                '<button type="button" class="tutorial-prev">もどる</button>' +
+                '<div class="tutorial-dots">' + dots + '</div>' +
+                // 開いたときのフォーカスは「次へ」（showModal() が autofocus の要素へ入れる。無ければ先頭の × に入る）
+                '<button type="button" class="tutorial-next" autofocus>次へ</button>' +
             '</div>' +
-        '</figure>';
+        '</footer>';
 
     // 立ち絵の背景は public 参照を JS で注入する（CSS にビルド依存の絶対パスを埋め込まない）。
     const foll = _popup.querySelector<HTMLElement>('.tutorial-guide--foll');
@@ -300,7 +318,6 @@ function _buildShell(): void {
     if (rikka) rikka.style.backgroundImage = `url("${IMG_BASE}tutorial-guide-rikka.avif")`;
 
     _el = {
-        card: _popup.querySelector<HTMLElement>('.tutorial-card')!,
         head: _popup.querySelector<HTMLElement>('.tutorial-head')!,
         badge: _popup.querySelector<HTMLElement>('.tutorial-badge')!,
         title: _popup.querySelector<HTMLElement>('.tutorial-title')!,
@@ -312,13 +329,16 @@ function _buildShell(): void {
     };
 
     _popup.addEventListener('click', _onPopupClick);
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && _popup && !_popup.hidden) _close();
+    // 閉じたら（ボタン・背景・Esc のどれでも）、渡された戻り先へフォーカスを戻す。渡されていなければブラウザに任せる
+    _popup.addEventListener('close', () => {
+        const opener = _opener;
+        _opener = null;
+        if (opener?.isConnected) opener.focus();
     });
     // ウィンドウ幅が変わると本文の折返し行数＝最大高が変わる。開いている間だけ測り直す（間引き）。
     window.addEventListener('resize', () => {
         window.clearTimeout(_resizeTimer);
-        _resizeTimer = window.setTimeout(() => { if (_popup && !_popup.hidden) _measureMax(); }, 150);
+        _resizeTimer = window.setTimeout(() => { if (_popup?.open) _measureMax(); }, 150);
     });
 }
 
@@ -351,7 +371,7 @@ function _figureHTML(kind: FigureKind): string {
 // 現ステップ(_step)の中身だけを差し替える（枠・ボタン・立ち絵の位置は据え置き）。
 // _update(): void
 function _update(): void {
-    if (!_el) return;
+    if (!_el || !_popup) return;
     const s = STEPS[_step];
     const last = _step === STEPS.length - 1;
     _el.badge.textContent = s.badge;
@@ -361,14 +381,14 @@ function _update(): void {
     _el.prev.style.visibility = _step > 0 ? 'visible' : 'hidden';   // 位置は保ったまま隠す
     _el.next.textContent = last ? 'はじめる' : '次へ';
     _el.dots.forEach((d, i) => d.classList.toggle('is-on', i === _step));
-    _el.card.style.minHeight = _cardMinH ? `${_cardMinH}px` : '';
+    _popup.style.minHeight = _cardMinH ? `${_cardMinH}px` : '';
     _el.head.style.minHeight = _headMinH ? `${_headMinH}px` : '';   // 見出し帯を固定→メディア帯（絵）の位置を全ステップで揃える
 }
 
 // 見出し帯・カードの最大高を測って固定する（2パス: head 確定後に card を測る）。表示中でないと測れない。
 // _measureMax(): void
 function _measureMax(): void {
-    if (!_el || !_popup || _popup.hidden) return;
+    if (!_el || !_popup || !_popup.open) return;
     const saved = _step;
     // パス1: 見出し帯の最大高を測る（両方解除して自然高で）
     _cardMinH = 0; _headMinH = 0;
@@ -378,7 +398,7 @@ function _measureMax(): void {
     // パス2: 見出し帯を固定した状態でカードの最大高を測る（head 確定後でないと media 高がズレる）
     _cardMinH = 0;
     let maxCard = 0;
-    for (let i = 0; i < STEPS.length; i++) { _step = i; _update(); maxCard = Math.max(maxCard, _el.card.offsetHeight); }
+    for (let i = 0; i < STEPS.length; i++) { _step = i; _update(); maxCard = Math.max(maxCard, _popup.offsetHeight); }
     // 短い viewport では固定高を可視領域に頭打ちする（強制 min-height がビューポートを超えると footer/× が画面外に出るため。
     // 超過分は CSS の max-height + overflow-y:auto でカード内スクロールに回る）。
     const avail = window.innerHeight - OVERLAY_PAD * 2;
@@ -389,15 +409,20 @@ function _measureMax(): void {
 
 // #tutorial-popup のクリックを振り分ける（カード地＝次へ、背景・×＝閉じる、戻る/次へ＝前後）。
 // 立ち絵は pointer-events:none なので「次へ」を妨げない。
+// 背景（::backdrop）を押したクリックも、カード自身の余白を押したクリックも、対象は dialog 自身。座標が器の矩形の
+// 外なら背景（ui/sheet.ts と同じ判定）。
 // _onPopupClick(e: MouseEvent): void
 function _onPopupClick(e: MouseEvent): void {
     const t = e.target as HTMLElement | null;
     if (!t || !_popup) return;
-    if (t === _popup) { _close(); return; }                 // 背景（カード外）クリックで閉じる
+    if (t === _popup) {
+        const r = _popup.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) { _close(); return; }
+    }
     if (t.closest('.tutorial-close')) { _close(); return; }
     if (t.closest('.tutorial-prev')) { _prev(); return; }
     if (t.closest('.tutorial-next')) { _next(); return; }
-    if (t.closest('.tutorial-card')) { _next(); return; }   // カード地クリックで次へ／最後で閉じる
+    _next();   // カード地クリックで次へ／最後で閉じる
 }
 
 // 次のステップへ進む。最後のステップを越えたら閉じる。
@@ -414,8 +439,8 @@ function _prev(): void {
     if (_step > 0) { _step--; _update(); }
 }
 
-// ガイドを閉じる（hidden を付与）。
+// ガイドを閉じる。Esc はブラウザが閉じる（ここを通らない）。
 // _close(): void
 function _close(): void {
-    if (_popup) _popup.hidden = true;
+    if (_popup?.open) _popup.close();
 }

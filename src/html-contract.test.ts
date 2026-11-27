@@ -114,6 +114,15 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
         expect(tagsWhere(read('templates/reader.html'), tag => /\sid="firstrun-popup"/.test(tag))).toEqual(['dialog#firstrun-popup']);
     });
 
+    it('本文シェルの初回ガイド（#tutorial-popup）は <dialog>', () => {
+        expect(tagsWhere(read('templates/reader.html'), tag => /\sid="tutorial-popup"/.test(tag))).toEqual(['dialog#tutorial-popup']);
+    });
+
+    // ポップアップは全部 <dialog>。手組みの role="dialog" があると、immersive.ts の「開いている」の判定（dialog[open]）から漏れる
+    it.each(files)('%s に手組みのダイアログ（role="dialog"）が無い', (file) => {
+        expect(tagsWhere(read(file), tag => /\srole="(dialog|alertdialog)"/.test(tag))).toEqual([]);
+    });
+
     it.each(files)('%s のタブ（role="tab"）に aria-controls が無い', (file) => {
         expect(tagsWhere(read(file), tag => /\srole="tab"/.test(tag) && /\saria-controls\s*=/.test(tag))).toEqual([]);
     });
@@ -300,9 +309,9 @@ const REDUCE = /prefers-reduced-motion:\s*reduce/;
 // 動き（移動・拡大・回転・大きさ）に当たる transition の対象。色・不透明度は入れない
 const SPATIAL = /\b(scale|rotate|translate|transform|height)\b/;
 
-/** 動きを減らす設定の基準（design/architecture.md）を見る CSS。チュートリアルまわりの 3 本は別の段で揃える */
+/** 動きを減らす設定の基準（design/architecture.md）を見る CSS。_ui.css は別の段で揃える */
 function motionCssFiles(): string[] {
-    return cssFiles().filter(f => !/\/_(tutorial|firstrun|ui)\.css$/.test(f));
+    return cssFiles().filter(f => !/\/_ui\.css$/.test(f));
 }
 
 /** src/ の .ts（テストを除く） */
