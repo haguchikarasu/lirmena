@@ -17,8 +17,11 @@
  * Playwright の WebKit は Windows 向けに組まれたもので、本物の Safari と完全には一致しない。
  * CI 接続はしない（ローカル既定・重いので当面外す）。
  *
- * 並列：既定オフ（`fullyParallel: false`）。E2E 側で `localStorage` を書き換えるため、
- *      共有ストレージ由来の干渉を避ける（本数が少ないので順次で十分）。
+ * 並列：ワーカー 3 本（2026-11-27〜。それまでは 1 本）。ファイル×ブラウザの単位で並べ、同じファイルの中は順番に回す
+ *      （`fullyParallel: false`）。検査は 1 件ごとに新しいブラウザコンテキストで動くので、`localStorage` は検査のあいだで
+ *      共有されない＝並べても干渉しない。全件を 1 本と 3 本で回し比べて、結果が同じ（842 通過・40 スキップ・失敗 0）で
+ *      22.0 分が 14.6 分になることを確かめた。3 より増やさないのは、ブラウザ 3 種を同時に立てるとメモリを食うため。
+ *      タイミングで揺れる検査を切り分けるときは `--workers=1` で回す。
  */
 
 import { defineConfig, devices } from '@playwright/test';
@@ -28,7 +31,7 @@ export default defineConfig({
     timeout: 30_000,
     expect: { timeout: 5_000 },
     fullyParallel: false,
-    workers: 1,
+    workers: 3,
     retries: 0,
     reporter: [['list']],
     use: {
