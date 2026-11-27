@@ -7,7 +7,7 @@
 import { test, expect } from './_fixtures';
 import {
     enterFromTitle, expectAtEnd, expectAtHead, expectResume, goBackByOpening, gotoToc, nudge, openAfterwordFromToc, openFromToc, openVolumes,
-    position, readToEnd, records, scrollAndSave, scrollToRatio, seed, setupRoutes, setWritingMode, waitReader,
+    position, readToEnd, records, reloadInPage, scrollAndSave, scrollToRatio, seed, setupRoutes, setWritingMode, waitReader,
 } from './_records';
 
 test.describe('B.「もどる」の着地', () => {
@@ -115,7 +115,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
             expect((await records(page)).pendingJump).toBeNull();
         });
 
-        test(`A3/A15 読了して閉じた：扉を経由せず本文の末尾へ。「次へ」が見える（${mode}）`, async ({ page }) => {
+        test(`A3/A15 読了して閉じた：扉を経由せず本文の末尾へ。「次へ」で次へ進める（${mode}）`, async ({ page }) => {
             await setWritingMode(page, mode);
             await seed(page);
             await openFromToc(page, 1, 1);
@@ -128,7 +128,9 @@ test.describe('A. オートセーブと「続きから読む」', () => {
             await page.waitForURL(/01-01\.html/);
             await waitReader(page);
             await expectAtEnd(page);
-            await expect(page.locator('#btn-next')).toBeInViewport();
+            // 着地は「最後の行が読書点に来る」（要件 06-6）。「次へ」はその先にあり、着地の時点では画面のほぼ外
+            // （3 ブラウザとも）。画面に入っていることは求めない（2026-11-27 に作者が決めた）。押せることは下の click が見る
+            await expect(page.locator('#btn-next')).toBeVisible();
             await page.locator('#btn-next').click();
             await page.waitForURL(/01-02\.html/);
         });
@@ -251,7 +253,7 @@ test.describe('A. オートセーブと「続きから読む」', () => {
         await page.waitForTimeout(600);
         await scrollToRatio(page, 0.5);
         await expect.poll(() => page.evaluate(() => (history.state as { lirmenaRatio?: number } | null)?.lirmenaRatio ?? -1)).toBeCloseTo(0.5, 1);
-        await page.reload();
+        await reloadInPage(page);
         await waitReader(page);
         await expect.poll(async () => (await position(page)).ratio).toBeCloseTo(0.5, 1);
         await page.waitForTimeout(600);

@@ -7,7 +7,7 @@
 import { test, expect } from './_fixtures';
 import {
     enterFromTitle, expectAtEnd, expectAtHead, expectResume, goBackByOpening, gotoToc, openAfterwordFromToc, openExternal, openFromToc, openHold,
-    openVolumes, position, readToEnd, records, scrollToRatio, seed, setupRoutes, tryToRecord, waitReader,
+    openVolumes, position, readToEnd, records, reloadInPage, scrollToRatio, seed, setupRoutes, tryToRecord, waitReader,
 } from './_records';
 
 const chip = (page: import('@playwright/test').Page) => page.locator('#episodes-area a.idx-chip[href*="vol01-afterword.html"]');
@@ -112,7 +112,7 @@ test.describe('C. あとがき（サイト内から）', () => {
         await expectResume(page, { button: '続きから読む', sub: '第1話 #2', here: '01-02' });
     });
 
-    test('C3/C4/C5 巻末を読了 → あとがき → 目次：地点は巻末の末尾。「あとがき」ボタンが見え、次へで次巻へ', async ({ page }) => {
+    test('C3/C4/C5 巻末を読了 → あとがき → 目次：地点は巻末の末尾。「あとがき」ボタンがあり、次へで次巻へ', async ({ page }) => {
         await seed(page);
         await openFromToc(page, 2, 3);
         await readToEnd(page);
@@ -132,7 +132,9 @@ test.describe('C. あとがき（サイト内から）', () => {
         await page.waitForURL(/02-03\.html/);
         await waitReader(page);
         await expectAtEnd(page);
-        await expect(page.locator('#btn-afterword')).toBeInViewport();
+        // 着地は「最後の行が読書点に来る」（要件 06-6）。末尾のボタンはその先にあり、着地の時点では画面のほぼ外
+        // （3 ブラウザとも）。画面に入っていることは求めず、あること（隠れていないこと）だけ見る（2026-11-27 に作者が決めた）
+        await expect(page.locator('#btn-afterword')).toBeVisible();
         await page.locator('#btn-next').click();
         await page.waitForURL(/05-00\.html/);
     });
@@ -154,7 +156,7 @@ test.describe('C. あとがき（サイト内から）', () => {
         await page.waitForTimeout(600);
         await scrollToRatio(page, 0.5);
         await expect.poll(() => page.evaluate(() => (history.state as { lirmenaRatio?: number } | null)?.lirmenaRatio ?? -1)).toBeCloseTo(0.5, 1);
-        await page.reload();
+        await reloadInPage(page);
         await waitReader(page);
         await expect.poll(async () => (await position(page)).ratio).toBeCloseTo(0.5, 1);
     });

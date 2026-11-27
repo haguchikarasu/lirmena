@@ -218,6 +218,14 @@ export async function goBackByOpening(page: Page, toFile: string): Promise<void>
     await waitReader(page);
 }
 
+// ページの中の location.reload() で読み込み直し、読み込みの完了（load）まで待つ。
+// page.reload() を使わない理由：Playwright の Firefox の page.reload() は再読み込みにならず、同じ URL への新しい遷移になる
+// （navigation の type が navigate、history.state が消え、履歴が 1 つ増える。microsoft/playwright#22640）。サイトはリロードを
+// navigation の type で見分けるので、それでは「リロード」の検査にならない。3 ブラウザとも同じこの書き方で読み込み直す。
+export async function reloadInPage(page: Page): Promise<void> {
+    await Promise.all([page.waitForEvent('load'), page.evaluate(() => location.reload())]);
+}
+
 // 外部流入で本文・あとがきを開く（referer を渡さなければ referrer は空）。name は "01-02" や "vol01-afterword"。
 export async function openExternal(page: Page, name: string, referer?: string): Promise<void> {
     await page.goto(`/lirmena/contents/${name}.html`, referer ? { referer } : undefined);

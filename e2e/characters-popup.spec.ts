@@ -10,6 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { test, expect } from './_fixtures';
+import { routeAvifAsPngOnWebKit } from './_webkit-avif';
 
 // e2e は ES モジュールとして読まれる＝__dirname が無いので import.meta.url から辿る
 type Entry = { volume: number; characters: { name: string }[] };
@@ -19,7 +20,10 @@ const CHARACTERS = JSON.parse(
 const VOL1 = CHARACTERS.find(c => c.volume === 1)!.characters;
 
 test.describe('目次の「世界」', () => {
-    test('3 つのタイルが見え、どのタイルにもタイル専用の絵が届いている', async ({ page }) => {
+    test('3 つのタイルが見え、どのタイルにもタイル専用の絵が届いている', async ({ page, browserName }) => {
+        // WebKit（Windows 版）は AVIF を読めないので、絵の中身を PNG に差し替える（_webkit-avif.ts）。
+        // WebKit では代用の絵なので、見ているのは要求が出て絵として読めたことまで
+        await routeAvifAsPngOnWebKit(page, browserName);
         await page.goto('/lirmena/');
         for (const id of ['idx-world-chara', 'idx-world-map', 'idx-world-glossary']) {
             await expect(page.locator(`#${id}`)).toBeVisible();
@@ -54,7 +58,10 @@ test.describe('目次の「世界」', () => {
     });
 });
 
-test('本文ページ：右下メニューのキャラクター紹介が開き、人物を選べて、各方法で閉じる', async ({ page }) => {
+test('本文ページ：右下メニューのキャラクター紹介が開き、人物を選べて、各方法で閉じる', async ({ page, browserName }) => {
+    // WebKit（Windows 版）は AVIF を読めないので、絵の中身を PNG に差し替える（_webkit-avif.ts）。
+    // WebKit では代用の絵なので、見ているのは要求が出て絵として読めたことまで
+    await routeAvifAsPngOnWebKit(page, browserName);
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();
 

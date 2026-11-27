@@ -70,9 +70,10 @@ test('目次でリセットした読書点は本文ページで既定 45% に解
     // 目次側は removeItem、本文側は setItem('45')。読み手（settings.ts の _loadReadingAnchor）が
     // null を既定へ倒すので、キーが無い状態でも --reading-anchor は 45% で解決される。
     await page.goto('/lirmena/contents/01-01.html');
+    // #main-container は雛形に最初からあるので、settings.init() が --reading-anchor を書く前に見えてしまう。
+    // 見えた瞬間に 1 回だけ読むと空文字のことがある（3 ブラウザとも）ので、値が入るまで待つ
     await expect(page.locator('#main-container')).toBeVisible();
-    const anchor = await page.evaluate(() =>
+    await expect.poll(() => page.evaluate(() =>
         document.documentElement.style.getPropertyValue('--reading-anchor'),
-    );
-    expect(anchor).toBe('45%');
+    )).toBe('45%');
 });

@@ -8,8 +8,12 @@
  */
 
 import { test, expect } from './_fixtures';
+import { routeAvifAsPngOnWebKit } from './_webkit-avif';
 
-test('本文ページ：いまの場面の近くの背景は既定の優先度、空き時間に先読みする背景は fetchpriority="low" で取得する', async ({ page }) => {
+test('本文ページ：いまの場面の近くの背景は既定の優先度、空き時間に先読みする背景は fetchpriority="low" で取得する', async ({ page, browserName }) => {
+    // WebKit（Windows 版）は AVIF を読めないので、絵の中身を PNG に差し替える（_webkit-avif.ts）。
+    // WebKit では代用の絵なので、見ているのは要求が出て絵として読めたことまで（付いた fetchpriority はそのまま見る）
+    await routeAvifAsPngOnWebKit(page, browserName);
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();
 

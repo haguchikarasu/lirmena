@@ -7,7 +7,7 @@
 import { test, expect } from './_fixtures';
 import {
     enterFromTitle, expectAtHead, expectResume, gotoToc, goBackByOpening, openExternal, openFromToc, openHold, position, readToEnd, records, scrollAndSave,
-    scrollToRatio, seed, setupRoutes, tryToRecord, waitReader,
+    reloadInPage, scrollToRatio, seed, setupRoutes, tryToRecord, waitReader,
 } from './_records';
 
 const badge = (page: import('@playwright/test').Page) => page.locator('#badge-hold');
@@ -168,7 +168,7 @@ test.describe('D. 保留と札', () => {
         // 目次から開いた 01-02 が最前線でなくなる（別の節を読み進めたことにする）。referrer は同一オリジンなので、
         // 外部 referrer のリロードは D13 の上の例で見ている。ここは「リロードで新たに付かない」の対照
         await page.evaluate(() => localStorage.setItem('read', JSON.stringify(['02-03'])));
-        await page.reload();
+        await reloadInPage(page);
         await waitReader(page);
         await expect(badge(page)).toBeHidden();
     });
@@ -185,7 +185,7 @@ test.describe('D. 保留と札', () => {
         await page.locator('#bookmark-popup .bookmark-slot[data-slot="1"]').click();
         const saved = JSON.parse(await page.evaluate(() => localStorage.getItem('bookmarks') ?? '[]')) as Array<{ ep: number; sec: number }>;
         expect(saved[0]).toMatchObject({ ep: 1, sec: 2 });
-        await page.reload();
+        await reloadInPage(page);
         await waitReader(page);
         await expect.poll(async () => (await position(page)).ratio).toBeCloseTo(0.5, 1);
         expect((await records(page)).autosave).toBeNull();
@@ -261,8 +261,16 @@ test.describe('D. 保留と札', () => {
         const hit = await page.evaluate(({ x, y }) => (document.elementFromPoint(x, y) as HTMLElement | null)?.id ?? '', { x: box!.x + box!.width + 8, y: box!.y + box!.height / 2 });
         expect(hit).not.toBe('badge-hold');
         // 札以外の場所のホイールは今までどおり本文を動かす
+        // 回す点は本文の器（#main-container）の中で、固定のボタンに重ならない所。画面の中央は開幕の「もどる」
+        // （#opening-back。器の外の固定要素）の上に当たり、札とは関係なくホイールが本文へ届かないブラウザがある
         const viewport = page.viewportSize()!;
-        await page.mouse.move(viewport.width / 2, viewport.height / 2);
+        const pt = { x: viewport.width / 2, y: viewport.height - 120 };
+        const under = await page.evaluate(({ x, y }) => {
+            const el = document.elementFromPoint(x, y);
+            return { inContainer: !!el?.closest('#main-container'), onControl: !!el?.closest('button, a, [role="button"]') };
+        }, pt);
+        expect(under, 'ホイールを回す点が本文の器の中で、押せるものの上でない').toEqual({ inContainer: true, onControl: false });
+        await page.mouse.move(pt.x, pt.y);
         await page.mouse.wheel(0, 400);
         await expect.poll(async () => (await position(page)).progress).toBeGreaterThan(100);
     });

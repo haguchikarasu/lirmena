@@ -31,6 +31,10 @@ test('reader で書字方向 縦↔横 の切替が <html data-writing-mode> に
 test('二重引用符は横書きで “・縦書きで 〝 に見え、書字方向の切替で即座に入れ替わる', async ({ page }) => {
     await page.goto('/lirmena/contents/01-01.html');
     await expect(page.locator('#main-container')).toBeVisible();
+    // #main-container は雛形に最初からあり、本文の段落はその後に本文を取得してから描かれる。段落が描かれ、
+    // 読み込み中の表示が消える（＝描き直しが済む）まで待ってから差し込む（本文の応答が遅いと段落が無いまま探してしまう）
+    await expect(page.locator('#loading')).toBeHidden();
+    await expect(page.locator('#scene-content p').first()).toBeAttached();
     await page.evaluate(() => {
         const p = document.querySelector('#scene-content p');
         if (!p) throw new Error('本文の段落が無い');
