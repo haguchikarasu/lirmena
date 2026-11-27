@@ -249,10 +249,11 @@
     </section>
   </dialog>
 
-  <!-- 初回の読み方選択：プリセット（ウェブ小説風／書籍風）のカードを firstrun.ts が生成する。
+  <!-- 初回の読み方選択：プリセット（ウェブ小説風／書籍風）のカードを firstrun.ts が生成し、showModal() で開く
+       （裏は操作できず、Tab は中に留まる。Esc・「戻る」はブラウザが閉じる。closedby を書かない＝背景では閉じない）。
        閉じたあとに下のチュートリアルが続く（書字方向が確定してから図解を描くため）。aria-labelledby が
        参照する #firstrun-title も firstrun.ts が作る。目次ページ（index.html）には置かない -->
-  <section id="firstrun-popup" hidden role="dialog" aria-labelledby="firstrun-title"></section>
+  <dialog id="firstrun-popup" aria-labelledby="firstrun-title"></dialog>
 
   <!-- 読み方（読書点）チュートリアル：初回ガイドのカルーセル。中身（案内役立ち絵＋説明＋CSS図解）は
        tutorial.ts が STEPS から生成する。デバイス×書字方向は html[data-device][data-writing-mode] で CSS が解決 -->

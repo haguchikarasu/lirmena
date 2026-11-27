@@ -21,7 +21,7 @@
  * enter のガード（入れない条件）:
  *   - 開幕中（<html>.at-opening＝本文先頭の黒い余白）は背景がわざと黒で鑑賞対象がないため入らない。
  *   - 選択モード中（<html>.is-selecting）は発動しない（要件）。
- *   - シート・確認（<dialog>）・初回ガイド・メニューが開いている間は入らない（タップは対象セレクタで弾き、Esc は開閉状態で弾く）。
+ *   - シート・確認・初回の読み方選択（<dialog>）・初回ガイド・メニューが開いている間は入らない（タップは対象セレクタで弾き、Esc は開閉状態で弾く）。
  */
 
 const IMMERSIVE_CLASS = 'is-immersive';
@@ -32,8 +32,8 @@ const TAP_PX = 10;
 const TAP_MS = 400;
 
 // この要素（の子孫）上で始まったタップはトグルしない＝各自のクリック/ドラッグ挙動を温存する。
-// ボタン・リンク・読書点ノブ・FAB一式・シートと確認（<dialog>。背景＝::backdrop を押したときも対象は dialog 自身）・
-// 初回ガイドのポップアップ（<section role="dialog">）。
+// ボタン・リンク・読書点ノブ・FAB一式・シートと確認と初回の読み方選択（<dialog>。背景＝::backdrop を押したときも
+// 対象は dialog 自身）・初回ガイド（tutorial）のポップアップ（<section role="dialog">）。
 const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, dialog, [role="dialog"]';
 
 // 「ポップアップ/メニューが開いている」とみなす要素。開いている間は鑑賞モードへ入らない。

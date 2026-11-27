@@ -2,33 +2,31 @@
    本文ページ・あとがきページの初回に出て、閉じるとチュートリアル（_tutorial.css）が続く。
    目次ページには出ないので toc.css には対応する定義を置かない（設定パネルの .settings-* とは扱いが違う）。 */
 
+/* 器は <dialog>（showModal()）で、器そのものがパネル。最前面の層（top layer）に出るので z-index は書かない。
+   **display は書かない**（書くと閉じているときの display: none を上書きして、閉じても残る）。
+   中央寄せは margin: auto（UA の既定だが、_base.css の全称リセットが margin を 0 にするので書き直す）。
+   幅の % は画面の幅が基準（最前面の層の包含ブロックはビューポート）。高さは dvh：vh だとブラウザ UI の下まで
+   伸びて「あとで決める」が押せなくなる。max-width は UA の既定（calc(100% - 2em - 6px)）を外して width に任せる。 */
 #firstrun-popup {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  writing-mode: horizontal-tb;            /* 本文が縦書きでも質問は横書き */
-  font-family: var(--font-family-sans);   /* UI テキストは sans（本文の serif を継承しない） */
-}
-
-/* display: grid が [hidden] の UA スタイルを上書きしてしまうので明示的に消す（_tutorial.css と同じ理由）。
-   これが無いと hidden にしてもオーバーレイが残り、本文のクリックを吸い続ける。 */
-#firstrun-popup[hidden] { display: none; }
-
-/* 高さは dvh。vh だとブラウザ UI の下まで伸びて「あとで決める」が押せなくなる（.settings-panel と同じ）。 */
-.firstrun-panel {
-  width: min(88vw, 22rem);
+  width: min(88%, 22rem);
+  max-width: none;
   max-height: calc(100dvh - 48px);
+  margin: auto;
   overflow-y: auto;
   padding: 1.3rem 1.2rem 1rem;
   background: rgba(12, 12, 12, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 12px;
+  color: inherit;                         /* UA の CanvasText を外す（色は中の各要素が持つ） */
+  writing-mode: horizontal-tb;            /* 本文が縦書きでも質問は横書き */
+  font-family: var(--font-family-sans);   /* UI テキストは sans（本文の serif を継承しない） */
+}
+
+/* 裏を暗くしてぼかす。裏のスクロール止めは _sheet.css の dialog::backdrop / dialog:modal（全 <dialog> 共通） */
+#firstrun-popup::backdrop {
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .firstrun-title {

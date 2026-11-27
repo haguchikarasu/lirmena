@@ -5,11 +5,15 @@
  *   **onDone が必ず 1 回**がこのモジュールで最も壊れやすい不変条件——破れると、条件を満たさない読者
  *   （設定を触ったことがある既存読者など）が初回ガイドへ永久に到達できなくなる。
  *   「器が無い」分岐は e2e では踏めない（目次ページには firstrun 自体がロードされない）ので、ここでしか検査できない。
- * 環境: jsdom。#firstrun-popup を beforeEach で用意し、settings.init() で表示設定の module state を再構築する。
+ * 環境: jsdom。#firstrun-popup（<dialog>）を beforeEach で用意し、settings.init() で表示設定の module state を再構築する。
+ *   jsdom には showModal()・close() が無いので test-support/dialog-stub の代用を置く。
+ *   **代用が再現しないもの（Esc のキーそのもの・フォーカスの移動と閉じ込め・裏の操作不能）は e2e/firstrun.spec.ts が見る。**
+ *   ここでの「Esc」は、ブラウザが Esc や「戻る」で閉じたときと同じ結果（close() ＝ close イベント）で代える。
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { init } from './firstrun';
 import * as settings from './settings';
+import { installDialogStub } from './test-support/dialog-stub';
 
 const SETTINGS_NOOP = { onClearBookmarks: () => {}, onClearReached: () => {}, onClearRead: () => {}, onWritingModeChange: () => {} };
 const DISPLAY_KEYS = ['lirmena.writingMode', 'lirmena.lineGap', 'lirmena.fontFamily', 'lirmena.fontSize', 'lirmena.fontWeight'];
@@ -17,10 +21,13 @@ const DISPLAY_KEYS = ['lirmena.writingMode', 'lirmena.lineGap', 'lirmena.fontFam
 // マイクロタスクを 1 周させる（onDone は queueMicrotask 経由で呼ばれる）。
 const flush = () => new Promise<void>((resolve) => { queueMicrotask(resolve); });
 
-const popup = () => document.getElementById('firstrun-popup');
+const popup = () => document.getElementById('firstrun-popup') as HTMLDialogElement | null;
 const choices = () => [...document.querySelectorAll<HTMLButtonElement>('.firstrun-choice')];
 const skip = () => document.querySelector<HTMLButtonElement>('.firstrun-skip');
-const pressEscape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+// ブラウザが Esc・「戻る」で閉じたときに起きること（<dialog> が閉じて close イベントが出る）
+const closeByBrowser = () => popup()?.close();
+
+let _restoreDialog: () => void = () => {};
 
 beforeEach(() => {
     localStorage.clear();
@@ -28,13 +35,15 @@ beforeEach(() => {
     document.documentElement.removeAttribute('data-writing-mode');
     document.body.innerHTML = '';
 
-    const el = document.createElement('section');
+    _restoreDialog = installDialogStub();
+    const el = document.createElement('dialog');
     el.id = 'firstrun-popup';
-    el.hidden = true;
     document.body.appendChild(el);
 
     settings.init(SETTINGS_NOOP);
 });
+
+afterEach(() => { _restoreDialog(); });
 
 // 仕様（要件 06-4 / 06-12）：質問済みフラグが無い AND 表示設定5項目がすべて既定値のときだけ出す。
 // チュートリアル既読フラグは条件に入れない（設定を触っていない既存読者にも一度だけ出る）。
@@ -43,7 +52,7 @@ describe('初回ダイアログを出す条件', () => {
         let done = 0;
         init({ onDone: () => { done++; } });
 
-        expect(popup()?.hidden).toBe(false);
+        expect(popup()?.open).toBe(true);
         expect(choices()).toHaveLength(2);
         await flush();
         expect(done).toBe(0);
@@ -54,7 +63,7 @@ describe('初回ダイアログを出す条件', () => {
         let done = 0;
         init({ onDone: () => { done++; } });
 
-        expect(popup()?.hidden).toBe(true);
+        expect(popup()?.open).toBe(false);
         await flush();
         expect(done).toBe(1);
     });
@@ -65,7 +74,7 @@ describe('初回ダイアログを出す条件', () => {
         let done = 0;
         init({ onDone: () => { done++; } });
 
-        expect(popup()?.hidden).toBe(true);
+        expect(popup()?.open).toBe(false);
         await flush();
         expect(done).toBe(1);
     });
@@ -76,6 +85,34 @@ describe('初回ダイアログを出す条件', () => {
         let done = 0;
         init({ onDone: () => { done++; } });
 
+        await flush();
+        expect(done).toBe(1);
+    });
+
+    // 器が <dialog> でない・showModal() が無い環境では、モーダルにできない（裏を止められない）ので訊かない。
+    // 質問済みフラグは立てない＝対応する環境で開き直せば訊かれる。
+    it('showModal() が無い環境では出さず、フラグを立てずに onDone だけ呼ぶ', async () => {
+        _restoreDialog();
+        let done = 0;
+        init({ onDone: () => { done++; } });
+
+        expect(popup()?.hasAttribute('open')).toBe(false);
+        expect(popup()?.childElementCount).toBe(0);
+        expect(localStorage.getItem('lirmena.presetAsked')).toBeNull();
+        await flush();
+        expect(done).toBe(1);
+    });
+
+    it('器が <dialog> でなければ出さず、onDone だけ呼ぶ', async () => {
+        popup()?.remove();
+        const el = document.createElement('section');
+        el.id = 'firstrun-popup';
+        document.body.appendChild(el);
+        let done = 0;
+        init({ onDone: () => { done++; } });
+
+        expect(el.childElementCount).toBe(0);
+        expect(localStorage.getItem('lirmena.presetAsked')).toBeNull();
         await flush();
         expect(done).toBe(1);
     });
@@ -93,7 +130,7 @@ describe('閉じ口ごとの後始末と onDone の契約', () => {
         expect(settings.getActivePreset()).toBe('book');
         expect(localStorage.getItem('lirmena.writingMode')).toBe('vertical');
         expect(localStorage.getItem('lirmena.presetAsked')).toBe('1');
-        expect(popup()?.hidden).toBe(true);
+        expect(popup()?.open).toBe(false);
         await flush();
         expect(done).toBe(1);
     });
@@ -106,18 +143,18 @@ describe('閉じ口ごとの後始末と onDone の契約', () => {
 
         for (const key of DISPLAY_KEYS) expect(localStorage.getItem(key)).toBeNull();
         expect(localStorage.getItem('lirmena.presetAsked')).toBe('1');
-        expect(popup()?.hidden).toBe(true);
+        expect(popup()?.open).toBe(false);
         await flush();
         expect(done).toBe(1);
     });
 
-    it('Escape でも閉じてフラグが立つ（キーボードでモーダルから抜けられる）', async () => {
+    it('ブラウザが閉じたとき（Esc・「戻る」）もフラグが立ち、onDone が1回呼ばれる', async () => {
         let done = 0;
         init({ onDone: () => { done++; } });
 
-        pressEscape();
+        closeByBrowser();
 
-        expect(popup()?.hidden).toBe(true);
+        expect(popup()?.open).toBe(false);
         expect(localStorage.getItem('lirmena.presetAsked')).toBe('1');
         await flush();
         expect(done).toBe(1);
@@ -130,7 +167,7 @@ describe('閉じ口ごとの後始末と onDone の契約', () => {
 
         popup()?.click();
 
-        expect(popup()?.hidden).toBe(false);
+        expect(popup()?.open).toBe(true);
         expect(localStorage.getItem('lirmena.presetAsked')).toBeNull();
         await flush();
         expect(done).toBe(0);
@@ -154,24 +191,19 @@ describe('閉じ口ごとの後始末と onDone の契約', () => {
         init({ onDone: () => { done++; } });
 
         skip()?.click();
-        pressEscape();
+        closeByBrowser();
+        popup()?.dispatchEvent(new Event('close'));   // close イベントが重ねて届いても
 
         await flush();
         expect(done).toBe(1);
     });
 });
 
-// 仕様：自動で開くダイアログなので、開いた時点でフォーカスを中へ入れ、閉じたら外へ返す。
-// オーバーレイの下の #opening-back / #opening-start は隠れていても focusable なため。
-describe('フォーカスの受け渡し', () => {
-    it('開いた瞬間に1枚目のカードへフォーカスする', () => {
+// 仕様：器には読み上げ用の名前が付く（aria-labelledby の参照先はこのモジュールが作る）。
+describe('組み立て', () => {
+    it('見出し #firstrun-title を作り、1 枚目のカードに autofocus を付ける', () => {
         init({ onDone: () => {} });
-        expect(document.activeElement).toBe(choices()[0]);
-    });
-
-    it('閉じたあとフォーカスがダイアログの中に残らない', () => {
-        init({ onDone: () => {} });
-        skip()?.click();
-        expect(popup()?.contains(document.activeElement)).toBe(false);
+        expect(document.getElementById('firstrun-title')?.textContent).toBe('読み方を選んでください');
+        expect(choices().map((b) => b.autofocus)).toEqual([true, false]);
     });
 });

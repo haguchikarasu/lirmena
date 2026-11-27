@@ -105,6 +105,15 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
         expect(tagsWhere(read(file), tag => /\stitle\s*=/.test(tag))).toEqual([]);
     });
 
+    // <dialog> は role を自分で持つ。role="dialog" を書くと immersive.ts の「開いている」の判定に、閉じていても当たる
+    it.each(files)('%s の <dialog> に role 属性・aria-modal が無い', (file) => {
+        expect(tagsWhere(read(file), tag => /^<dialog\b/.test(tag) && /\s(role|aria-modal)\s*=/.test(tag))).toEqual([]);
+    });
+
+    it('本文シェルの初回の読み方選択（#firstrun-popup）は <dialog>', () => {
+        expect(tagsWhere(read('templates/reader.html'), tag => /\sid="firstrun-popup"/.test(tag))).toEqual(['dialog#firstrun-popup']);
+    });
+
     it.each(files)('%s のタブ（role="tab"）に aria-controls が無い', (file) => {
         expect(tagsWhere(read(file), tag => /\srole="tab"/.test(tag) && /\saria-controls\s*=/.test(tag))).toEqual([]);
     });

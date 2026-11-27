@@ -6,7 +6,8 @@
  * （他の spec ではオーバーレイがクリックを阻害するため）。ここは初回導線そのものが検査対象なので、
  * まっさらな localStorage で開く必要がある。
  *
- * 見ているのは 1) 出す/出さないのゲート 2) 閉じたあとチュートリアルへ繋がること 3) 読書位置を失わないこと。
+ * 見ているのは 1) 出す/出さないのゲート 2) 閉じたあとチュートリアルへ繋がること 3) 読書位置を失わないこと
+ * 4) モーダルの振る舞い（フォーカスが中に入り、Tab で裏へ出ない。背景では閉じない）＝jsdom では見られないもの。
  * 特に 3) は「firstrun.init() を bg.subscribe() より前に戻すと落ちる」回帰テスト。
  */
 
@@ -110,4 +111,52 @@ test('読書位置を復元して開いた読者がプリセットを選んで�
 
     const after = await page.locator('#main-container').evaluate((el) => el.scrollTop);
     expect(after).toBeGreaterThan(0);
+});
+
+// 器は <dialog> の showModal()。開くとフォーカスが 1 枚目のカードに入り、Tab を回しても裏（本文・メニュー）へ出ない。
+// 以前は手組みの <section role="dialog"> で、Tab が裏の「次の話へ」などへ出ていた。
+test('開くと 1 枚目のカードにフォーカスが入り、Tab を回しても中に留まる', async ({ page }) => {
+    await page.goto(READER_URL);
+    const popup = page.locator('#firstrun-popup');
+    await expect(popup).toBeVisible();
+    await expect(popup.locator('.firstrun-choice').first()).toBeFocused();
+
+    // 中の止まり先は 3 つ（カード 2 枚と「あとで決める」）。8 回押して、ページの中の止まり先がいつも器の中にあること
+    // （Firefox・WebKit は端でブラウザ自身の UI へ出ることがあるので、body に居る回は数えない）。
+    const where: string[] = [];
+    for (let i = 0; i < 8; i++) {
+        await page.keyboard.press('Tab');
+        where.push(await page.evaluate(() => {
+            const a = document.activeElement;
+            if (!a || a === document.body || a === document.documentElement) return 'page';
+            return a.closest('#firstrun-popup') ? 'in' : 'out:' + (a.id || a.className || a.tagName);
+        }));
+    }
+    expect(where.filter((w) => w.startsWith('out:'))).toEqual([]);
+    expect(where).toContain('in');
+});
+
+test('背景を押しても閉じず、裏のボタンは押せない', async ({ page }) => {
+    await page.goto(READER_URL);
+    const popup = page.locator('#firstrun-popup');
+    await expect(popup).toBeVisible();
+
+    await page.mouse.click(5, 5);                 // 背景の隅
+    await expect(popup).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('lirmena.presetAsked'))).toBeNull();
+
+    // 裏のメニューボタンは、背景に覆われていて押しても開かない
+    const menu = page.locator('#menu-toggle');
+    const box = await menu.boundingBox();
+    if (box) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.locator('#menu-panel')).toBeHidden();
+    await expect(popup).toBeVisible();
+});
+
+test('閉じたあと、フォーカスは器の中に残らない', async ({ page }) => {
+    await page.goto(READER_URL);
+    const popup = page.locator('#firstrun-popup');
+    await popup.getByRole('button', { name: 'あとで決める' }).click();
+    await expect(popup).toBeHidden();
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#firstrun-popup'))).toBe(false);
 });
