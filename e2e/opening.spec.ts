@@ -142,7 +142,21 @@ for (const mode of MODES) {
         // E12：Tab は HTML に書いた順に動き、止まった部品が画面に映る位置へ本文が動く（要件 08）。Shift+Tab は同じ停止先を
         // 逆順にたどり、本文の位置も行きと同じになる（開幕のボタンへ戻れば本文は頭へ戻る）。
         // 目次から入る（直接開くと「読書記録抑止中」の札が出て、札が先に止まる＝下の E13）
-        test(`E12 Tab は「もどる」→「読み進める」→ 本文末 → メニューの順に進み、Shift+Tab で同じ道を戻る（${mode}）`, async ({ page }) => {
+        // ブラウザの既定の差（読者に害はない）を 2 つ吸収する。どちらも「押せるものへ順に届く」という意図は変えない：
+        //   - Firefox はスクロールする器（#main-container）にも Tab が止まる（Bugzilla 1069739）。器に止まった回だけ、もう 1 回押して読み飛ばす
+        //   - WebKit は既定で Tab がリンク（<a>。共有の 2 つ）に止まらない（Safari の既定と同じ）。WebKit では停止先の期待から
+        //     リンクの 2 つだけを外す（ボタンの並びと Shift+Tab の逆順は同じに見る）。Windows 版の Playwright WebKit では
+        //     Alt+Tab・Control+Tab などでもリンクに止まらなかった（2026-11-27 に確かめた）ので、押し方では吸収できない
+        // 画面に映っているかは矩形で見る：WebKit の IntersectionObserver が縦書きの器の中の横書き flex の子を「交差 0」と返し、
+        // それで判定する toBeInViewport が偽になるため。矩形は「全体がビューポートの中」を求める（toBeInViewport の既定の 1px より厳しい）
+        test(`E12 Tab は「もどる」→「読み進める」→ 本文末 → メニューの順に進み、Shift+Tab で同じ道を戻る（${mode}）`, async ({ page, browserName }) => {
+            const press = async (shift: boolean): Promise<void> => {
+                const key = shift ? 'Shift+Tab' : 'Tab';
+                await page.keyboard.press(key);
+                if (browserName === 'firefox' && await page.evaluate(() => document.activeElement?.id === 'main-container')) {
+                    await page.keyboard.press(key);
+                }
+            };
             await setupRoutes(page);
             await setWritingMode(page, mode);
             await gotoToc(page);
@@ -161,23 +175,30 @@ for (const mode of MODES) {
                 const { progress, range } = await position(page);
                 expect(range, '本文が短すぎて位置を区別できない').toBeGreaterThan(50);
                 const where = progress <= 4 ? '頭' : '本文末';
-                await expect(page.locator(`#${id}`), `#${id} が画面に映っている`).toBeInViewport();
+                await expect.poll(async () => {
+                    const b = await page.locator(`#${id}`).boundingBox();
+                    const vp = page.viewportSize()!;
+                    if (!b || b.width === 0 || b.height === 0) return false;
+                    return b.x >= -1 && b.y >= -1 && b.x + b.width <= vp.width + 1 && b.y + b.height <= vp.height + 1;
+                }, { message: `#${id} の全体が画面に映っている` }).toBe(true);
                 return `${id}@${where}`;
             };
 
+            const links = ['btn-share-x@本文末', 'btn-share-marshmallow@本文末'];
+            const expected = [
+                'opening-back@頭', 'opening-start@頭',
+                'btn-next@本文末', ...links, 'menu-toggle@本文末',
+            ].filter((s) => browserName !== 'webkit' || !links.includes(s));
             const forward: string[] = [];
-            for (let i = 0; i < 6; i++) {
-                await page.keyboard.press('Tab');
+            for (let i = 0; i < expected.length; i++) {
+                await press(false);
                 forward.push(await stop());
             }
-            expect(forward).toEqual([
-                'opening-back@頭', 'opening-start@頭',
-                'btn-next@本文末', 'btn-share-x@本文末', 'btn-share-marshmallow@本文末', 'menu-toggle@本文末',
-            ]);
+            expect(forward).toEqual(expected);
 
             const backward: string[] = [forward[forward.length - 1]];
-            for (let i = 0; i < 5; i++) {
-                await page.keyboard.press('Shift+Tab');
+            for (let i = 0; i < expected.length - 1; i++) {
+                await press(true);
                 backward.push(await stop());
             }
             expect(backward, 'Shift+Tab は行きと同じ停止先を逆順にたどる').toEqual([...forward].reverse());
@@ -195,16 +216,21 @@ for (const mode of MODES) {
             await expect(page.locator('html')).toHaveClass(/\bat-opening\b/);
         });
 
-        // E14：「読み進める」で本文へ入ったあと、見えなくなったボタンにフォーカスが残らない。次の Tab は本文末へ進む
-        test(`E14 「読み進める」を Enter で押すとフォーカスが外れ、次の Tab は本文末の「次へ」に止まる（${mode}）`, async ({ page }) => {
+        // E14：「読み進める」で本文へ入ったあと、見えなくなったボタンにフォーカスが残らない。次の Tab は本文末へ進む。
+        // フォーカスは本文（#scene-content）へ移る：blur() で外すだけだと、次の Tab の起点がブラウザで違い、Firefox と WebKit では
+        // 開幕のボタンに止まって本文が頭へ巻き戻った（2026-11-27 に見つけて直した）
+        test(`E14 「読み進める」を Enter で押すとフォーカスが本文へ移り、次の Tab は本文末の「次へ」に止まる（${mode}）`, async ({ page }) => {
             await openAtOpening(page, mode);
             const target = await readOnTarget(page);
             await startBtn(page).focus();
             await page.keyboard.press('Enter');
             await expectLandedAt(page, target);
-            expect(await page.evaluate(() => document.activeElement === document.body), '見えないボタンにフォーカスが残らない').toBe(true);
+            await expect(page.locator('#scene-content'), '見えないボタンにフォーカスを残さず、本文へ移す').toBeFocused();
+            await expect(page.locator('#scene-content'), '本文には枠を出さない').toHaveCSS('outline-style', 'none');
             await page.keyboard.press('Tab');
             await expect(page.locator('#btn-next')).toBeFocused();
+            await expect(page.locator('html'), '開幕へ巻き戻らない').not.toHaveClass(/at-opening/);
+            expect(await page.locator('#scene-content').getAttribute('tabindex'), '本文を Tab の停止先・クリックのフォーカス先に残さない').toBeNull();
         });
 
         // 開幕でないときのボタンは透明で、マウス・タッチでは押せない。キーボードのフォーカスは止めない（E12 が見る）

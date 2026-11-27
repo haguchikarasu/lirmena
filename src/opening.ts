@@ -23,7 +23,7 @@
  *
  * キーボードのフォーカス（要件 08）:
  *   開幕のボタンは開幕でないときも Tab の停止先に残る（CSS は透明にして押せなくするだけ）。フォーカスが来たら本文を頭へ
- *   戻して開幕を出す＝本文末から Shift+Tab で戻れる。開幕を抜けるときは、開幕のボタンに残ったフォーカスを外す
+ *   戻して開幕を出す＝本文末から Shift+Tab で戻れる。開幕を抜けるときは、開幕のボタンに残ったフォーカスを本文へ移す
  *   （透明なボタンにフォーカスを残さない）。判断の理由は design/modules/opening.md。
  *
  * 「もどる」の挙動（要件 06-6）:
@@ -91,11 +91,25 @@ function _returnToOpening(): void {
     html.classList.add('at-opening');   // スクロールの通知（update）を待たずに出す＝フォーカスの枠がすぐ見える
 }
 
-// 開幕のボタンにフォーカスが残っていたら外す（開幕を抜けるとボタンは透明になる＝見えない部品にフォーカスを残さない）。
+// 開幕のボタンにフォーカスが残っていたら、本文（#scene-content）へ移す（開幕を抜けるとボタンは透明になる＝見えない
+// 部品にフォーカスを残さない）。**blur() で外すだけにしない**：外したあとの次の Tab の起点はブラウザで違い
+// （Chromium は外した要素の次、Firefox は外した要素そのもの、WebKit は文書の先頭）、Firefox と WebKit では次の Tab が
+// 開幕のボタンに止まって、本文が頭へ巻き戻る（_returnToOpening）。本文へ移せば、どのブラウザでも次の Tab は本文の先へ進む。
+// 本文は Tab の停止先にしない：移す間だけ tabindex="-1" を付け、フォーカスが離れたら外す（付けたままにすると、本文を
+// クリックするたびに本文がフォーカスを取る）。スクロールは動かさない（preventScroll）。
 // _dropFocus(): void
 function _dropFocus(): void {
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest('#opening-affordance')) active.blur();
+    if (!(active instanceof HTMLElement) || !active.closest('#opening-affordance')) return;
+    const body = document.getElementById('scene-content');
+    if (body) {
+        body.tabIndex = -1;
+        body.addEventListener('blur', () => body.removeAttribute('tabindex'), { once: true });
+        body.focus({ preventScroll: true });
+    }
+    // 本文へ移せなかったとき（本文がまだ描かれていない・器が無い）は外すだけにする
+    const now = document.activeElement;
+    if (now instanceof HTMLElement && now.closest('#opening-affordance')) now.blur();
 }
 
 // 数値を2桁ゼロ埋めする（現在地ラベル "01-02" 用）。
@@ -124,7 +138,7 @@ function _readOn(): void {
     // フェード開始：開幕を解除する。スクロール中は update() に再付与させない。
     _transitioning = true;
     document.documentElement.classList.remove('at-opening');
-    _dropFocus();   // キーボードで押したとき、透明になるボタンにフォーカスを残さない（次の Tab は本文末へ進む）
+    _dropFocus();   // キーボードで押したとき、透明になるボタンにフォーカスを残さず本文へ移す（次の Tab は本文末へ進む）
 
     // 文章先頭辺（先頭シーンの読み始め辺）がマーカー位置に重なる forward 進行量 = 比率 × 進行軸ビューポート長。
     // 先頭の黒い恒久余白（btn-container-start）は長さ＝進行軸ビューポート長なので、この距離だけ進めると先頭辺がマーカーに乗る。
