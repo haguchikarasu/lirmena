@@ -251,25 +251,40 @@ dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
    カードの中の幅（100cqi）の 1/14.2 を上限に字を縮める。幅に余裕があれば 11px のまま */
 .settings-preset__desc { color: var(--sheet-dim); font-size: min(11px, 100cqi / 14.2); letter-spacing: 0; white-space: nowrap; }
 .settings-rows { display: grid; gap: 8px; }
-.settings-row { display: grid; grid-template-columns: 6.5em 1fr; align-items: center; gap: 10px; }
-.settings-row__label { margin: 0; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; color: var(--sheet-dim); }
+/* 行は <fieldset>。枠・余白・最小幅の既定を消し、左に名前（<legend>）の幅 6.5em と間 10px を空けて選択肢を置く。
+   名前は絶対配置でその空きに入れ、縦は中央に寄せる。<fieldset> をグリッドにして <legend> を 1 列目に入れる形は
+   採らない：<legend> は既定だと枠の線の上に置かれる特別な箱で、float で外しても WebKit ではグリッドの子に
+   ならなかった（実測。名前が選択肢に重なる）。絶対配置にした <legend> は 3 ブラウザとも普通の箱になる */
+.settings-row { position: relative; min-inline-size: 0; margin: 0; padding: 0; padding-inline-start: calc(6.5em + 10px); border: 0; }
+.settings-row__label { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: 6.5em; align-content: center; margin: 0; padding: 0; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; color: var(--sheet-dim); }
 .settings-row__opts { display: flex; overflow: clip; border: 1px solid var(--sheet-line); border-radius: 10px; }
+/* 選択肢は <label>、中のラジオは見た目を消してラベルいっぱいに重ねる（押せる範囲＝ラベル全体。読み上げと
+   キー操作はラジオのまま）。選ばれているかはラジオの :checked、フォーカスの輪郭線はラジオ自身が描く */
 .settings-opt {
+  position: relative;
   flex: 1;
   display: grid;
   place-items: center;
   height: 40px;
-  padding: 0;
-  border: none;
-  background: none;
   color: #a8a398;
-  font: inherit;
   font-size: 14px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.settings-opt > input {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  border-radius: 0;
   cursor: pointer;
 }
 .settings-opt + .settings-opt { border-inline-start: 1px solid var(--sheet-line); }
-.settings-opt.active { color: var(--sheet-accent); background: var(--sheet-accent-soft); }
-.settings-opt:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
+/* 仕切りの線（1px）の上までラジオを広げる＝輪郭線がラベルの箱ぴったりを囲む（inset の基準は線の内側なので） */
+.settings-opt + .settings-opt > input { inset-inline-start: -1px; }
+.settings-opt:has(:checked) { color: var(--sheet-accent); background: var(--sheet-accent-soft); }
+.settings-opt > input:focus-visible { outline: 2px solid var(--sheet-accent); outline-offset: -2px; }
 .settings-opt--serif { font-family: serif; }
 .settings-opt--sans { font-family: sans-serif; }
 .settings-opt--small { font-size: 12px; }
@@ -386,5 +401,5 @@ dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.55); }
   .settings-preset__btn.active { border-width: 2px; border-color: Highlight; padding: 9px; }
   /* 選択肢：選んでいるものの下に太い線を引く（高さ 40px は変わらない）。Highlight で塗る形にはしない：Chromium は
      強制カラーで文字の裏に Canvas 色の下敷きを描くので、塗りの中に下敷きの箱が浮き、HighlightText の字は消える（実測） */
-  .settings-opt.active { border-block-end: 4px solid Highlight; }
+  .settings-opt:has(:checked) { border-block-end: 4px solid Highlight; }
 }

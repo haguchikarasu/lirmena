@@ -58,7 +58,7 @@ test('「X でポスト」は縦書きで X の後ろを詰め、横書きでは
     // 縦書き：詰める（修正前は 1 文字ぶん＝十数 px 空いていた）
     await page.locator('#menu-toggle').click();
     await page.getByRole('button', { name: '設定' }).click();
-    await page.getByRole('button', { name: '縦書き', exact: true }).click();
+    await page.getByRole('radio', { name: '縦書き', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'vertical');
     expect(Math.abs(await gapAfterX())).toBeLessThan(1);
 });

@@ -96,7 +96,7 @@ for (const { label, open } of PAGES) {
         await open(page);
         await page.locator('#settings-popup').getByRole('button', { name: '書籍風' }).click();
         const active = await page.locator('#settings-popup .settings-row').evaluateAll(
-            (rows) => rows.map((r) => r.querySelector('.settings-opt.active')?.textContent ?? null),
+            (rows) => rows.map((r) => r.querySelector('input:checked')?.parentElement?.textContent ?? null),
         );
         expect(active).toEqual(['縦書き', 'なし', '明朝', '中', '通常']);
     });

@@ -163,7 +163,9 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
         const findByText = (selector: string, text: string) =>
             [...document.querySelectorAll<HTMLButtonElement>(selector)].find((b) => b.textContent === text);
 
+        // 選択肢はラジオ＝伝わるのは値が変わったときだけなので、縦書きから始めて横書きを選ぶ
         it('「横書き」を選ぶと localStorage 保存＋属性反映する', () => {
+            localStorage.setItem('lirmena.writingMode', 'vertical');
             init(NOOP);
             findByText('.settings-opt', '横書き')?.click();
             expect(localStorage.getItem('lirmena.writingMode')).toBe('horizontal');
@@ -197,7 +199,7 @@ describe('書字方向（writingMode → <html data-writing-mode> 属性）', ()
         it('書字方向以外の設定変更では onWritingModeChange を呼ばない', () => {
             let calls = 0;
             init({ ...NOOP, onWritingModeChange: () => { calls++; } });
-            findByText('.settings-opt', 'ゴシック体')?.click(); // フォント変更
+            findByText('.settings-opt', 'ゴシック')?.click();   // フォント変更
             findByText('.settings-opt', '大')?.click();         // 文字サイズ変更
             findByText('.settings-opt', '太字')?.click();       // 文字の太さ変更
             expect(calls).toBe(0);
@@ -350,6 +352,21 @@ describe('表示設定の行順（要件 06-4）', () => {
         document.getElementById('settings-popup')?.remove();
     });
 
+    // 行はラジオのまとまり（<fieldset>＋<legend>）。name が Settings のキーで、行ごとに 1 つだけ選ばれている
+    // （Tab で止まるのが行ごとに 1 つ・矢印キーで選ぶ、はブラウザの動き＝e2e/settings-radio.spec.ts）
+    it('各行は fieldset で、名前は legend、選択肢は同じ name のラジオ。開いた時点で行ごとに 1 つ選ばれている', () => {
+        init(NOOP);
+        const rows = [...document.querySelectorAll('.settings-row')];
+        expect(rows.map((r) => r.tagName)).toEqual(['FIELDSET', 'FIELDSET', 'FIELDSET', 'FIELDSET', 'FIELDSET']);
+        expect(rows.map((r) => r.firstElementChild?.tagName)).toEqual(['LEGEND', 'LEGEND', 'LEGEND', 'LEGEND', 'LEGEND']);
+        const names = rows.map((r) => [...new Set([...r.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map((i) => i.name))]);
+        expect(names).toEqual([['writingMode'], ['lineGap'], ['fontFamily'], ['fontSize'], ['fontWeight']]);
+        expect(rows.map((r) => r.querySelectorAll('input:checked').length)).toEqual([1, 1, 1, 1, 1]);
+        // 選ばれているのは既定値
+        expect(rows.map((r) => r.querySelector<HTMLInputElement>('input:checked')?.value))
+            .toEqual(['horizontal', 'on', 'serif', 'medium', 'normal']);
+    });
+
     it('書字方向→段落の空行→フォント→文字の大きさ→文字の太さ の順に並ぶ', () => {
         init(NOOP);
         const labels = [...document.querySelectorAll('.settings-row__label')].map((el) => el.textContent);
@@ -484,7 +501,7 @@ describe('プリセットの適用と選択表示（要件 06-4）', () => {
     const activeCards = () =>
         [...document.querySelectorAll('.settings-preset__btn.active .settings-preset__name')].map((el) => el.textContent);
     const activeRowValues = () =>
-        [...document.querySelectorAll('.settings-row')].map((row) => row.querySelector('.settings-opt.active')?.textContent ?? null);
+        [...document.querySelectorAll('.settings-row')].map((row) => row.querySelector('input:checked')?.parentElement?.textContent ?? null);
     const clickOpt = (text: string) =>
         [...document.querySelectorAll<HTMLButtonElement>('.settings-opt')].find((b) => b.textContent === text)?.click();
 

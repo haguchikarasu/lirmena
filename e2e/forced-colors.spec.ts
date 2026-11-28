@@ -86,7 +86,7 @@ test.describe('設定シート', () => {
 
     test('選択肢：選んでいるものと選んでいないものが区別できる', async ({ page }) => {
         const row = '#settings-popup .settings-row:first-child';
-        await expectDistinct(page, `${row} .settings-opt.active`, `${row} .settings-opt:not(.active)`);
+        await expectDistinct(page, `${row} .settings-opt:has(:checked)`, `${row} .settings-opt:not(:has(:checked))`);
     });
 });
 

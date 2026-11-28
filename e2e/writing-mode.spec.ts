@@ -17,11 +17,11 @@ test('reader で書字方向 縦↔横 の切替が <html data-writing-mode> に
     await page.locator('#menu-toggle').click();
     await page.getByRole('button', { name: '設定' }).click();
     await expect(page.locator('#settings-popup')).toBeVisible();
-    await page.getByRole('button', { name: '縦書き', exact: true }).click();
+    await page.getByRole('radio', { name: '縦書き', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'vertical');
 
     // 続けて横書きに戻す
-    await page.getByRole('button', { name: '横書き', exact: true }).click();
+    await page.getByRole('radio', { name: '横書き', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'horizontal');
 });
 
@@ -61,13 +61,13 @@ test('二重引用符は横書きで “・縦書きで 〝 に見え、書字�
     // 縦書き：縦書きの字だけが見える（再描画なし・属性の切替だけで入れ替わる）
     await page.locator('#menu-toggle').click();
     await page.getByRole('button', { name: '設定' }).click();
-    await page.getByRole('button', { name: '縦書き', exact: true }).click();
+    await page.getByRole('radio', { name: '縦書き', exact: true }).click();
     await expect(dqH).toBeHidden();
     await expect(dqV).toBeVisible();
     expect(await headOfPara()).toBe('〝');
 
     // 横書きに戻す
-    await page.getByRole('button', { name: '横書き', exact: true }).click();
+    await page.getByRole('radio', { name: '横書き', exact: true }).click();
     await expect(dqH).toBeVisible();
     await expect(dqV).toBeHidden();
     expect(await headOfPara()).toBe('“');

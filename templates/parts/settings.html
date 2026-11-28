@@ -1,12 +1,14 @@
 <!-- 設定シート（差し込みの断片＝本文シェル templates/reader.html と目次 index.html の両方へ、ビルド時に
      vite.config.ts の expandIncludes が差し込む。markup の持ち主はこのファイル 1 か所だけ）。
      器はシート（<dialog class="sheet">。開閉と操作は src/ui/sheet.ts、見た目は src/styles/_sheet.css）。
-     結線は src/ui/settings-panel.ts（data-key / data-value / data-action で引く）。プリセットのカードは
+     結線は src/ui/settings-panel.ts（ラジオの name / value と、ボタンの data-action で引く）。プリセットのカードは
      定義（src/core/settings-model.ts の PRESETS）から settings-panel が .settings-preset の中に組む。
      行の名前と選択肢は文字で書き、選択肢の字はその見た目で描く（明朝は明朝、大は大きく、太字は太く。_sheet.css）。
-     ボタンの文字の前後に空白・改行を入れない（textContent で探すテストと e2e がある）。
-     選択肢の並びは role="group"（名前つきのボタンのまとまり）。ページを移る導線ではないので <nav> にせず、
-     名前つきの <section>（＝ランドマーク）にもしない。 -->
+     ボタンとラベルの文字の前後に空白・改行を入れない（textContent で探すテストと e2e がある）。
+     設定の行は <fieldset>＋<legend>、選択肢は <label> で包んだ <input type="radio">（name は Settings のキー）。
+     1 行は 1 つのラジオのまとまりなので、Tab で止まるのは行ごとに 1 つ、行の中は矢印キーで選ぶ（ブラウザの動き）。
+     <form> では包まない（送信するものが無く、包むと Enter で送信が走る）。.settings-row__opts は枠を描くだけの箱。
+     プリセットと消す・戻すの並びは role="group"（名前つきのボタンのまとまり）。 -->
 <dialog id="settings-popup" class="sheet" data-kind="settings" data-detent="fit" aria-labelledby="settings-title">
   <span class="sheet-grab" aria-hidden="true"></span>
   <header class="sheet-head">
@@ -17,42 +19,42 @@
     <section class="settings-preset" role="group" aria-label="プリセット"></section>
     <!-- 行の並びは要件 06-4 の設定項目表の順（書字方向→段落の空行→フォント→文字の大きさ→文字の太さ） -->
     <section class="settings-rows">
-      <section class="settings-row">
-        <h3 class="settings-row__label">書字方向</h3>
-        <section class="settings-row__opts" role="group" aria-label="書字方向">
-          <button class="settings-opt" type="button" data-key="writingMode" data-value="vertical">縦書き</button>
-          <button class="settings-opt" type="button" data-key="writingMode" data-value="horizontal">横書き</button>
-        </section>
-      </section>
-      <section class="settings-row">
-        <h3 class="settings-row__label">段落の空行</h3>
-        <section class="settings-row__opts" role="group" aria-label="段落の空行">
-          <button class="settings-opt" type="button" data-key="lineGap" data-value="on">あり</button>
-          <button class="settings-opt" type="button" data-key="lineGap" data-value="off">なし</button>
-        </section>
-      </section>
-      <section class="settings-row">
-        <h3 class="settings-row__label">フォント</h3>
-        <section class="settings-row__opts" role="group" aria-label="フォント">
-          <button class="settings-opt settings-opt--serif" type="button" data-key="fontFamily" data-value="serif">明朝</button>
-          <button class="settings-opt settings-opt--sans" type="button" data-key="fontFamily" data-value="sans">ゴシック</button>
-        </section>
-      </section>
-      <section class="settings-row">
-        <h3 class="settings-row__label">文字の大きさ</h3>
-        <section class="settings-row__opts" role="group" aria-label="文字の大きさ">
-          <button class="settings-opt settings-opt--small" type="button" data-key="fontSize" data-value="small">小</button>
-          <button class="settings-opt" type="button" data-key="fontSize" data-value="medium">中</button>
-          <button class="settings-opt settings-opt--large" type="button" data-key="fontSize" data-value="large">大</button>
-        </section>
-      </section>
-      <section class="settings-row">
-        <h3 class="settings-row__label">文字の太さ</h3>
-        <section class="settings-row__opts" role="group" aria-label="文字の太さ">
-          <button class="settings-opt" type="button" data-key="fontWeight" data-value="normal">通常</button>
-          <button class="settings-opt settings-opt--bold" type="button" data-key="fontWeight" data-value="bold">太字</button>
-        </section>
-      </section>
+      <fieldset class="settings-row">
+        <legend class="settings-row__label">書字方向</legend>
+        <div class="settings-row__opts">
+          <label class="settings-opt"><input type="radio" name="writingMode" value="vertical">縦書き</label>
+          <label class="settings-opt"><input type="radio" name="writingMode" value="horizontal">横書き</label>
+        </div>
+      </fieldset>
+      <fieldset class="settings-row">
+        <legend class="settings-row__label">段落の空行</legend>
+        <div class="settings-row__opts">
+          <label class="settings-opt"><input type="radio" name="lineGap" value="on">あり</label>
+          <label class="settings-opt"><input type="radio" name="lineGap" value="off">なし</label>
+        </div>
+      </fieldset>
+      <fieldset class="settings-row">
+        <legend class="settings-row__label">フォント</legend>
+        <div class="settings-row__opts">
+          <label class="settings-opt settings-opt--serif"><input type="radio" name="fontFamily" value="serif">明朝</label>
+          <label class="settings-opt settings-opt--sans"><input type="radio" name="fontFamily" value="sans">ゴシック</label>
+        </div>
+      </fieldset>
+      <fieldset class="settings-row">
+        <legend class="settings-row__label">文字の大きさ</legend>
+        <div class="settings-row__opts">
+          <label class="settings-opt settings-opt--small"><input type="radio" name="fontSize" value="small">小</label>
+          <label class="settings-opt"><input type="radio" name="fontSize" value="medium">中</label>
+          <label class="settings-opt settings-opt--large"><input type="radio" name="fontSize" value="large">大</label>
+        </div>
+      </fieldset>
+      <fieldset class="settings-row">
+        <legend class="settings-row__label">文字の太さ</legend>
+        <div class="settings-row__opts">
+          <label class="settings-opt"><input type="radio" name="fontWeight" value="normal">通常</label>
+          <label class="settings-opt settings-opt--bold"><input type="radio" name="fontWeight" value="bold">太字</label>
+        </div>
+      </fieldset>
     </section>
     <!-- 記録の消去と初期値に戻す。どれも取り消せないので、settings-panel が確認（ui/confirm）を通してから host を呼ぶ -->
     <section class="settings-data" role="group" aria-label="記録を消す・設定を戻す">

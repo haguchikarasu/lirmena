@@ -1,7 +1,8 @@
 /*
  * ui/settings-panel.ts
  * 責務: 設定シート（#settings-popup）の結線。markup は差し込みの断片 templates/parts/settings.html が持ち、
- *       ここは「押されたら host に伝える」「host の現在値から選択状態（.active・aria-pressed）を描き直す」だけを行う。
+ *       ここは「選ばれたら host に伝える」「host の現在値から選択状態（ラジオの checked、プリセットの .active・aria-pressed）を
+ *       描き直す」だけを行う。
  *       値の保存・画面への反映は持たない（ページごとに違うので host が持つ）：
  *         本文（settings.ts）… 保存＋CSS 変数と <html data-writing-mode> への反映＋読書位置の復元
  *         目次（index.ts）  … 保存だけ（目次は本文を持たないので反映しない）
@@ -14,7 +15,10 @@
  *       ui 層＝reader 層を import しない（.dependency-cruiser.cjs）。
  *
  * 断片の約束（templates/parts/settings.html）:
- *   .settings-opt[data-key][data-value]  … 設定行の選択ボタン（data-key は Settings のキー）
+ *   .settings-opt > input[type=radio][name][value] … 設定行の選択肢（name は Settings のキー、value はその値）。
+ *       選ばれているかはラジオの checked が持つ（クラスは付けない。見た目は _sheet.css が :has(:checked) で描く）。
+ *       伝えるのは change＝値が変わったときだけ（もう選ばれているものを押しても何も起きない）。
+ *       行の中の矢印キーとラベルのタップはブラウザが change にする
  *   .settings-preset                     … プリセットのカードの器。カードは PRESETS からここで組む（定義の単一の源を保つ）
  *   .settings-action[data-action]        … clear-bookmarks / clear-reached / clear-read / reset
  *   [data-sheet-close]                   … 閉じる（ui/sheet が結ぶ）
@@ -42,7 +46,7 @@ export type SettingsPanelHost = {
 
 let _popup: HTMLDialogElement | null = null;
 let _host: SettingsPanelHost | null = null;
-let _opts: HTMLButtonElement[] = [];
+let _opts: HTMLInputElement[] = [];
 let _presets: Array<{ btn: HTMLButtonElement; id: PresetId }> = [];
 
 // #settings-popup の断片に結線する。断片が無いページ（器が無い・差し込み漏れ）では何もしない。
@@ -60,10 +64,10 @@ export function init(host: SettingsPanelHost): void {
 
     _buildPresets(popup);
 
-    _opts = Array.from(popup.querySelectorAll<HTMLButtonElement>('.settings-opt[data-key][data-value]'));
-    for (const btn of _opts) {
-        btn.addEventListener('click', () => {
-            _host?.select(btn.dataset.key as keyof Settings, btn.dataset.value ?? '');
+    _opts = Array.from(popup.querySelectorAll<HTMLInputElement>('.settings-opt > input[type="radio"]'));
+    for (const radio of _opts) {
+        radio.addEventListener('change', () => {
+            _host?.select(radio.name as keyof Settings, radio.value);
             refresh();
         });
     }
@@ -84,21 +88,21 @@ export function init(host: SettingsPanelHost): void {
     refresh();
 }
 
-// host.current() から設定行の .active とプリセットの .active・aria-pressed を描き直す。
+// host.current() から設定行のラジオの checked とプリセットの .active・aria-pressed を描き直す。
 // refresh(): void
 export function refresh(): void {
     if (!_host) return;
     const current = _host.current();
-    for (const btn of _opts) {
-        const key = btn.dataset.key as keyof Settings;
-        btn.classList.toggle('active', (current[key] as string) === btn.dataset.value);
+    for (const radio of _opts) {
+        radio.checked = (current[radio.name as keyof Settings] as string) === radio.value;
     }
     const active = activePresetId(current);
     for (const { btn, id } of _presets) {
         const on = id === active;
         btn.classList.toggle('active', on);
         // .active はクラス＝見た目だけなので、選択状態を支援技術にも伝える。
-        // 2枚のうち1枚が選ばれる排他選択だが radiogroup にはしない（矢印キー操作の実装が要るため）。
+        // 2枚のうち1枚が選ばれる排他選択だが、ラジオにはしない（どちらも選ばれていない状態＝カスタムがあり、
+        // 1 枚は内訳つきのカードなので）。設定の行はラジオ（断片）。
         btn.setAttribute('aria-pressed', String(on));
     }
 }

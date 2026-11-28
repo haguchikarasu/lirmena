@@ -236,7 +236,7 @@ test.describe('設定シート（上の帯の ⚙）', () => {
         await expect(preview).toBeVisible();
         const text = page.locator('#idx-preview-text');
         await expect(text).toHaveAttribute('data-writing-mode', 'horizontal');
-        await page.locator('#settings-popup .settings-opt[data-key="writingMode"][data-value="vertical"]').click();
+        await page.locator('#settings-popup input[name="writingMode"][value="vertical"]').click();
         await expect(text).toHaveAttribute('data-writing-mode', 'vertical');
         // 目次そのものは縦書きにならない（保存だけ）
         await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'horizontal');

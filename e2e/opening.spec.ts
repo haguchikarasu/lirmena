@@ -300,12 +300,12 @@ test('E3 開幕のまま書字方向を切り替えると、アイコンの向�
     await page.locator('#menu-toggle').click();
     await page.getByRole('button', { name: '設定', exact: true }).click();
     await expect(page.locator('#settings-popup')).toBeVisible();
-    await page.locator('#settings-popup').getByRole('button', { name: '縦書き', exact: true }).click();
+    await page.locator('#settings-popup').getByRole('radio', { name: '縦書き', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'vertical');
     await expect(page.locator('html')).toHaveClass(/\bat-opening\b/);
     await expectIconsFacing(page, 'vertical');
 
-    await page.locator('#settings-popup').getByRole('button', { name: '横書き', exact: true }).click();
+    await page.locator('#settings-popup').getByRole('radio', { name: '横書き', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-writing-mode', 'horizontal');
     await expectIconsFacing(page, 'horizontal');
 });
