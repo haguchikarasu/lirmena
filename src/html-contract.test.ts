@@ -139,6 +139,23 @@ describe('HTML の書き方の契約（全シェル・全断片）', () => {
         expect(navTags(read('templates/reader.html')).map(tag => idOf(tag) ?? tag)).toEqual(['btn-container-end', 'menu-container']);
     });
 
+    // メニューは popover。開閉はブラウザが持つ（menu.ts は hidden を切り替えない。immersive.ts は :popover-open を読む）
+    it('本文シェル：メニューのパネルは popover で、ボタンが commandfor で開閉し、パネルはボタンのすぐ後ろにある', () => {
+        const html = read('templates/reader.html');
+        const panel = openTags(html).filter(tag => idOf(tag) === 'menu-panel');
+        expect(panel).toHaveLength(1);
+        expect(panel[0]).toMatch(/^<div\s/);
+        expect(panel[0]).toMatch(/\spopover="auto"/);
+        expect(panel[0]).not.toMatch(/\shidden\b/);
+        const toggle = openTags(html).filter(tag => idOf(tag) === 'menu-toggle');
+        expect(toggle).toHaveLength(1);
+        expect(toggle[0]).toMatch(/\scommandfor="menu-panel"/);
+        expect(toggle[0]).toMatch(/\scommand="toggle-popover"/);
+        expect(toggle[0]).not.toMatch(/\spopovertarget/);
+        // 間に挟まるのはコメントと空白だけ
+        expect(html).toMatch(/<button id="menu-toggle"[^>]*>[^<]*<\/button>\s*(?:<!--[\s\S]*?-->\s*)?<div id="menu-panel"/);
+    });
+
     it.each(['settings', 'share', 'confirm', 'world'])('シートの断片 %s.html に <nav>（ナビゲーション）が無い', (name) => {
         expect(navTags(read(`templates/parts/${name}.html`))).toEqual([]);
     });
@@ -248,9 +265,9 @@ describe('CSS の書き方の契約（src/styles）：フォーカスとホバ�
         expect(found.map(r => r.selectors[0])).toEqual(['a:hover']);
     });
 
-    // 用語集（R2-08）：枠や下線の色の変化だけでは、フォーカスの位置が見えにくい。輪郭線で示す
-    it('_glossary.css の :focus-visible の規則に outline: none が無い', () => {
-        const bad = rulesOf(read('src/styles/_glossary.css'))
+    // 用語集・メニュー（R2-08）：枠や下線・地の色の変化だけでは、フォーカスの位置が見えにくい。輪郭線で示す
+    it.each(['_glossary.css', '_ui.css'])('%s の :focus-visible の規則に outline: none が無い', (file) => {
+        const bad = rulesOf(read(`src/styles/${file}`))
             .filter(r => r.selectors.some(s => s.includes(':focus-visible')) && /(?:^|[;\s])outline\s*:\s*none/.test(r.body));
         expect(bad.map(r => r.selectors.join(', '))).toEqual([]);
     });
@@ -309,9 +326,9 @@ const REDUCE = /prefers-reduced-motion:\s*reduce/;
 // 動き（移動・拡大・回転・大きさ）に当たる transition の対象。色・不透明度は入れない
 const SPATIAL = /\b(scale|rotate|translate|transform|height)\b/;
 
-/** 動きを減らす設定の基準（design/architecture.md）を見る CSS。_ui.css は別の段で揃える */
+/** 動きを減らす設定の基準（design/architecture.md）を見る CSS＝全部 */
 function motionCssFiles(): string[] {
-    return cssFiles().filter(f => !/\/_ui\.css$/.test(f));
+    return cssFiles();
 }
 
 /** src/ の .ts（テストを除く） */

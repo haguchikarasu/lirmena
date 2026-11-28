@@ -244,8 +244,8 @@ describe('閉じたらフォーカスが戻る', () => {
     });
 });
 
-// 仕様（close／isOpen／anyOpen の IF コメント）
-describe('close・isOpen・anyOpen', () => {
+// 仕様（close／isOpen の IF コメント）
+describe('close・isOpen', () => {
     it('閉じているものを close しても close イベントは出ない', () => {
         sheet.init(world());
         const onClose = vi.fn();
@@ -263,19 +263,6 @@ describe('close・isOpen・anyOpen', () => {
         expect(sheet.isOpen(world())).toBe(false);
         sheet.open(world());
         expect(sheet.isOpen(world())).toBe(true);
-    });
-
-    it('anyOpen はページのどれかの <dialog> が開いている間だけ true', () => {
-        sheet.init(world());
-        sheet.init(share());
-        expect(sheet.anyOpen()).toBe(false);
-        sheet.open(share());
-        expect(sheet.anyOpen()).toBe(true);
-        sheet.open(world());
-        sheet.close(share());
-        expect(sheet.anyOpen()).toBe(true);
-        sheet.close(world());
-        expect(sheet.anyOpen()).toBe(false);
     });
 });
 

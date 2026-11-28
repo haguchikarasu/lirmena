@@ -210,11 +210,8 @@ describe('keydown（受ける場面と、頼む量）', () => {
         expect(scrollTo).not.toHaveBeenCalled();
     });
 
-    it('メニューが開いているときは受けない', () => {
-        document.body.insertAdjacentHTML('beforeend', '<div id="menu-panel"></div>');
-        press('End');
-        expect(scrollTo).not.toHaveBeenCalled();
-    });
+    // 「メニューが開いているときは受けない」はここでは見ない：メニューは popover で、開いているかは :popover-open で
+    // 決まる。jsdom はこの擬似クラスに一致させられないので、e2e/keyboard-scroll.spec.ts の K7 と e2e/menu.spec.ts が実物で見る
 
     it('ほかの処理が止めたキーは受けない', () => {
         const stop = (e: Event) => e.preventDefault();

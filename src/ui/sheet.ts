@@ -8,7 +8,6 @@
  *         open(dlg: HTMLDialogElement, opts?: { detent?: Detent; opener?: HTMLElement | null }): void
  *         close(dlg: HTMLDialogElement): void
  *         isOpen(dlg: HTMLDialogElement | null): boolean
- *         anyOpen(): boolean — ページに開いている <dialog> があるか（Escape・鑑賞モードの判定が使う）
  * 依存: DOM だけ。ui 層＝reader 層を import しない。
  *
  * 器の約束（design/modules/sheet.md）：
@@ -89,12 +88,6 @@ export function isOpen(dlg: HTMLDialogElement | null): boolean {
     return dlg?.open ?? false;
 }
 
-// anyOpen(): boolean
-// 開いている <dialog>（シート・確認）があるか。各ページの Escape 処理は、これが true の間は手を出さない
-// （閉じる順番はブラウザが持つ）。鑑賞モードは CSS セレクタ dialog[open] で同じことを見ている（immersive.ts）。
-export function anyOpen(): boolean {
-    return document.querySelector('dialog[open]') !== null;
-}
 
 // 掴んで動かせる高さの上限（画面の高さに対する割合）。_sheet.css の full（92dvh）と同じ値
 const MAX_RATIO = 0.92;

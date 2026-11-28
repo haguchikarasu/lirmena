@@ -4,7 +4,7 @@
  *       メニューから開くシート（<dialog>。器は ui/sheet、中身は各部品）で、本文の上に重なる＝ページも読書位置も動かない。
  * export: init(characters: CharactersData): void
  * 依存: axis.ts（栞保存位置をスクロール範囲比＝forward 進行 px ÷ 可動域で取得）, state.ts（現ページの巻＝Stage の特定）,
- *       bookmark.ts, settings.ts, transition.ts, tutorial.ts, ui/share.ts, ui/sheet.ts（栞シートの器と dialog[open] の判定）,
+ *       bookmark.ts, settings.ts, transition.ts, tutorial.ts, ui/share.ts, ui/sheet.ts（栞シートの器）,
  *       ui/world-sheet.ts（資料シート）
  *
  * メニュー項目と処理（順序は要件 06-2）：
@@ -19,7 +19,7 @@
  *   資料の 3 つ（キャラクター紹介・エシュカ地図・用語集）は区切りで挟んでまとめる（アイコンの色は全項目で同じ。_ui.css）。
  *   各項目の頭にアイコン（templates/reader.html の #menu-icon-tpl を data-icon の名前で複製。飾り＝読み上げない）。
  *   閉じたときのフォーカス戻り先に _toggle（メニューボタン）を渡すのは、項目を押すとメニューを閉じてから開く
- *   ＝押されたメニュー項目はもう hidden の中にいるため。
+ *   ＝押されたメニュー項目はもう閉じたパネルの中にいるため。
  *
  * ※ マシュマロは本文末の #btn-share-marshmallow に集約（feedback.ts が管理）。メニューからの導線は持たない
  *
@@ -28,16 +28,19 @@
  *   - スロット押下で bookmark.addBookmark(state.getCurrent(), ratio, slot)（ratio＝forward 進行 px ÷ 可動域＝スクロール範囲比 0〜1）を呼んで上書き保存する
  *   - 保存済みスロットのラベルは「スロット○：第N話 #S（NN%）　MM/DD HH:MM」形式で、位置は ratio×100 を四捨五入した百分率を丸括弧で示す（空きは「空き」のみ・％表示なし）
  *
- * 開閉制御（メニュー）：
- *   - メニューボタン押下でトグル
- *   - Escape キーで閉じる。ただしシートか確認（<dialog>）が開いている間は手を出さない＝一番上の <dialog> を
- *     ブラウザが閉じる（以前はここに「栞→共有→キャラ→地図→用語→メニュー」の順番を手書きしていた）。
- *     用語の検索欄・日本語の変換中の例外は glossary.handleEscape が ui/sheet の onEscape として持つ
- *   - メニュー外クリックで閉じる
+ * 開閉制御（メニュー）：パネルは popover（templates/reader.html の popover="auto"）で、開閉はブラウザが持つ。
+ *   - メニューボタン（commandfor / command="toggle-popover"）を押す・Enter・Space でトグル
+ *   - Escape・メニュー外のクリックやタップで閉じる（ブラウザの light dismiss。ここに手書きの処理は無い）
+ *   - ここが足すのは 4 つ：aria-expanded の同期／キーボードで開いたときだけ先頭の項目へフォーカスを入れる
+ *     （マウスやタップで開いたときはボタンに残す）／閉じるときフォーカスが中にあればボタンへ戻す／
+ *     フォーカスがメニューの外へ出たら閉じる（Tab で出たとき）
+ *   - 開いているかは _panel.matches(':popover-open') で見る（immersive.ts の isOverlayOpen も同じ擬似クラスを読む）
+ *   - シートや確認（<dialog> の showModal）を開くと、ブラウザが popover を閉じる。項目の click は先に自分で閉じる
  *
- * キーボード操作：
- *   - メニュー内で上下キーによる項目選択（disabled 項目はスキップ）
- *   - Enter で実行
+ * キーボード操作（開いている間）：
+ *   - 上下キーで項目を移る（disabled 項目はスキップ。端では止まる）。Home / End で最初 / 最後へ
+ *   - Enter・Space で実行（<button> の既定の動き）
+ *   - 閉じているときの上下キーには手を出さない（本文のスクロール＝keyscroll.ts）
  *
  * 注意：
  *   - 「栞をすべて消す」「既読を消す」は設定シート（ui/settings-panel）のボタンが担当する。
@@ -58,6 +61,7 @@ import type { StoryStage } from './volumes';
 
 let _toggle: HTMLButtonElement;
 let _panel: HTMLElement;
+let _enterOnOpen = false;   // 次に開いたとき先頭の項目へフォーカスを入れるか（キーボードで開いたときだけ true）
 let _bookmark: HTMLDialogElement | null = null;
 let _items: HTMLButtonElement[] = [];
 let _charactersData: CharactersData = [];
@@ -82,12 +86,8 @@ export function init(characters: CharactersData): void {
 // #menu-panel にメニュー項目ボタンとセパレータを生成して追加する。
 // _buildItems(): void
 function _buildItems(): void {
-    const sep = (): HTMLElement => {
-        const el = document.createElement('div');
-        el.className = 'menu-sep';
-        el.setAttribute('aria-hidden', 'true');
-        return el;
-    };
+    // 区切りは <hr>（読み上げにも区切りとして伝わり、フォーカスは止まらない）
+    const sep = (): HTMLElement => document.createElement('hr');
 
     // アイコンの見本（#menu-icon-tpl）。無ければ文字だけの項目になる
     const icons = (document.getElementById('menu-icon-tpl') as HTMLTemplateElement | null)?.content;
@@ -119,7 +119,7 @@ function _buildItems(): void {
     });
 
     // 閉じたときのフォーカス戻り先に _toggle を渡す：makeBtn は handler の前に _close() するので、
-    // 押されたこのボタン自身はもう hidden のパネルの中にいる（戻しても見えない）
+    // 押されたこのボタン自身はもう閉じたパネルの中にいる（戻しても見えない）
     const btnCharacters = makeBtn('人物', 'people', () => {
         worldSheet.open('characters', _toggle);
     }, 'menu-item--world');
@@ -212,19 +212,22 @@ function _openBookmarkPopup(): void {
     sheet.open(_bookmark, { opener: _toggle });
 }
 
-// メニューを開く。最初の有効項目にフォーカスする。
-// _open(): void
-function _open(): void {
-    _panel.hidden = false;
-    _toggle.setAttribute('aria-expanded', 'true');
-    _items.find(b => !b.disabled)?.focus();
+// メニューが開いているか（popover の状態そのものを読む。別の変数に写さない）。
+// _isOpen(): boolean
+function _isOpen(): boolean {
+    return _panel.matches(':popover-open');
 }
 
-// メニューを閉じる。
+// メニューを閉じる。閉じていれば何もしない（閉じた popover の hidePopover() は例外になる）。
 // _close(): void
 function _close(): void {
-    _panel.hidden = true;
-    _toggle.setAttribute('aria-expanded', 'false');
+    if (_isOpen()) _panel.hidePopover();
+}
+
+// 押せる項目（disabled でないもの）。
+// _enabledItems(): HTMLButtonElement[]
+function _enabledItems(): HTMLButtonElement[] {
+    return _items.filter(b => !b.disabled);
 }
 
 // 現ページ（本文 ep、あとがきモードなら現在 vol）が属する Stage（資料シートの人物のタブに渡す）。
@@ -239,43 +242,56 @@ function _pageStage(): StoryStage {
     return (state.getCurrentVolume()?.volume ?? 1) as StoryStage;
 }
 
-// メニューボタン・Escape・外部クリック・上下キーのイベントを登録する。
+// 開閉に付随する処理（aria-expanded・フォーカス）と、開いている間のキー操作を登録する。開閉そのものはブラウザ。
 // _registerEvents(): void
 function _registerEvents(): void {
-    _toggle.addEventListener('click', () => {
-        if (_panel.hidden) _open(); else _close();
+    // キーボードで開くとき（Enter・Space が作る click は detail が 0）だけ、開いたあと先頭の項目へ入る。
+    // この click の既定の動き（command="toggle-popover"）が、このあとパネルを開閉する。
+    _toggle.addEventListener('click', (e) => {
+        _enterOnOpen = e.detail === 0 && !_isOpen();
+    });
+
+    // 閉じる直前：フォーカスが中にあればボタンへ戻す（Escape・項目の実行）。外へ出て閉じるとき（Tab・外側のクリック）は
+    // フォーカスはもう外にあるので動かさない。ブラウザも戻すが、戻り先は「開いたときにフォーカスがあった所」＝
+    // クリックでボタンにフォーカスが入らないブラウザでは body になる。
+    _panel.addEventListener('beforetoggle', (ev) => {
+        const e = ev as ToggleEvent;
+        if (e.newState === 'closed' && _panel.contains(document.activeElement)) _toggle.focus();
+    });
+
+    // 開閉のあと：aria-expanded を合わせ、キーボードで開いたなら先頭へ（command の時点ではまだ開いていない）
+    _panel.addEventListener('toggle', (ev) => {
+        const e = ev as ToggleEvent;
+        const open = e.newState === 'open';
+        _toggle.setAttribute('aria-expanded', String(open));
+        // この通知は開いた少しあとに届く。その間に ↓ などで中へ入っていたら、先頭へ引き戻さない
+        if (open && _enterOnOpen && !_panel.contains(document.activeElement)) _enabledItems()[0]?.focus();
+        _enterOnOpen = false;
+    });
+
+    // フォーカスがメニュー（ボタンとパネル）の外へ出たら閉じる。Tab は閉じ込めない
+    document.addEventListener('focusin', (e) => {
+        if (!_isOpen()) return;
+        const target = e.target as Node;
+        if (!_toggle.contains(target) && !_panel.contains(target)) _close();
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            // シートか確認（<dialog>）が開いていれば、一番上のものをブラウザが閉じる（冒頭コメント）
-            if (sheet.anyOpen()) return;
-            if (!_panel.hidden) {
-                _close();
-                _toggle.focus();
-            }
-            return;
-        }
-
-        if (_panel.hidden) return;
-
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            const idx = _items.indexOf(document.activeElement as HTMLButtonElement);
-            if (e.key === 'ArrowDown') {
-                const start = idx === -1 ? 0 : idx + 1;
-                _items.slice(start).find(b => !b.disabled)?.focus();
-            } else {
-                if (idx <= 0) return;
-                _items.slice(0, idx).reverse().find(b => !b.disabled)?.focus();
-            }
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        const target = e.target as Node;
-        if (!_panel.hidden && !_toggle.contains(target) && !_panel.contains(target)) {
-            _close();
-        }
+        if (!_isOpen()) return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        const items = _enabledItems();
+        const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+        // 最後の項目からの Tab：メニューはページの最後の部品なので、フォーカスはページの外（ブラウザの UI）へ出て
+        // focusin が来ない。ここで閉じる（フォーカスはいったんボタンへ戻り、Tab の既定の動きでその先へ進む）
+        if (e.key === 'Tab' && !e.shiftKey && idx === items.length - 1) { _close(); return; }
+        let next: HTMLButtonElement | undefined;
+        // フォーカスが項目に無いとき（マウスで開いた直後）は、↓ で先頭へ入る。端では止まる（回り込まない）
+        if (e.key === 'ArrowDown') next = items[idx + 1] ?? items[idx];
+        else if (e.key === 'ArrowUp') next = idx <= 0 ? items[idx] : items[idx - 1];
+        else if (e.key === 'Home') next = items[0];
+        else if (e.key === 'End') next = items[items.length - 1];
+        else return;
+        e.preventDefault();   // パネルの中のスクロールと、本文のスクロール（keyscroll.ts）へ流さない
+        next?.focus();
     });
 }

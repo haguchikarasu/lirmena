@@ -15,8 +15,8 @@
  *   - タップ/クリック: pointerdown→pointerup の移動量がしきい値未満（TAP_PX）かつ時間がしきい値未満（TAP_MS）の
  *     「その場の軽い操作」だけをトグルとみなす。移動量の大きいスワイプ/ドラッグは無視＝ネイティブ横スクロール／
  *     pan.ts に委ね、スワイプを邪魔しない。ボタン・FAB・読書点ノブ・シート等の上は対象外（各自の挙動を温存）。
- *   - Esc: capture フェーズで menu.ts より先に判定する。鑑賞モード中は抜ける。モード外でシート/メニューが
- *     開いていれば何もしない（シートはブラウザが、メニューは menu.ts が閉じる）。何も開いていなければ入る。
+ *   - Esc: keydown の capture フェーズで判定する（ブラウザが閉じるより前）。鑑賞モード中は抜ける。モード外で
+ *     シート/メニューが開いていれば何もしない（どちらもブラウザが閉じる）。何も開いていなければ入る。
  *
  * enter のガード（入れない条件）:
  *   - 開幕中（<html>.at-opening＝本文先頭の黒い余白）は背景がわざと黒で鑑賞対象がないため入らない。
@@ -38,8 +38,8 @@ const IGNORE_TAP_SELECTOR = 'button, a, .reading-anchor-cap, #menu-container, di
 
 // 「ポップアップ/メニューが開いている」とみなす要素。開いている間は鑑賞モードへ入らない。
 // ポップアップは全部 <dialog>（シート・確認・初回の読み方選択・初回ガイド）。hidden ではなく open で開閉するので
-// dialog[open] で見る。
-const OVERLAY_OPEN_SELECTOR = '#menu-panel:not([hidden]), dialog[open]';
+// dialog[open] で見る。メニューは popover なので :popover-open で見る。
+const OVERLAY_OPEN_SELECTOR = '#menu-panel:popover-open, dialog[open]';
 
 // タップ判定の作業状態（pointerdown で記録し、move で打ち切り、up で確定する）。
 let _candidate = false;
@@ -50,7 +50,7 @@ let _downT = 0;
 // Esc とタップ/クリックの入力を購読する。main.ts が起動時に1度だけ呼ぶ。
 // init(): void
 export function init(): void {
-  // Esc は capture フェーズで先に拾い、ポップアップが開いていれば menu.ts の「閉じる」へ譲る（入らない）。
+  // Esc は capture フェーズで先に拾い、ポップアップかメニューが開いていればブラウザの「閉じる」へ譲る（入らない）。
   document.addEventListener('keydown', _onKeyDown, true);
 
   // 鑑賞モード中は #main-container が pointer-events:none になり対象が body へ落ちるため、確実に拾えるよう
@@ -79,7 +79,7 @@ export function isOverlayOpen(): boolean {
 function _onKeyDown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return;
   if (isImmersive()) _exit();
-  else _enter(); // _enter 自身が開幕・選択モード・ポップアップ開を弾く（capture なので menu.ts の閉じる前に判定）
+  else _enter(); // _enter 自身が開幕・選択モード・ポップアップ開を弾く（keydown の時点ではまだ閉じていない）
 }
 
 // 押下時の状態を記録し、タップ候補かどうかを決める。
@@ -90,6 +90,8 @@ function _onPointerDown(e: PointerEvent): void {
   if (e.shiftKey) return;                                              // Shift 同伴のクリックはブラウザ既定の動作（Shift+クリック等）に譲る
   if (document.documentElement.classList.contains('is-selecting')) return; // 選択モード中（is-selecting）は発動しない
   if (e.target instanceof Element && e.target.closest(IGNORE_TAP_SELECTOR)) return; // ボタン・FAB・ノブ・ポップアップ上は対象外
+  // メニューを閉じるための外側のタップ。ブラウザは指を離す前にメニューを閉じうるので、離した時ではなく押した時に見る
+  if (isOverlayOpen()) return;
   _candidate = true;
   _downX = e.clientX;
   _downY = e.clientY;

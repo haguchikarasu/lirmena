@@ -195,8 +195,9 @@
 
   <!-- 右下ナビゲーションメニュー（menu.ts が操作） -->
   <nav id="menu-container" aria-label="メニュー">
-    <button id="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
-    <div id="menu-panel" hidden></div>
+    <button id="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false" commandfor="menu-panel" command="toggle-popover">☰</button>
+    <!-- ボタンのすぐ後ろに置く（離すと、ブラウザが読み上げ向けの関連付けを余分に足す） -->
+    <div id="menu-panel" popover="auto"></div>
   </nav>
   <!-- メニューの各項目のアイコン（menu.ts が data-icon の名前で複製して項目の頭に置く。項目そのものは menu.ts が組む＝
        あとがきでは「栞を追加」を出さないなど、ページで変わるため）。線は currentColor、飾りなので読み上げない -->
