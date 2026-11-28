@@ -15,6 +15,7 @@
  *     導線を持つ所だけ（ボタンを並べただけの所を「ナビゲーション」と読み上げさせない）
  *   - 本文シェル：開幕の「もどる」「読み進める」が <main> より前にある（開幕で最初の Tab が止まる先）、
  *     「読み込み中」に role を付けない（一時的な表示を読み上げさせない）
+ *   - 版種別スイッチ（目次・タイトルページ）は <legend> で始まる <fieldset> で、中は <label> で包んだチェックボックス
  *   - CSS：user-select の宣言の直前に、同じ値の -webkit-user-select がある（Safari は接頭辞つきしか読まない）
  *   - CSS：用語集（_glossary.css）の :focus-visible の規則で輪郭線を消さない。タイトルページのボタンのホバーは
  *     無効なボタンに当たらない（:hover:not(:disabled)）
@@ -207,6 +208,20 @@ describe('HTML の書き方の契約：名前・見出し・読み上げ', () =>
         expect(input).toMatch(/\sspellcheck="false"/);
         // 五十音（ジャンプ用）は検索ではないので <search> に入れない
         expect(inner).not.toContain('id="gl-kana"');
+    });
+
+    // 版種別スイッチ（目次とタイトルページに同じ markup の複製がある。文字と並びの一致は e2e/changelog-filter.spec.ts）
+    it.each([
+        ['index.html', 'content-changelog-filter'],
+        ['templates/title.html', 'title-screen-changelog-filter'],
+    ])('%s：版種別スイッチ（#%s）は <legend> で始まる <fieldset> で、中は <label> で包んだチェックボックス 3 つ', (file, id) => {
+        const html = stripNonMarkup(read(file));
+        const inner = new RegExp(`<fieldset id="${id}">([^]*?)</fieldset>`).exec(html)?.[1] ?? '';
+        expect(inner.trim()).toMatch(/^<legend>[^<]+<\/legend>/);
+        const boxes = [...inner.matchAll(/<label><input type="checkbox" name="kind" value="(\w+)"( checked)?>[^<]+<\/label>/g)];
+        expect(boxes.map(m => `${m[1]}${m[2] ?? ''}`)).toEqual(['major checked', 'minor checked', 'patch']);
+        // 名前は legend が付ける（aria-label を重ねない）。状態はチェックボックスが持つ（aria-pressed のボタンに戻さない）
+        expect(inner).not.toMatch(/<button|aria-pressed/);
     });
 });
 

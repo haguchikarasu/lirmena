@@ -115,29 +115,64 @@
   min-inline-size: 0;
 }
 
-#title-screen-changelog-filter button {
+/* 見出しは読み上げにだけ出す（高さを取らない。横向きのスマホでは履歴の枠が低い） */
+#title-screen-changelog-filter legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 札（label）の中にチェックボックスを入れ、透明にして札いっぱいに重ねてある。同じ作りが toc-page.css にある */
+#title-screen-changelog-filter label {
+  position: relative;
+  display: inline-block;
   font-size: 0.65rem;
   line-height: 1.7;
   padding: 0 0.55rem;
   border-radius: 3px;
-  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-#title-screen-changelog-filter button + button {
+#title-screen-changelog-filter label + label {
   margin-inline-start: 0.3rem;
 }
 
-#title-screen-changelog-filter button[aria-pressed="true"] {
+/* inset は枠線の内側が基準なので、-1px で枠線の上まで広げる */
+#title-screen-changelog-filter input {
+  appearance: none;
+  position: absolute;
+  inset: -1px;
+  margin: 0;
+  border-radius: inherit;
+  cursor: pointer;
+}
+
+#title-screen-changelog-filter label:has(:checked) {
   border-color: rgba(255, 255, 255, 0.7);
   color: #fff;
 }
 
-#title-screen-changelog-filter button:focus-visible {
+#title-screen-changelog-filter input:focus-visible {
   outline: 1px solid #fff;
   outline-offset: 1px;
+}
+
+/* 強制カラーでは色の差が消えるので、チェックボックスを本来の姿で札の中に出す */
+@media (forced-colors: active) {
+  #title-screen-changelog-filter input {
+    appearance: auto;
+    position: static;
+    margin-inline-end: 0.4em;
+    vertical-align: -0.1em;
+  }
 }
 
 .changelog-version a {

@@ -594,23 +594,35 @@ a.idx-chip:focus-visible { outline: 2px solid var(--idx-accent); outline-offset:
 /* 変更履歴 */
 #content-changelog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 #content-changelog-head .idx-side-label { margin: 0; }
-/* fieldset には並び方を持たせない（Safari の fieldset の flex を検証できないため）。ボタンはインラインのまま */
+/* 版種別スイッチ。札（label）の中にチェックボックスを入れ、透明にして札いっぱいに重ねてある
+   （押せる範囲もフォーカスの輪郭線も札の形。選ばれているかは :checked）。同じ作りが _title.css にある。
+   fieldset には並び方を持たせない（Safari の fieldset の flex を検証できないため）。札はインラインのまま */
 #content-changelog-filter { border: 0; min-inline-size: 0; margin: 4px 0 8px; }
-#content-changelog-filter button {
+/* 見出しは読み上げにだけ出す（すぐ上に「変更履歴」の見出しがあり、札の文字で用が足りる） */
+#content-changelog-filter legend { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#content-changelog-filter label {
+  position: relative;
+  display: inline-block;
   margin-block: 0 4px;
   margin-inline: 0 6px;
   padding: 2px 10px;
   border: 1px solid var(--idx-line);
   border-radius: 999px;
-  background: none;
-  color: #827d74;   /* 枠の地（--idx-panel を #080808 に重ねた色）で 4.8 : 1。選んでいるボタンは --idx-text */
-  font: inherit;
+  color: #827d74;   /* 枠の地（--idx-panel を #080808 に重ねた色）で 4.8 : 1。選んでいる札は --idx-text */
   font-size: 12px;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
-#content-changelog-filter button[aria-pressed="true"] { color: var(--idx-text); border-color: rgba(255, 255, 255, 0.3); }
-#content-changelog-filter button:focus-visible,
+/* inset は枠線の内側が基準なので、-1px で枠線の上まで広げる */
+#content-changelog-filter input { appearance: none; position: absolute; inset: -1px; margin: 0; border-radius: inherit; cursor: pointer; }
+#content-changelog-filter label:has(:checked) { color: var(--idx-text); border-color: rgba(255, 255, 255, 0.3); }
+#content-changelog-filter input:focus-visible,
 #content-changelog-toggle:focus-visible { outline: 2px solid var(--idx-accent); outline-offset: 1px; }
+/* 強制カラーでは色の差が消えるので、チェックボックスを本来の姿で札の中に出す */
+@media (forced-colors: active) {
+  #content-changelog-filter input { appearance: auto; position: static; margin-inline-end: 0.4em; vertical-align: -0.1em; }
+}
 #content-changelog-list { list-style: none; }
 /* すべて表示：枠の中だけをスクロールさせる（ページを伸ばさない） */
 #content-changelog-list.is-expanded { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding-inline-end: 6px; }

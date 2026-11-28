@@ -231,14 +231,17 @@ function _applyChangelogFilter(): void {
     if (empty) empty.hidden = shown > 0;
 }
 
-/** 版種別スイッチ（aria-pressed のトグル）を結線する。_renderChangelog から 1 度だけ呼ばれる。_wireChangelogFilter(): void */
+/**
+ * 版種別スイッチ（チェックボックス。value が版種別）を結線する。_renderChangelog から 1 度だけ呼ばれる。
+ * 初めに checked を _changelogKinds から書く＝再読み込みでブラウザが前のチェックを戻しても、初期値に戻る（選択は保存しない）。
+ * _wireChangelogFilter(): void
+ */
 function _wireChangelogFilter(): void {
-    document.querySelectorAll<HTMLButtonElement>('#title-screen-changelog-filter button[data-kind]').forEach(btn => {
-        const kind = btn.dataset.kind as VersionKind;
-        btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
-        btn.addEventListener('click', () => {
-            if (_changelogKinds.has(kind)) _changelogKinds.delete(kind); else _changelogKinds.add(kind);
-            btn.setAttribute('aria-pressed', String(_changelogKinds.has(kind)));
+    document.querySelectorAll<HTMLInputElement>('#title-screen-changelog-filter input[type="checkbox"]').forEach(box => {
+        const kind = box.value as VersionKind;
+        box.checked = _changelogKinds.has(kind);
+        box.addEventListener('change', () => {
+            if (box.checked) _changelogKinds.add(kind); else _changelogKinds.delete(kind);
             _applyChangelogFilter();
         });
     });

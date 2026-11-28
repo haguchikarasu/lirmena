@@ -94,9 +94,9 @@ test.describe('目次', () => {
         await expectReadable(page, '#idx-foot-ver');
     });
 
-    test('変更履歴の版種別スイッチ：選んでいないボタンも読め、選んでいるボタンとの差が残る', async ({ page }) => {
-        const off = await expectReadable(page, '#content-changelog-filter button[aria-pressed="false"]');
-        const on = await expectReadable(page, '#content-changelog-filter button[aria-pressed="true"]');
+    test('変更履歴の版種別スイッチ：選んでいない札も読め、選んでいる札との差が残る', async ({ page }) => {
+        const off = await expectReadable(page, '#content-changelog-filter label:not(:has(:checked))');
+        const on = await expectReadable(page, '#content-changelog-filter label:has(:checked)');
         expect(on).toBeGreaterThan(off + 3);
     });
 });

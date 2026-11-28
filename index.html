@@ -299,15 +299,18 @@
       <!-- 変更履歴（公開済みの話の書き直し・修正の記録。節の公開は記録しない＝版を上げない）。
            版種別スイッチは templates/title.html の #title-screen-changelog-filter と同じ markup の複製
            （同期は e2e/changelog-filter.spec.ts が見る）。言葉は版の判断基準（ops/version-control.md）を読者向けに言い換えたもの：
-           メジャー＝物語の変更／マイナー＝表現の調整／パッチ＝誤字など。ランドマークを増やさないため nav ではなく fieldset -->
+           メジャー＝物語の変更／マイナー＝表現の調整／パッチ＝誤字など。ランドマークを増やさないため nav でも search でもなく fieldset。
+           3 つは独立した入／切なのでチェックボックス（value が版種別）。legend は読み上げにだけ出す（toc-page.css）。
+           見た目は丸い札のままで、チェックボックスは透明にして札いっぱいに重ねてある -->
       <section class="idx-side-box" id="content-changelog">
         <header id="content-changelog-head">
           <h2 class="idx-side-label"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.4 2"/></svg>変更履歴</h2>
         </header>
-        <fieldset id="content-changelog-filter" aria-label="表示する変更の種類">
-          <button type="button" data-kind="major" aria-pressed="true">物語の変更</button>
-          <button type="button" data-kind="minor" aria-pressed="true">表現の調整</button>
-          <button type="button" data-kind="patch" aria-pressed="false">誤字など</button>
+        <fieldset id="content-changelog-filter">
+          <legend>表示する変更の種類</legend>
+          <label><input type="checkbox" name="kind" value="major" checked>物語の変更</label>
+          <label><input type="checkbox" name="kind" value="minor" checked>表現の調整</label>
+          <label><input type="checkbox" name="kind" value="patch">誤字など</label>
         </fieldset>
         <ol id="content-changelog-list">
           <!-- index.ts が動的に生成 -->
