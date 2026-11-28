@@ -12,6 +12,15 @@
  *                          加えて pageshow(event.persisted) を購読し、bfcache 復元（戻る/進む）でも .fading を外す
  *                          （復元時は DOMContentLoaded・init() が再実行されず黒幕が残るため。後述の設計メモ参照）。
  *   leave(url: string): void  nav.ts / title.ts / menu.ts が呼ぶ。フェードアウト後に location.href で遷移する。
+ *   setLinkUrl(a: HTMLAnchorElement, url: string | null): void
+ *                          遷移のリンク（本文末の「次へ」「第◯巻あとがき」、タイトルの「本文を読む」「前の話へ」）に
+ *                          行き先を入れる。null なら外す（行き先の無いリンク＝押せない・Tab で止まらない）。
+ *   isPlainClick(e: MouseEvent): boolean
+ *                          そのクリックを「このタブで移る」として自分で扱ってよいか。false のとき（Ctrl・Shift などを
+ *                          押している、左以外のボタン）は何もせずブラウザに任せる＝新しいタブ・新しいウィンドウで開く。
+ *   【リンクの約束】行き先は <a href> が持ち、ふつうのクリックと Enter だけを preventDefault して leave() に回す
+ *     （フェードと、移る前に書くもの＝pendingScrollEnd のため）。新しいタブで開いたときは何も書かない＝そのページを
+ *     ふつうに開いたときと同じ。雛形の <a> には href を書かない：行き先は公開状態で決まり、決めるのは state.ts だけ。
  * 【依存】なし（DOM の #transition-overlay と CSS 変数 --fade-out-duration-bg を読むのみ）
  *
  * 【設計メモ】要件 06-1 は当初 --fade-scene-* / --fade-section-* の2系統を想定していたが、実装は単一
@@ -54,6 +63,28 @@ export function leave(url: string): void {
     }
     _overlay.classList.add('fading');
     window.setTimeout(() => { location.href = url; }, _fadeOutMs());
+}
+
+// 遷移のリンクに行き先を入れる。null なら外す。
+// tabindex="0" は、Safari が既定ではリンクに Tab で止まらないため（ボタンだったときと同じく Tab で届くようにする）。
+// 行き先が無いあいだは付けない＝押せないものに Tab で止めない。
+// setLinkUrl(a: HTMLAnchorElement, url: string | null): void
+export function setLinkUrl(a: HTMLAnchorElement, url: string | null): void {
+    if (url === null) {
+        a.removeAttribute('href');
+        a.removeAttribute('tabindex');
+        return;
+    }
+    a.setAttribute('href', url);
+    a.tabIndex = 0;
+}
+
+// そのクリックを「このタブで移る」として自分で扱ってよいか。
+// 修飾キーつき（新しいタブ・ウィンドウ・保存）と左以外のボタンは、ブラウザの動きを奪わない。
+// キーボードの Enter は button 0・修飾なしの click として来る。
+// isPlainClick(e: MouseEvent): boolean
+export function isPlainClick(e: MouseEvent): boolean {
+    return e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
 }
 
 // --fade-out-duration-bg（"0.01s" 等）を ms に換算する。読めなければ 16ms。

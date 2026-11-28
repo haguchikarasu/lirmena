@@ -152,6 +152,9 @@ html.is-selecting #main-container {
 #btn-next,
 #btn-afterword {
   inline-size: calc(2 * 10rem + 8px);  /* = 2×SNS の inline-size + gap */
+  /* リンク（<a>）は親の字間と行揃えを継ぐ。ボタンだったとき（継がない）と同じ組みにする */
+  letter-spacing: normal;
+  text-align: center;
   font-weight: 500;
   border: 0.5px solid rgba(255, 255, 255, 0.32);
   background: rgba(0, 0, 0, 0.4);      /* 基底の 0.55 より薄く（背景の絵を活かす） */

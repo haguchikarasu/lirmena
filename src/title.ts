@@ -11,8 +11,9 @@
  * 画面（タイトルシェルに静的記述された DOM を querySelector で取得）:
  *   #title-screen            … 縦長フルスクリーンの器（初期 hidden、描画後に表示）
  *   #title-screen-ep-title   … ep タイトル（<h1>＝そのページの見出し。半角スペースがあれば最初のスペースで主題／副題に分割し、副題を <small> に入れて改行＋小さめ表示。改行・縮小の見た目は src/styles/_title.css 側）
- *   #btn-title-enter         … 本文を読む → 当 ep の先頭公開 sec 本文ページへ
- *   #btn-title-prev          … 戻る → 前 ep の最終 sec 本文ページの終端へ（pendingScrollEnd を書く。ep1 等は disabled）
+ *   #btn-title-enter         … 本文を読む（<a>）→ 当 ep の先頭公開 sec 本文ページへ
+ *   #btn-title-prev          … 前の話へ（<a>）→ 前 ep の最終 sec 本文ページの終端へ（ふつうのクリックで pendingScrollEnd を書く。
+ *                               ep1 等は行き先が無い＝href を外し、role="link" aria-disabled="true" の無効なリンクにする）
  *   #btn-title-index         … 目次に戻る（<a href="../">。現在ページのクエリを引き継ぐため href を JS で上書き。HTML の href はフォールバック）
  *   #title-screen-changelog  … 変更履歴の器。行は子の #title-screen-changelog-list に描く（無ければ「更新履歴なし」）。
  *                               1 件以上あれば #title-screen-changelog-head（版種別スイッチ：物語の変更＝メジャー／表現の調整＝マイナー／誤字など＝パッチの
@@ -23,7 +24,9 @@
  *   coverPositionX / coverPositionY（任意・例 "30%" / "left" / "top"）は CSS 変数 --cover-position-x / --cover-position-y に設定し、
  *   X は縦長画面・Y は横長画面のみ src/styles/_title.css 側で background-position に反映する。値の形は story-integrity (n) が保証する。
  *
- * 【ページ遷移】「本文を読む」「戻る」は transition.leave 経由（離脱フェード）。「目次に戻る」は <a href> のまま（href に現在ページのクエリを引き継ぐ）。
+ * 【ページ遷移】3 つとも <a href>。「本文を読む」「前の話へ」は、ふつうのクリックと Enter を transition.leave に回す（離脱フェード）。
+ *         Ctrl・中クリックなどはブラウザに任せる（新しいタブ。約束は transition.ts 冒頭）。行き先は title.ts が実行時に入れる
+ *         （雛形の <a> に href は無い）。「目次に戻る」はリンクのまま移る（href に現在ページのクエリを引き継ぐ）。
  *         _init 冒頭で transition.init() を呼び、シェル class="fading" を外して到着フェードインを起こす。
  */
 
@@ -134,27 +137,37 @@ function _renderEpTitleText(title: string, el: HTMLElement): void {
     el.appendChild(sub);
 }
 
-/** 3ボタンを結線する。「本文を読む」「戻る」は遷移を、「目次に戻る」は href へのクエリ引き継ぎを設定する */
-function _wireButtons(): void {
-    const enter = document.querySelector<HTMLButtonElement>('#btn-title-enter');
-    if (enter) {
-        const url = state.getTitleEnterUrl();
-        enter.disabled = url === null;
-        if (url) enter.addEventListener('click', () => { transition.leave(url); });
+/**
+ * 遷移のリンクに行き先を入れ、ふつうのクリック（と Enter）を離脱フェードつきの遷移に差し替える。
+ * 行き先が無ければ無効なリンクにする（href が無い <a> は役割を持たないので、role="link" と aria-disabled="true" で
+ * 「無効なリンク」と伝える。Tab では止まらない）。before は移る直前に 1 回呼ぶ（新しいタブで開くときは呼ばない）。
+ * _wireLink(a: HTMLAnchorElement, url: string | null, before?: () => void): void
+ */
+function _wireLink(a: HTMLAnchorElement, url: string | null, before?: () => void): void {
+    transition.setLinkUrl(a, url);
+    if (url === null) {
+        a.setAttribute('role', 'link');
+        a.setAttribute('aria-disabled', 'true');
+        return;
     }
+    a.addEventListener('click', (e) => {
+        if (!transition.isPlainClick(e)) return;
+        e.preventDefault();
+        before?.();
+        transition.leave(url);
+    });
+}
 
-    const prev = document.querySelector<HTMLButtonElement>('#btn-title-prev');
+/** 3 つのリンクを結線する。「本文を読む」「前の話へ」は行き先と遷移を、「目次に戻る」は href へのクエリ引き継ぎを設定する */
+function _wireButtons(): void {
+    const enter = document.querySelector<HTMLAnchorElement>('#btn-title-enter');
+    if (enter) _wireLink(enter, state.getTitleEnterUrl());
+
+    const prev = document.querySelector<HTMLAnchorElement>('#btn-title-prev');
     if (prev) {
         const addr = state.getTitlePrevAddress();
-        prev.disabled = addr === null;
-        if (addr) {
-            const url = state.getTitlePrevUrl()!;
-            prev.addEventListener('click', () => {
-                // 遷移先（前 ep 最終 sec）をロード時に終端へスクロールさせる（オートセーブ復元より優先）。
-                bookmark.writePendingScrollEnd(addr.ep, addr.sec);
-                transition.leave(url);
-            });
-        }
+        // 遷移先（前 ep 最終 sec）をロード時に終端へスクロールさせる（オートセーブ復元より優先）。
+        _wireLink(prev, state.getTitlePrevUrl(), addr ? () => bookmark.writePendingScrollEnd(addr.ep, addr.sec) : undefined);
     }
 
     // 目次に戻る（<a href>）。現在ページのクエリ（例 ?dev）を引き継ぐため href を JS で上書きする。

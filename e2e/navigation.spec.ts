@@ -19,8 +19,9 @@ test('目次 → タイトル(01-00) → reader(01-01)', async ({ page }) => {
     await page.waitForURL(/contents\/01-00\.html/);
     await expect(page.locator('#title-screen')).toBeVisible();
     await expect(page.locator('#title-screen-ep-title')).toContainText('太陽の行く先');
-    // 「前の話へ」は ep1 では disabled
-    await expect(page.locator('#btn-title-prev')).toBeDisabled();
+    // 「前の話へ」は ep1 では行き先が無い＝無効なリンク
+    await expect(page.locator('#btn-title-prev')).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('#btn-title-prev')).not.toHaveAttribute('href');
 
     // 「本文を読む」で reader へ
     await page.locator('#btn-title-enter').click();

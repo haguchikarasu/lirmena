@@ -287,13 +287,29 @@ describe('CSS の書き方の契約（src/styles）：フォーカスとホバ�
         expect(bad.map(r => r.selectors.join(', '))).toEqual([]);
     });
 
-    // タイトルページ（R2-15）：無効なボタンにマウスを乗せても、押せそうな見た目（地が濃くなる）にしない
-    it('_title.css の「本文を読む」「前の話へ」のホバーは、無効なボタンに当たらない', () => {
+    // タイトルページ（R2-15）：無効なリンクにマウスを乗せても、押せそうな見た目（地が濃くなる）にしない
+    it('_title.css の「本文を読む」「前の話へ」のホバーは、無効なリンクに当たらない', () => {
         const hovers = rulesOf(read('src/styles/_title.css'))
             .flatMap(r => r.selectors)
             .filter(s => /#btn-title-(enter|prev):hover/.test(s));
         expect(hovers.length).toBeGreaterThan(0);
-        for (const s of hovers) expect(s).toMatch(/:hover:not\(:disabled\)/);
+        for (const s of hovers) expect(s).toMatch(/:hover:not\(\[aria-disabled="true"\]\)/);
+    });
+});
+
+describe('HTML の書き方の契約：ページを移る導線はリンク', () => {
+    // 行き先（href）は公開状態で決まるので、雛形には書かず nav.ts / title.ts が実行時に入れる（決める所は state.ts だけ）。
+    // 押したときの扱い（ふつうのクリックはフェードして移る・Ctrl などは新しいタブ）は e2e/nav-links.spec.ts
+    it.each([
+        ['templates/reader.html', ['btn-next', 'btn-afterword']],
+        ['templates/title.html', ['btn-title-enter', 'btn-title-prev']],
+    ] as const)('%s：遷移の導線は <a> で、雛形に href・aria-label を書かない', (file, ids) => {
+        const tags = openTags(stripNonMarkup(read(file)));
+        for (const id of ids) {
+            const tag = tags.find(t => idOf(t) === id) ?? '';
+            expect(tag, `#${id}`).toMatch(/^<a[\s>]/);
+            expect(tag, `#${id}`).not.toMatch(/\s(href|aria-label|tabindex)=/);
+        }
     });
 });
 

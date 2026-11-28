@@ -137,8 +137,10 @@
   <section id="title-screen" hidden>
     <h1 id="title-screen-ep-title"></h1>
     <nav id="title-screen-nav" aria-label="ページ送り">
-      <button id="btn-title-enter" type="button">本文を読む</button>
-      <button id="btn-title-prev" type="button">前の話へ</button>
+      <!-- 3 つともページを移るのでリンク。上の 2 つの行き先（href）は title.ts が入れる（公開状態で決まるので雛形には書かない。
+           行き先が無いとき＝第 1 話の「前の話へ」などは、無効なリンクにする） -->
+      <a id="btn-title-enter">本文を読む</a>
+      <a id="btn-title-prev">前の話へ</a>
       <a id="btn-title-index" href="../">目次へもどる</a>
     </nav>
     <!-- 更新履歴。行は title.ts が #title-screen-changelog-list に描く（器ごと replaceChildren するとスイッチが消えるため分けてある）。

@@ -1,7 +1,7 @@
 /*
  * nav.ts
- * 責務: 本文ページ／巻末あとがきページの末尾ボタン（進行 #btn-next、巻末あとがき導線 #btn-afterword）の
- *       イベント登録と表示更新、戻る遷移 goPrev()（開幕アフォーダンスの「もどる」から呼ばれる）、
+ * 責務: 本文ページ／巻末あとがきページの末尾のリンク（進行 #btn-next、巻末あとがき導線 #btn-afterword。どちらも <a>）の
+ *       行き先（href）・ラベルの更新とクリックの扱い、戻る遷移 goPrev()（開幕アフォーダンスの「もどる」から呼ばれる）、
  *       sec 末尾（またはあとがき末尾）到達の検知と読了記録。
  * export: init(opts?: NavOptions), initAfterword(vol), update(), updateAfterword(), goPrev(), arm(), resetReadDetection()
  *         type NavOptions = { onReadRecorded?: () => void }
@@ -9,8 +9,9 @@
  *
  * ── 本文モード（init / update / goPrev） ──────────────────────────
  *   進行 #btn-next（読み終わり端）:
- *     - state.getNextUrl() があれば「次へ」ラベルで transition.leave 遷移
- *     - null（次 ep が無い・未公開）なら「目次へもどる」ラベル、押下で目次へ即遷移（フェードなし・要件 06-1）
+ *     - state.getNextUrl() があれば「次へ」ラベル。href はその URL。ふつうのクリック・Enter は transition.leave で移る
+ *     - null（次 ep が無い・未公開）なら「目次へもどる」ラベル。href は目次。リンクのまま移る＝フェードなし（要件 06-1）
+ *     - Ctrl・中クリックなどは何もせずブラウザに任せる（新しいタブで開く。約束は transition.ts 冒頭）
  *   巻末あとがきボタン #btn-afterword（次へボタンの直後・巻末公開 sec でのみ表示）:
  *     - state.getAfterwordUrlIfEndOfVolume() が非 null なら hidden を外し、「第◯巻あとがき」ラベルで
  *       transition.leave で当 vol のあとがきページへ遷移。次へボタンを優先（読み進め動作を最優先＝要件）。
@@ -42,8 +43,8 @@ import * as state from './state';
 import * as bookmark from './bookmark';
 import * as transition from './transition';
 
-let _btnNext!: HTMLButtonElement;
-let _btnAfterword: HTMLButtonElement | null = null;
+let _btnNext!: HTMLAnchorElement;
+let _btnAfterword: HTMLAnchorElement | null = null;
 let _mode: 'sec' | 'afterword' = 'sec';
 let _afterwordVol = 0;
 
@@ -86,20 +87,11 @@ let _onReadRecorded: (() => void) | null = null;
 export function init(opts: NavOptions = {}): void {
     _onReadRecorded = opts.onReadRecorded ?? null;
     _mode = 'sec';
-    _btnNext = document.querySelector<HTMLButtonElement>('#btn-next')!;
-    _btnAfterword = document.querySelector<HTMLButtonElement>('#btn-afterword');
+    _btnNext = document.querySelector<HTMLAnchorElement>('#btn-next')!;
+    _btnAfterword = document.querySelector<HTMLAnchorElement>('#btn-afterword');
 
-    _btnNext.addEventListener('click', () => {
-        const next = state.getNextUrl();
-        // 次がある＝離脱フェード。次 ep なし（null）＝目次へ即時遷移（フェードなし・要件 06-1）。
-        if (next) transition.leave(next);
-        else location.href = state.indexUrl();
-    });
-
-    _btnAfterword?.addEventListener('click', () => {
-        const url = state.getAfterwordUrlIfEndOfVolume();
-        if (url) transition.leave(url);
-    });
+    _wireLeave(_btnNext, state.getNextUrl);
+    if (_btnAfterword) _wireLeave(_btnAfterword, state.getAfterwordUrlIfEndOfVolume);
 
     _wireScroll();
 }
@@ -109,19 +101,28 @@ export function init(opts: NavOptions = {}): void {
 export function initAfterword(vol: number): void {
     _mode = 'afterword';
     _afterwordVol = vol;
-    _btnNext = document.querySelector<HTMLButtonElement>('#btn-next')!;
-    _btnAfterword = document.querySelector<HTMLButtonElement>('#btn-afterword');
+    _btnNext = document.querySelector<HTMLAnchorElement>('#btn-next')!;
+    _btnAfterword = document.querySelector<HTMLAnchorElement>('#btn-afterword');
 
-    _btnNext.addEventListener('click', () => {
-        const next = state.getAfterwordNextUrl();
-        if (next) transition.leave(next);
-        else location.href = state.indexUrl();
-    });
+    _wireLeave(_btnNext, state.getAfterwordNextUrl);
 
     // あとがきページからさらにあとがきに行く導線は無い＝常に hidden で維持
     if (_btnAfterword) _btnAfterword.hidden = true;
 
     _wireScroll();
+}
+
+// リンクのふつうのクリック（と Enter）を、離脱フェードつきの遷移に差し替える。
+// 行き先が無い（getUrl が null＝「目次へもどる」のとき・あとがきボタンが出ていないとき）と、ふつうでないクリック
+// （Ctrl・中クリックなど）は何もしない＝リンクの href のままブラウザが移る／新しいタブで開く。
+// _wireLeave(a: HTMLAnchorElement, getUrl: () => string | null): void
+function _wireLeave(a: HTMLAnchorElement, getUrl: () => string | null): void {
+    a.addEventListener('click', (e) => {
+        const url = getUrl();
+        if (url === null || !transition.isPlainClick(e)) return;
+        e.preventDefault();
+        transition.leave(url);
+    });
 }
 
 // scroll リスナの共通結線。init / initAfterword の両方で1度だけ呼ぶ。
@@ -154,29 +155,24 @@ function _onScroll(container: HTMLElement): void {
     }
 }
 
-// 末尾ボタン（本文モード）のラベルを現在位置に応じて更新する。main.ts が初期描画後に呼ぶ。
+// 末尾のリンク（本文モード）の行き先とラベルを現在位置に応じて更新する。main.ts が初期描画後に呼ぶ。
 // あとがきボタンの表示制御も併せて行う（巻末公開 sec のときのみ表示）。
 // update(): void
 export function update(): void {
     if (_mode !== 'sec') return;
-    const next = state.getNextUrl();
-    _btnNext.disabled = false;
-    _btnNext.classList.add('is-text-label');
-    const label = next === null ? BTN_NEXT_INDEX_TEXT : BTN_NEXT_NEXT_TEXT;
-    _btnNext.textContent = label;
-    _btnNext.setAttribute('aria-label', label);
+    _setNext(state.getNextUrl());
 
     // 巻末公開 sec かつ afterword.published=true のときのみ #btn-afterword を出す
     if (_btnAfterword) {
         const afterwordUrl = state.getAfterwordUrlIfEndOfVolume();
         const vol = state.getCurrentVolume();
         if (afterwordUrl !== null && vol) {
-            const lbl = afterwordLabel(vol.volume);
-            _btnAfterword.textContent = lbl;
-            _btnAfterword.setAttribute('aria-label', lbl);
+            _btnAfterword.textContent = afterwordLabel(vol.volume);
             _btnAfterword.classList.add('is-text-label');
+            transition.setLinkUrl(_btnAfterword, afterwordUrl);
             _btnAfterword.hidden = false;
         } else {
+            transition.setLinkUrl(_btnAfterword, null);
             _btnAfterword.hidden = true;
         }
     }
@@ -186,13 +182,17 @@ export function update(): void {
 // updateAfterword(): void
 export function updateAfterword(): void {
     if (_mode !== 'afterword') return;
-    const next = state.getAfterwordNextUrl();
-    _btnNext.disabled = false;
-    _btnNext.classList.add('is-text-label');
-    const label = next === null ? BTN_NEXT_INDEX_TEXT : BTN_NEXT_NEXT_TEXT;
-    _btnNext.textContent = label;
-    _btnNext.setAttribute('aria-label', label);
+    _setNext(state.getAfterwordNextUrl());
     if (_btnAfterword) _btnAfterword.hidden = true;
+}
+
+// 進行のリンクに行き先とラベルを入れる。次が無ければ「目次へもどる」で、行き先は目次。
+// 名前は見えている文字がそのまま付く（aria-label を重ねない）。
+// _setNext(next: string | null): void
+function _setNext(next: string | null): void {
+    _btnNext.classList.add('is-text-label');
+    _btnNext.textContent = next === null ? BTN_NEXT_INDEX_TEXT : BTN_NEXT_NEXT_TEXT;
+    transition.setLinkUrl(_btnNext, next ?? state.indexUrl());
 }
 
 // 読了検知を有効化する。main.ts が初期スクロール復元のプログラム的スクロール発火後に呼ぶ。

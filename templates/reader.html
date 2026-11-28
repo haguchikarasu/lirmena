@@ -172,12 +172,13 @@
     <article id="scene-content" hidden></article>
     <!-- 本文末の進む導線。Tab の順は DOM の順（正の tabindex で前へ出さない。要件 08） -->
     <nav id="btn-container-end" class="btn-container" aria-label="ページ送り">
-      <button id="btn-next" type="button" aria-label="次へ">次へ</button>
-      <!-- 巻末sec 本文ページの「次へ」の後ろに出す「◯巻あとがき」ボタン。
+      <!-- 進む導線はページを移るのでリンク。行き先（href）は nav.ts が入れる（公開状態で決まるので雛形には書かない） -->
+      <a id="btn-next">次へ</a>
+      <!-- 巻末sec 本文ページの「次へ」の後ろに出す「◯巻あとがき」のリンク。
            本文モードで自 vol の巻末公開 sec かつ story.json の当 vol afterword.published=true のとき、
            nav.ts が hidden を外して当 vol のあとがきページへ遷移する。あとがきページでは常に hidden。
            label は nav.ts が state.getCurrentVolume().volume を元に「第◯巻あとがき」に差し替える。 -->
-      <button id="btn-afterword" type="button" hidden></button>
+      <a id="btn-afterword" hidden></a>
       <div id="btn-share-group" hidden>
         <p id="btn-share-heading">感想を届ける</p>
         <div id="btn-share-row">
